@@ -1,0 +1,29 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+
+catalogMode: prefer
+
+catalog:
+  "@cloudflare/vite-plugin": ^1.63.1
+  "@tailwindcss/vite": ^4.3.3
+  "@tanstack/react-router": ^1.170.42
+  "@tanstack/router-plugin": ^1.168.43
+  "@types/node": ^24
+  hono: ^4.13.13
+  tailwindcss: ^4.3.3
+  typescript: ^7.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.9
+  vite-plus: 0.2.9
+  wrangler: ^4.149.0
+overrides:
+  vite: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+allowBuilds:
+  esbuild: true
+  workerd: true
