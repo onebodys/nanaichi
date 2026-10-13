@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "kamae": {
+      "source": "iwasa-kosui/kamae-ts",
+      "sourceType": "github",
+      "skillPath": "skills/kamae/SKILL.md",
+      "computedHash": "d102a8f93a2e9d5405bf29930a2ee37e1bac5d2f2264242ad4d0083c776002c3"
+    }
+  }
+}
