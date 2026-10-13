@@ -77,7 +77,9 @@ Obsidian と手元のポモドーロタイマーをやめて、**nanaichi だけ
 - 認証: Better Auth + Google ログイン
 - データ: D1（認証・将来の課金）+ ユーザーごとの Durable Object（タイマー状態・セッション・ジャーナル記入）（ADR 0002）
 - タイマー状態は時刻とイベントから計算する（ADR 0003）
-- pnpm monorepo、最初は `apps/web` のみ（ADR 0006）
+- Vite+（`vp`）の pnpm monorepo。lint は Oxlint、フォーマットは Oxfmt。最初は `apps/web` のみ（ADR 0006）
+- UI は Tailwind CSS v4 + shadcn/ui
+- ドッグフーディング中の URL は `*.workers.dev`
 - 本番環境のみ。main への push で GitHub Actions から `wrangler deploy`
 
 ## 長期ゴール（スコープ外だが設計上想定しておく）
