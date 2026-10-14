@@ -3,10 +3,22 @@
   "name": "nanaichi",
   "main": "./src/server/index.ts",
   "compatibility_date": "2026-10-01",
+  // Better Auth は AsyncLocalStorage を使うため nodejs_compat が必要
+  // https://better-auth.com/docs/integrations/hono#cloudflare-workers
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nanaichi",
+      // `wrangler d1 create nanaichi` が表示する database_id に置き換える。
+      // ローカル開発（wrangler dev）ではローカル SQLite の識別子になるだけなので、実在しなくても動く。
+      "database_id": "00000000-0000-0000-0000-000000000000",
+    },
+  ],
   "durable_objects": {
     "bindings": [{ "name": "USER_DO", "class_name": "UserDO" }],
   },
