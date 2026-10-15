@@ -2,13 +2,16 @@ import { HTTPException } from "hono/http-exception";
 
 /**
  * この Worker を配信しているホストとして受け付けるもの。
- * 本番は workers.dev、開発は Vite の dev サーバー。
  *
- * ワイルドカードは workers.dev のサブドメインを想定している。実際に OAuth を通せるのは
- * Google Cloud Console にリダイレクト URI を登録したホストだけなので、ここを広げても
- * 他人のホストでログインが成立することはない。
+ * 本番は `wrangler deploy` の配信先（`wrangler.jsonc` の name とアカウントの workers.dev
+ * サブドメインで決まる）、開発は Vite の dev サーバー。Worker 名やサブドメインを変えたら
+ * ここも直す。Google Cloud Console に登録したリダイレクト URI と揃っている必要がある。
  */
-const ALLOWED_HOSTS = ["localhost:5173", "127.0.0.1:5173", "*.workers.dev"] as const;
+const ALLOWED_HOSTS = [
+  "localhost:5173",
+  "127.0.0.1:5173",
+  "nanaichi.onori-black1984.workers.dev",
+] as const;
 
 const matchesHost = (pattern: string, host: string): boolean =>
   pattern.startsWith("*.") ? host.endsWith(pattern.slice(1)) : pattern === host;

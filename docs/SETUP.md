@@ -15,7 +15,11 @@ Google ログインに使う OAuth 2.0 クライアントを作る。
    - アプリケーションの種類: **ウェブ アプリケーション**
    - 承認済みのリダイレクト URI に次の2つを登録する
      - `http://localhost:5173/api/auth/callback/google`（ローカル開発）
-     - `https://nanaichi.<あなたのサブドメイン>.workers.dev/api/auth/callback/google`（本番）
+     - `https://nanaichi.onori-black1984.workers.dev/api/auth/callback/google`（本番）
+
+   本番の URL は `wrangler.jsonc` の `name`（`nanaichi`）とアカウントの workers.dev サブドメイン
+   （`onori-black1984`）で決まる。Worker 名やサブドメインを変えたら、Google 側と
+   `apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` の両方を直す。
 
    パスは Better Auth の既定（`/api/auth/callback/google`）。`apps/web/src/server/app.ts` が Hono の
    `basePath("/api")` に `/auth/*` を載せているため、この形になる。
@@ -30,14 +34,19 @@ Google ログインに使う OAuth 2.0 クライアントを作る。
 `wrangler` にログインしていない状態から始める。
 
 ```bash
-cd apps/web
-npx wrangler login
+pnpm cf login
 ```
+
+> **`wrangler` は必ず `apps/web` で実行する。** `wrangler.jsonc` はそこにしかなく、
+> リポジトリ直下で実行すると
+> `Required Worker name missing. Please specify the Worker name in your Wrangler configuration file...`
+> になる（Worker が無いという意味ではない）。`pnpm cf` は `apps/web` で実行されるので、
+> リポジトリのどこから叩いてもよい。
 
 ### D1 データベース
 
 ```bash
-npx wrangler d1 create nanaichi
+pnpm cf d1 create nanaichi
 ```
 
 表示された `database_id` を `apps/web/wrangler.jsonc` の `d1_databases[0].database_id` に貼る
@@ -45,31 +54,33 @@ npx wrangler d1 create nanaichi
 
 ### secret の登録
 
-4つの値はリポジトリに置かない。本番用に登録する。
+4つの値はリポジトリに置かない。本番用に登録する。Worker を先に作る必要はない
+（初回の `secret put` で Worker が作られる）。
 
 ```bash
-npx wrangler secret put BETTER_AUTH_SECRET   # openssl rand -base64 32 などで生成した32文字以上
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put ALLOWED_EMAILS       # 例: me@example.com,partner@example.com
+pnpm cf secret put BETTER_AUTH_SECRET   # openssl rand -base64 32 などで生成した32文字以上
+pnpm cf secret put GOOGLE_CLIENT_ID
+pnpm cf secret put GOOGLE_CLIENT_SECRET
+pnpm cf secret put ALLOWED_EMAILS       # 例: me@example.com,partner@example.com
 ```
 
 `ALLOWED_EMAILS` はメールアドレス（PII）なので `vars` ではなく secret にしている。
 `wrangler.jsonc` に書くとリポジトリに残ってしまう。
 
+登録できたかは `pnpm cf secret list` で確認できる（値は表示されない）。
+
 ### マイグレーションの適用
 
 ```bash
-npx wrangler d1 migrations apply nanaichi --remote
+pnpm cf d1 migrations apply nanaichi --remote
 ```
 
 ## 3. ローカル開発
 
 ```bash
-cd apps/web
-cp .dev.vars.example .dev.vars   # 値を埋める
-npx wrangler d1 migrations apply nanaichi --local
-pnpm dev                          # http://localhost:5173
+cp apps/web/.dev.vars.example apps/web/.dev.vars   # 値を埋める
+pnpm cf d1 migrations apply nanaichi --local
+pnpm dev                                           # http://localhost:5173
 ```
 
 `apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` は `localhost:5173` を前提にしている。
