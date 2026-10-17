@@ -7,6 +7,7 @@ catalogMode: prefer
 
 catalog:
   "@cloudflare/vite-plugin": ^1.63.1
+  "@e2e-dev/web": ^0.15.1
   "@praha/byethrow": ^0.12.0
   "@standard-schema/spec": ^1.1.0
   "@tailwindcss/vite": ^4.3.3
@@ -14,6 +15,7 @@ catalog:
   "@tanstack/router-plugin": ^1.168.43
   "@types/node": ^24
   better-auth: ^1.7.7
+  e2e: ^0.21.1
   hono: ^4.13.13
   miniflare: 5.20261006.1-alpha
   tailwindcss: ^4.3.3

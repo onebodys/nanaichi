@@ -90,3 +90,7 @@ Vite が別のポートを使うとログインが 400 で弾かれる。
 
 main への push で GitHub Actions が `vp check` → `vp test` → `wrangler deploy` を実行する。
 secret は Cloudflare 側に残るため、デプロイのたびに登録し直す必要はない。
+
+## 5. E2E テスト
+
+`pnpm test:e2e` で chromium の E2E テストを実行する。詳しくは [`E2E.md`](./E2E.md)。
