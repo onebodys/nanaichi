@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authFor } from "./auth-context.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { requireSession } from "./require-session.ts";
+import { sessionRoutes } from "./session-routes.ts";
 
 export const app = new Hono<AppEnv>().basePath("/api");
 
@@ -16,5 +17,6 @@ authenticated.get("/me", (c) => {
   const { user } = sessionOf(c);
   return c.json({ user: { id: user.id, name: user.name, email: user.email, image: user.image } });
 });
+authenticated.route("/", sessionRoutes);
 
 app.route("/", authenticated);

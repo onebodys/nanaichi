@@ -54,7 +54,7 @@ type Break = Readonly<{
   clock: Clock;
 }>;
 
-type Ended = Readonly<{
+export type Ended = Readonly<{
   kind: "Ended";
   endedAt: Date;
   endedBy: "End" | "AutoEnd";
@@ -63,14 +63,16 @@ type Ended = Readonly<{
 
 export type TimerState = Idle | Focus | Journal | Break | Ended;
 
+/** その状態ではできない操作（休憩中の中断、待機中の一時停止、終了後の操作など） */
+export type OperationRejected = Readonly<{
+  kind: "OperationRejected";
+  operation: SessionOperation["kind"];
+  at: Date;
+  during: TimerState["kind"];
+}>;
+
 type DeriveTimerStateError =
-  /** その状態ではできない操作（休憩中の中断、待機中の一時停止、終了後の操作など） */
-  | Readonly<{
-      kind: "OperationRejected";
-      operation: SessionOperation["kind"];
-      at: Date;
-      during: TimerState["kind"];
-    }>
+  | OperationRejected
   /** 操作イベントが時刻の順に並んでいない */
   | Readonly<{ kind: "EventOutOfOrder"; at: Date }>;
 
@@ -413,3 +415,17 @@ export const deriveTimerState = (
     }),
   );
 };
+
+/**
+ * 記入も操作もないまま過ぎれば自動終了する時刻（最後の記入・操作から2ラウンド分の位置）。
+ *
+ * 自動終了そのものは `deriveTimerState` が時刻から計算する。サーバーはこの時刻に alarm を張り、
+ * 記入や操作があるたびに張り直すことで、誰も見ていなくても自動終了を記録に残す。
+ */
+export const autoEndDueAt = (events: SessionEvents, journalEntryTimes: ReadonlyArray<Date>): Date =>
+  new Date(
+    Math.max(
+      ...events.map((event) => event.at.getTime()),
+      ...journalEntryTimes.map((at) => at.getTime()),
+    ) + AUTO_END_AFTER_MS,
+  );

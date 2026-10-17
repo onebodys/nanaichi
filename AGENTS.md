@@ -20,6 +20,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
   - 検証できなかったこと・未確認のこと
 - **テストを仕様として読めるようにする**: ドメインとワークフローのテスト名は日本語で、`GLOSSARY.md` の用語を使った場面として書く（例: `集中中に中断すると不成立セットになり待機に戻る`）。テスト一覧がそのまま仕様の確認リストになるようにする。
 - **認証が絡む API はローカルの結合テストで確かめる**: `apps/web/src/server/auth-test-harness.ts` が miniflare の D1 と Better Auth の `testUtils` でログイン済みのセッションを作る。Cloudflare や Google に繋がずに `vp test` だけで検証できるので、`/api/*` にエンドポイントを足したら未ログイン（401）とログイン済みの振る舞いをこれでテストする。
+  - UserDO（Durable Object）を通る API は Node では動かせないので、`*.workers.test.ts` に書き、`@cloudflare/vitest-plugin` で Workers ランタイムの上で動かす（`vitest.workers.config.ts`、土台は `apps/web/src/server/workers-test-harness.ts`）。時刻は `vi.setSystemTime` で進め、alarm は `runDurableObjectAlarm` で鳴らす。
 - **Issue の完了条件を満たしたことを示す**: PR は対応する Issue の完了条件を1つずつ、どう満たしたかに対応づける。
 
 ## 2. ユースケースは ROP で読めるように書く
@@ -77,7 +78,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 
 ## 6. 用語とコードの対応
 
-- コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, End, AutoEnd, CompletedSet, AbortedSet, JournalEntry, Timeline）。
+- コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline）。
 - `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。
 - 新しい概念が出てきたら、コードを書く前に `GLOSSARY.md` を更新する（domain-modeling スキル）。
 

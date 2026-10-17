@@ -1,8 +1,8 @@
 import { Result } from "@praha/byethrow";
-import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as v from "valibot";
 import { AllowlistSchema, type Allowlist } from "../domain/allowlist.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
+import { describeIssuePaths } from "./validation-error.ts";
 
 declare global {
   /**
@@ -53,17 +53,6 @@ export const parseAuthConfig = (env: Env): Result.Result<AuthConfig, ValidationE
     })),
   );
 
-const describePath = (path: StandardSchemaV1.Issue["path"]): string => {
-  if (!path || path.length === 0) return "(root)";
-  return path
-    .map((segment) =>
-      typeof segment === "object" && segment !== null && "key" in segment
-        ? String(segment.key)
-        : String(segment),
-    )
-    .join(".");
-};
-
 /**
  * 項目ごとに、設定されていなかったときに何をすればよいか。
  *
@@ -85,9 +74,8 @@ const HOW_TO_FIX: Readonly<Record<string, string>> = {
  * `BETTER_AUTH_SECRET` なら鍵そのものがログに出てしまう。どの項目をどう直すかだけを返す。
  */
 export const describeValidationError = (error: ValidationError): string =>
-  error.issues
-    .map((issue) => {
-      const path = describePath(issue.path);
+  describeIssuePaths(error)
+    .map((path) => {
       const howToFix = HOW_TO_FIX[path];
       return howToFix === undefined ? path : `${path}（${howToFix}）`;
     })
