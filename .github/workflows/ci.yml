@@ -17,3 +17,57 @@ jobs:
       - run: vp check
       - run: vp test
       - run: vp run -r build
+
+  # デプロイに必要な Actions secrets が登録されているかを確かめる。
+  # secrets はジョブの `if` で直接参照できないため、ここで判定して output に出す。
+  # 未登録でも失敗させず（main の CI を赤くしない）、その旨をログと注釈に出す。
+  deploy-secrets:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.secrets.outputs.configured }}
+    steps:
+      - id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=()
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing+=(CLOUDFLARE_API_TOKEN)
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing+=(CLOUDFLARE_ACCOUNT_ID)
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=デプロイをスキップ::Actions secrets（${missing[*]}）が未登録のため、デプロイしません。登録手順は docs/SETUP.md を参照。"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # main への push で、check が通ったあとに本番 D1 へのマイグレーション → wrangler deploy を実行する。
+  deploy:
+    needs: deploy-secrets
+    if: needs.deploy-secrets.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    # デプロイが重ならないようにする。走っている途中のデプロイは止めずに待たせる。
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+      # @cloudflare/vite-plugin が dist/ に Worker と wrangler.json を出力し、
+      # .wrangler/deploy/config.json で wrangler をそちらへ向ける
+      - run: vp run -r build
+      # 新しいコードが新しいスキーマを前提にするため、デプロイより先に適用する
+      - name: 本番 D1 へのマイグレーション
+        working-directory: apps/web
+        run: vp exec wrangler d1 migrations apply nanaichi --remote
+      - name: wrangler deploy
+        working-directory: apps/web
+        run: vp exec wrangler deploy

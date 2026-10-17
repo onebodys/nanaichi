@@ -88,8 +88,57 @@ Vite が別のポートを使うとログインが 400 で弾かれる。
 
 ## 4. デプロイ
 
-main への push で GitHub Actions が `vp check` → `vp test` → `wrangler deploy` を実行する。
-secret は Cloudflare 側に残るため、デプロイのたびに登録し直す必要はない。
+main への push で GitHub Actions（`.github/workflows/ci.yml`）が次の順に実行する。PR では `check` だけが走り、デプロイはしない。
+
+1. `check`: `vp check` → `vp test` → `vp run -r build`
+2. `deploy-secrets`: Actions secrets（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`）が登録されているかを確かめる
+3. `deploy`: `vp run -r build` → 本番 D1 へのマイグレーション（`wrangler d1 migrations apply nanaichi --remote`）→ `wrangler deploy`
+
+secrets が未登録のあいだは `deploy` がスキップされ、CI は緑のままになる。
+`deploy-secrets` のログ（と実行結果の画面の注釈）に「Actions secrets（…）が未登録のため、デプロイしません」と出る。
+
+Worker の secret（`BETTER_AUTH_SECRET` など、2章）は Cloudflare 側に残るため、デプロイのたびに登録し直す必要はない。
+マイグレーションも適用済みのものは飛ばされるので、手作業で `--remote` を叩く必要はない（初回だけ2章で手で適用していてもよい）。
+
+### API トークンの作成
+
+GitHub Actions が Cloudflare を操作するための API トークンを作る。
+
+1. Cloudflare ダッシュボードの右上のアイコン →「プロフィール」→「API トークン」→「トークンを作成」
+2. 「カスタム トークンを作成」で次の権限を付ける（すべて「アカウント」の権限）
+
+   | 権限                                  | レベル   | 使う場面                                                  |
+   | ------------------------------------- | -------- | --------------------------------------------------------- |
+   | Workers スクリプト（Workers Scripts） | 編集     | `wrangler deploy`（Worker・静的アセット・Durable Object） |
+   | D1                                    | 編集     | `wrangler d1 migrations apply --remote`                   |
+   | アカウント設定（Account Settings）    | 読み取り | wrangler がアカウントの情報を読む                         |
+
+   「アカウント リソース」は nanaichi を置いているアカウントだけに絞る。
+   テンプレート「Cloudflare Workers を編集」を使う場合は、D1 の編集権限が入っていないので足す。
+
+3. 作成後に表示されるトークンを控える（1度しか表示されない）
+
+**アカウント ID** は、ダッシュボードの「Workers & Pages」の右側、または `pnpm cf whoami` で確認できる。
+
+### Actions secrets の登録
+
+GitHub のリポジトリの「Settings」→「Secrets and variables」→「Actions」→「New repository secret」で2つ登録する。
+
+| Name                    | Secret                  |
+| ----------------------- | ----------------------- |
+| `CLOUDFLARE_API_TOKEN`  | 上で作った API トークン |
+| `CLOUDFLARE_ACCOUNT_ID` | アカウント ID           |
+
+`gh` を使うなら次でもよい（値はプロンプトで入力する）。
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN
+gh secret set CLOUDFLARE_ACCOUNT_ID
+```
+
+登録したあとの最初の main への push からデプロイされる。すぐに試したいときは、
+Actions の画面で main の最新の「CI」を「Re-run all jobs」すればよい。
+デプロイできたかは `deploy` ジョブのログの末尾に出る URL（`https://nanaichi.onori-black1984.workers.dev`）を開いて確かめる。
 
 ## 5. E2E テスト
 
