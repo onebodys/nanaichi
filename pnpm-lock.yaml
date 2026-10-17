@@ -185,6 +185,9 @@ catalogs:
     hono:
       specifier: ^4.13.13
       version: 4.13.13
+    miniflare:
+      specifier: 5.20261006.1-alpha
+      version: 5.20261006.1-alpha
     tailwindcss:
       specifier: ^4.3.3
       version: 4.3.3
@@ -257,6 +260,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.1.1
         version: 6.1.2(@voidzero-dev/vite-plus-core@0.2.9(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(typescript@6.0.3))
+      miniflare:
+        specifier: 'catalog:'
+        version: 5.20261006.1-alpha(@types/node@24.19.2)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
