@@ -1,3 +1,5 @@
+import * as v from "valibot";
+
 /**
  * 操作イベント（GLOSSARY の「操作イベント」）。
  *
@@ -21,3 +23,39 @@ export type SessionOperation = Pause | Resume | Abort | RestartFocus | SkipBreak
  * セッションは必ず開始から始まり、開始はセッションに1回だけなので、先頭だけを開始にする型で表す。
  */
 export type SessionEvents = readonly [Start, ...ReadonlyArray<SessionOperation>];
+
+const SESSION_OPERATION_KINDS = [
+  "Pause",
+  "Resume",
+  "Abort",
+  "RestartFocus",
+  "SkipBreak",
+  "End",
+] as const satisfies ReadonlyArray<SessionOperation["kind"]>;
+
+/**
+ * 操作イベントの ID。クライアントが発行する（ADR 0007）。
+ *
+ * 同じ ID の操作が2回届いても1回分しか記録しないことで、通信のやり直しによる二重送信を防ぐ。
+ * 将来オフラインで記録したイベントを後から同期するときも、この ID で重複を見分ける。
+ */
+const SessionEventIdSchema = v.pipe(v.string(), v.uuid(), v.brand("SessionEventId"));
+export type SessionEventId = v.InferOutput<typeof SessionEventIdSchema>;
+
+export const SessionEventId = {
+  schema: SessionEventIdSchema,
+} as const;
+
+/** 記録済みの操作イベント。記録するときに ID が付く */
+export type RecordedSessionEvent<E extends Start | SessionOperation = Start | SessionOperation> =
+  E & Readonly<{ id: SessionEventId }>;
+
+/** 記録済みの操作イベントを時刻の順に並べたもの。`SessionEvents` としてそのまま計算に使える */
+export type RecordedSessionEvents = readonly [
+  RecordedSessionEvent<Start>,
+  ...ReadonlyArray<RecordedSessionEvent<SessionOperation>>,
+];
+
+export const SessionOperationKind = {
+  schema: v.picklist(SESSION_OPERATION_KINDS),
+} as const;
