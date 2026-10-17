@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { JsonDateSchema } from "./json-date.ts";
 import {
   RecordedSessionEventsJsonSchema,
+  SessionOperationKind,
   type RecordedSessionEvent,
   type RecordedSessionEvents,
   type SessionEventId,
@@ -113,6 +114,19 @@ export const Session = {
     // 操作の時刻は記録済みのどのイベントより後なので、時刻の順が崩れるのは呼び出し側の誤り
     throw new Error(`操作イベントの時刻が記録済みのイベントより前になっている`);
   },
+
+  /**
+   * 時刻 `now` にできる操作。画面はこれで、押せるボタンだけを出す。
+   *
+   * できるかどうかの規則を二重に持たないよう、記録済みのイベントに足して計算し直せるかで判断する
+   * （`operate` と同じ判断）。終了していれば、どの操作もできない。
+   */
+  availableOperations: (session: Session, now: Date): ReadonlyArray<SessionOperation["kind"]> =>
+    SessionOperationKind.schema.options.filter((kind) =>
+      Result.isSuccess(
+        deriveTimerState([...session.events, { kind, at: now }], now, session.journalEntryTimes),
+      ),
+    ),
 
   /** 記入も操作もないまま過ぎれば自動終了する時刻 */
   autoEndDueAt: (session: Session): Date => autoEndDueAt(session.events, session.journalEntryTimes),

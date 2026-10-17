@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { Result } from "@praha/byethrow";
 import { ApiErrorBodyJsonSchema, type ApiErrorCode } from "../domain/api-error.ts";
 import { schemaResult } from "../domain/schema-result.ts";
+import type { SessionEventId, SessionOperation } from "../domain/session-event.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "../domain/session.ts";
 
 /**
@@ -83,6 +84,12 @@ const requestApi =
       Result.andThen(decode(schema)),
     );
 
+const postJson = (body: unknown): RequestInit => ({
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify(body),
+});
+
 /**
  * API のクライアントを作る。`fetchApi` はテストで差し替えるためのもので、画面からは省略する。
  * SPA と API は同じ origin なので、ログインの cookie はそのまま送られる。
@@ -92,9 +99,22 @@ export const createApiClient = (
 ): Readonly<{
   /** `GET /api/session/current`: 現在のセッションのスナップショット */
   getCurrentSession: () => Result.ResultAsync<SessionSnapshot, ApiError>;
+  /**
+   * `POST /api/session`: セッションを開始する。`id` は開始の操作イベントの ID（ADR 0007）。
+   * やり直すときは同じ ID で送れば、二重に開始しない。
+   */
+  startSession: (id: SessionEventId) => Result.ResultAsync<SessionSnapshot, ApiError>;
+  /** `POST /api/session/commands`: セッションに操作を1つ加える。`id` は操作イベントの ID */
+  operateSession: (
+    id: SessionEventId,
+    kind: SessionOperation["kind"],
+  ) => Result.ResultAsync<SessionSnapshot, ApiError>;
 }> => {
   const request = requestApi(fetchApi);
   return {
     getCurrentSession: () => request("/api/session/current", SessionSnapshotJsonSchema),
+    startSession: (id) => request("/api/session", SessionSnapshotJsonSchema, postJson({ id })),
+    operateSession: (id, kind) =>
+      request("/api/session/commands", SessionSnapshotJsonSchema, postJson({ id, kind })),
   };
 };

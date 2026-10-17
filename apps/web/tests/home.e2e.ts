@@ -15,7 +15,7 @@ test(
 
 test(
   "ログアウトするとログイン画面に移る",
-  { session: "signedIn" },
+  { session: "signedInToSignOut" },
   async ({ app, browser, screen }) => {
     await app.open("/");
     await screen.getByRole("button", { name: "ログアウト" }).tap();

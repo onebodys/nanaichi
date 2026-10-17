@@ -14,17 +14,19 @@ const started = Session.start(
   at(0),
 );
 
-/** サーバーと同じく、本文を JSON にして返す fetch。呼ばれたパスを記録する */
+/** サーバーと同じく、本文を JSON にして返す fetch。呼ばれたパスとリクエストを記録する */
 const respondWith = (status: number, body: unknown) => {
   const paths: Array<string> = [];
-  const fetchApi = async (path: string) => {
+  const requests: Array<RequestInit | undefined> = [];
+  const fetchApi = async (path: string, init?: RequestInit) => {
     paths.push(path);
+    requests.push(init);
     return new Response(JSON.stringify(body), {
       status,
       headers: { "content-type": "application/json" },
     });
   };
-  return { client: createApiClient(fetchApi), paths };
+  return { client: createApiClient(fetchApi), paths, requests };
 };
 
 describe("現在のセッションの取得", () => {
@@ -96,5 +98,62 @@ describe("現在のセッションの取得", () => {
     });
 
     expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "NetworkError" }));
+  });
+});
+
+const operationId = v.parse(SessionEventId.schema, "00000000-0000-4000-8000-000000000002");
+
+describe("セッションの開始", () => {
+  test("開始の操作イベントの ID を本文に入れて POST /api/session を呼ぶ", async () => {
+    const { client, paths, requests } = respondWith(200, Session.snapshot(started, at(0)));
+
+    await client.startSession(operationId);
+
+    expect(paths).toEqual(["/api/session"]);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ id: operationId }),
+    });
+  });
+
+  test("開始したセッションのスナップショットを返す", async () => {
+    const snapshot = Session.snapshot(started, at(0));
+    const { client } = respondWith(200, snapshot);
+
+    expect(await client.startSession(operationId)).toEqual(Result.succeed(snapshot));
+  });
+
+  test("セッション中に開始すると、SESSION_ALREADY_IN_PROGRESS の ApiRejected を返す", async () => {
+    const { client } = respondWith(409, { error: "SESSION_ALREADY_IN_PROGRESS" });
+
+    expect(await client.startSession(operationId)).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 409, code: "SESSION_ALREADY_IN_PROGRESS" }),
+    );
+  });
+});
+
+describe("セッションへの操作", () => {
+  test("操作イベントの ID と操作の種類を本文に入れて POST /api/session/commands を呼ぶ", async () => {
+    const { client, paths, requests } = respondWith(200, Session.snapshot(started, at(1)));
+
+    await client.operateSession(operationId, "Pause");
+
+    expect(paths).toEqual(["/api/session/commands"]);
+    expect(requests[0]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ id: operationId, kind: "Pause" }),
+    });
+  });
+
+  test("その状態ではできない操作なら、OPERATION_REJECTED の ApiRejected を返す", async () => {
+    const { client } = respondWith(409, {
+      error: "OPERATION_REJECTED",
+      operation: "SkipBreak",
+      during: "Focus",
+    });
+
+    expect(await client.operateSession(operationId, "SkipBreak")).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 409, code: "OPERATION_REJECTED" }),
+    );
   });
 });
