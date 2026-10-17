@@ -13,11 +13,11 @@ export const HomePage = () => {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6">
       <h1 className="text-4xl font-bold tracking-tight">nanaichi</h1>
 
-      {isPending ? (
+      {isPending || session === null ? (
         <p className="text-sm text-neutral-500">読み込み中…</p>
       ) : (
         <div className="flex flex-col items-center gap-3">
-          <p className="text-sm text-neutral-600">{session?.user.name} としてログインしています</p>
+          <p className="text-sm text-neutral-600">{session.user.name} としてログインしています</p>
           <button
             type="button"
             onClick={signOut}

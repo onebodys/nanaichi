@@ -4,10 +4,12 @@ import { authClient } from "./auth-client.ts";
 /**
  * Better Auth が `?error=` に載せて戻すコードの日本語メッセージ。
  * 未知のコードはサーバー側の文言をそのまま出さず、一般的な失敗として扱う。
+ * `?error=` は外から自由に付けられるので、`constructor` などのプロトタイプのキーに
+ * 当たらないよう Record ではなく Map で引く。
  */
-const ERROR_MESSAGES: Readonly<Record<string, string>> = {
-  EMAIL_NOT_ALLOWED: "このメールアドレスでは登録できません。",
-};
+const ERROR_MESSAGES: ReadonlyMap<string, string> = new Map([
+  ["EMAIL_NOT_ALLOWED", "このメールアドレスでは登録できません。"],
+]);
 
 type LoginPageProps = Readonly<{
   /** URL の `?error=`。Better Auth がログイン失敗時に付けて戻す */
@@ -17,7 +19,7 @@ type LoginPageProps = Readonly<{
 export const LoginPage = ({ error }: LoginPageProps) => {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const errorMessage =
-    error === undefined ? undefined : (ERROR_MESSAGES[error] ?? "ログインできませんでした。");
+    error === undefined ? undefined : (ERROR_MESSAGES.get(error) ?? "ログインできませんでした。");
 
   const signInWithGoogle = async () => {
     setIsRedirecting(true);
