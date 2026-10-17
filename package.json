@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "prepare": "vp hooks enable",
-    "ready": "vp check && vp run -r test && vp run -r build",
+    "knip": "knip",
+    "ready": "vp check && knip && vp run -r test && vp run -r build",
     "dev": "vp run web#dev",
     "test:e2e": "pnpm --filter web test:e2e",
     "cf": "pnpm --filter web exec wrangler"
   },
   "devDependencies": {
+    "knip": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },

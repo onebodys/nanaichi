@@ -1,1 +1,1 @@
-vp check && vp test
+vp check && vp test && pnpm exec knip
