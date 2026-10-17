@@ -1,0 +1,16 @@
+# ローカル開発で必要な値の見本。
+# このファイルを `.dev.vars` にコピーして値を埋める（`.dev.vars` は git 管理外）。
+
+# Better Auth の署名鍵。32文字以上。`openssl rand -base64 32` で生成する。
+# 本番は `wrangler secret put BETTER_AUTH_SECRET` で登録する。
+BETTER_AUTH_SECRET=
+
+# Google Cloud Console の OAuth 2.0 クライアント ID / シークレット。
+# 本番は `wrangler secret put GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# 登録を許可するメールアドレス（カンマ区切り）。PII なので secret として登録する。
+# 空にすると誰もログインできない。
+# 本番は `wrangler secret put ALLOWED_EMAILS`。
+ALLOWED_EMAILS=

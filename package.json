@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run web#dev"
+    "dev": "vp run web#dev",
+    "cf": "pnpm --filter web exec wrangler"
   },
   "devDependencies": {
     "vite": "catalog:",

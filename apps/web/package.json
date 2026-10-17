@@ -11,10 +11,14 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
+    "@praha/byethrow": "catalog:",
+    "@standard-schema/spec": "catalog:",
     "@tanstack/react-router": "catalog:",
+    "better-auth": "catalog:",
     "hono": "catalog:",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",

@@ -3,10 +3,21 @@
   "name": "nanaichi",
   "main": "./src/server/index.ts",
   "compatibility_date": "2026-10-01",
+  // Better Auth は AsyncLocalStorage を使うため nodejs_compat が必要
+  // https://better-auth.com/docs/integrations/hono#cloudflare-workers
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nanaichi",
+      // `pnpm cf d1 create nanaichi` で作成した本番のデータベース。
+      "database_id": "0aa9e02f-791c-4090-b449-e8496dfe63db",
+    },
+  ],
   "durable_objects": {
     "bindings": [{ "name": "USER_DO", "class_name": "UserDO" }],
   },
