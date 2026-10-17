@@ -18,3 +18,17 @@ test.setup(
     await session.save("signedIn");
   },
 );
+
+/**
+ * ログアウトを確かめるテスト専用のログイン済みの状態。ログアウトするとサーバー側のセッションが消えるので、
+ * `signedIn` を使い回すと、後に走るテストがログイン画面に飛ばされてしまう。
+ */
+test.setup(
+  "ログアウトするテスト用のログイン済みの状態を用意する",
+  { sessions: ["signedInToSignOut"] },
+  async ({ app, browser, session }) => {
+    await app.open("/api/test/sign-in?email=e2e%40example.com");
+    await expect(browser).toHaveURL("/");
+    await session.save("signedInToSignOut");
+  },
+);
