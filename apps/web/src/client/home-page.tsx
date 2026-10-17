@@ -5,6 +5,7 @@ import { JournalInput } from "./journal-input.tsx";
 import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
+import { useSync } from "./use-sync.ts";
 import { useTimeline } from "./use-timeline.ts";
 
 /** ジャーナルのフェーズにいれば、そのセットを見分ける値。フェーズに入ったことを見分けるのに使う */
@@ -17,6 +18,7 @@ export const HomePage = () => {
   const { data: session, isPending } = authClient.useSession();
   const timer = useSessionTimer();
   const timeline = useTimeline(timer.session, timer.serverNow, timer.refresh);
+  useSync(timer, timeline);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）

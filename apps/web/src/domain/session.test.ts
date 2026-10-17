@@ -2,7 +2,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { SessionEventId, type SessionOperation } from "./session-event.ts";
-import { Session, SessionId } from "./session.ts";
+import { Session, SessionId, SessionSnapshot } from "./session.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number, seconds = 0) =>
@@ -121,5 +121,31 @@ describe("その時点でできる操作", () => {
 
   test("自動終了の時刻を過ぎたセッションには、どの操作もできない", () => {
     expect(Session.availableOperations(started, at(58))).toEqual([]);
+  });
+});
+
+describe("スナップショットの新旧", () => {
+  test("届いたスナップショットのサーバーの時刻が手元より前なら、古いものとして捨てる", () => {
+    expect(
+      SessionSnapshot.isOlder(Session.snapshot(started, at(1)), Session.snapshot(started, at(2))),
+    ).toBe(true);
+  });
+
+  test("同じ時刻なら同じ変更なので、古いとはみなさない", () => {
+    expect(
+      SessionSnapshot.isOlder(
+        { kind: "NoSession", serverTime: at(2) },
+        Session.snapshot(started, at(2)),
+      ),
+    ).toBe(false);
+  });
+
+  test("手元より後の時刻なら、セッションなしに変わったものでも新しいものとして使う", () => {
+    expect(
+      SessionSnapshot.isOlder(
+        { kind: "NoSession", serverTime: at(3) },
+        Session.snapshot(started, at(2)),
+      ),
+    ).toBe(false);
   });
 });

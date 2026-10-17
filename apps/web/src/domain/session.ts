@@ -76,6 +76,18 @@ export const SessionSnapshotJsonSchema: v.GenericSchema<unknown, SessionSnapshot
   ],
 );
 
+export const SessionSnapshot = {
+  /**
+   * 届いたスナップショット `received` が、手元のスナップショット `current` より古いか。
+   *
+   * 同じ変更が HTTP の応答と同期メッセージの両方で届き、順序が入れ替わることがある（ADR 0012）。
+   * サーバーの時刻が古いものは、それより後の変更を巻き戻してしまうので捨てる。
+   * 同じ時刻なら同じ変更なので、古いとはみなさない。
+   */
+  isOlder: (received: SessionSnapshot, current: SessionSnapshot): boolean =>
+    received.serverTime.getTime() < current.serverTime.getTime(),
+} as const;
+
 export const Session = {
   /** セッションを始める。1ラウンド目の1セット目の集中がすぐに始まる */
   start: (id: SessionId, startEventId: SessionEventId, now: Date): Session => ({

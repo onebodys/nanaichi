@@ -4,7 +4,7 @@ import * as v from "valibot";
 import { ClockOffset } from "../domain/clock-offset.ts";
 import { phaseChangeBetween } from "../domain/phase-change.ts";
 import { SessionEventId, type SessionOperation } from "../domain/session-event.ts";
-import { Session, type SessionSnapshot } from "../domain/session.ts";
+import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import { createApiClient, type ApiError } from "./api.ts";
 import { createPhaseAlert } from "./phase-alert.ts";
@@ -96,6 +96,15 @@ const receive = async (
   );
 };
 
+/**
+ * 手元の読み込みの状態に、届いたスナップショットを反映する。手元より古いものは捨てる（ADR 0012）。
+ * HTTP の応答と同期メッセージは、同じ変更について順序が入れ替わって届くことがあるため。
+ */
+const applyReceived = (current: Loading, received: Received): Loading =>
+  current.kind === "Loaded" && SessionSnapshot.isOlder(received.snapshot, current.received.snapshot)
+    ? current
+    : { kind: "Loaded", received };
+
 const redirectToLoginIfSignedOut = (error: ApiError) => {
   if (error.kind === "ApiRejected" && error.code === "UNAUTHENTICATED") {
     window.location.href = "/login";
@@ -108,6 +117,7 @@ const redirectToLoginIfSignedOut = (error: ApiError) => {
  * - 現在のセッションを読み込み、`TICK_MS` ごとに端末の時刻で状態を計算し直す
  * - 時間が過ぎてフェーズが切り替わったら、音とブラウザ通知で知らせる
  * - 操作はボタンから受け取り、API に送って返ってきたスナップショットに置き換える
+ * - 他のタブ・端末での変更は、同期メッセージで届いたスナップショットに置き換える（`receive`）
  */
 export const useSessionTimer = (): Readonly<{
   view: TimerView;
@@ -124,6 +134,11 @@ export const useSessionTimer = (): Readonly<{
   reload: () => void;
   /** 画面を「読み込み中」にせず、今の状態を読み込み直す（ジャーナル記入で自動終了の時刻が延びたときなど） */
   refresh: () => void;
+  /**
+   * 同期メッセージで届いたスナップショットに置き換える（ADR 0012）。送った時刻がわからないので
+   * 時計のずれは測り直さず、直前に測ったものを使う。まだ読み込めていなければ、読み込みの結果を待つ
+   */
+  receive: (snapshot: SessionSnapshot) => void;
 }> => {
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
@@ -134,7 +149,8 @@ export const useSessionTimer = (): Readonly<{
   const load = useCallback(async () => {
     const result = await receive(api.getCurrentSession);
     if (Result.isSuccess(result)) {
-      setLoading({ kind: "Loaded", received: result.value });
+      const received = result.value;
+      setLoading((current) => applyReceived(current, received));
       return;
     }
     redirectToLoginIfSignedOut(result.error);
@@ -188,7 +204,8 @@ export const useSessionTimer = (): Readonly<{
     setErrorMessage(undefined);
     const result = await receive(call);
     if (Result.isSuccess(result)) {
-      setLoading({ kind: "Loaded", received: result.value });
+      const received = result.value;
+      setLoading((current) => applyReceived(current, received));
     } else {
       redirectToLoginIfSignedOut(result.error);
       setErrorMessage(messageOf(result.error));
@@ -227,6 +244,13 @@ export const useSessionTimer = (): Readonly<{
     },
     refresh: () => {
       void load();
+    },
+    receive: (snapshot) => {
+      setLoading((current) =>
+        current.kind === "Loaded"
+          ? applyReceived(current, { snapshot, offset: current.received.offset })
+          : current,
+      );
     },
   };
 };
