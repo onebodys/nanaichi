@@ -1,9 +1,31 @@
+import { useEffect, useRef } from "react";
 import { authClient } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
+import { JournalInput } from "./journal-input.tsx";
+import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
+import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
+import { useTimeline } from "./use-timeline.ts";
+
+/** ジャーナルのフェーズにいれば、そのセットを見分ける値。フェーズに入ったことを見分けるのに使う */
+const journalPhaseKeyOf = (view: TimerView): string | undefined =>
+  view.kind === "InSession" && view.state.kind === "Journal"
+    ? `${view.state.round}:${view.state.setNumber}`
+    : undefined;
 
 export const HomePage = () => {
   const { data: session, isPending } = authClient.useSession();
+  const timer = useSessionTimer();
+  const timeline = useTimeline(timer.session, timer.serverNow, timer.refresh);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）
+  const journalPhaseKey = journalPhaseKeyOf(timer.view);
+  useEffect(() => {
+    if (journalPhaseKey !== undefined) {
+      textareaRef.current?.focus();
+    }
+  }, [journalPhaseKey]);
 
   const signOut = async () => {
     await authClient.signOut();
@@ -29,7 +51,22 @@ export const HomePage = () => {
         )}
       </header>
 
-      <TimerPanel />
+      <TimerPanel timer={timer} />
+
+      <div className="flex flex-col gap-2">
+        <JournalInput
+          inSession={timer.view.kind === "InSession"}
+          write={timeline.write}
+          textareaRef={textareaRef}
+        />
+        {timeline.errorMessage !== undefined && (
+          <p role="alert" className="text-sm text-destructive">
+            {timeline.errorMessage}
+          </p>
+        )}
+      </div>
+
+      <TimelinePanel timeline={timeline} />
     </main>
   );
 };

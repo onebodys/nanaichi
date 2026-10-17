@@ -134,13 +134,23 @@ type Phase =
   | Readonly<{ kind: "Break"; round: number }>;
 
 type Progress =
-  | Readonly<{ kind: "Idle"; round: number; setNumber: number; completedSets: number }>
+  | Readonly<{
+      kind: "Idle";
+      round: number;
+      setNumber: number;
+      completedSetEnds: ReadonlyArray<number>;
+    }>
   /** `phaseStartedAt` は一時停止していた時間の分だけ後ろにずらした、見かけのフェーズ開始時刻 */
-  | Readonly<{ kind: "Running"; phase: Phase; completedSets: number; phaseStartedAt: number }>
+  | Readonly<{
+      kind: "Running";
+      phase: Phase;
+      completedSetEnds: ReadonlyArray<number>;
+      phaseStartedAt: number;
+    }>
   | Readonly<{
       kind: "Paused";
       phase: Phase;
-      completedSets: number;
+      completedSetEnds: ReadonlyArray<number>;
       elapsedMs: number;
       pausedAt: number;
     }>
@@ -148,7 +158,7 @@ type Progress =
       kind: "Ended";
       endedAt: number;
       endedBy: "End" | "AutoEnd";
-      completedSets: number;
+      completedSetEnds: ReadonlyArray<number>;
     }>;
 
 type Derivation = Readonly<{ progress: Progress; lastActivityAt: number }>;
@@ -183,9 +193,13 @@ const nextPhase = (phase: Phase): Phase => {
   }
 };
 
-/** 集中を最後まで終えたセットだけを完了セットとして数える */
-const completedSetsAfter = (phase: Phase, completedSets: number): number =>
-  phase.kind === "Focus" ? completedSets + 1 : completedSets;
+/** 集中を最後まで終えたセットだけを完了セットとして数え、集中が終わった時刻を残す */
+const completedSetEndsAfter = (
+  phase: Phase,
+  completedSetEnds: ReadonlyArray<number>,
+  endedAt: number,
+): ReadonlyArray<number> =>
+  phase.kind === "Focus" ? [...completedSetEnds, endedAt] : completedSetEnds;
 
 /** 時刻 `t` までに終わったフェーズを、自動的に次のフェーズへ切り替える */
 const advanceTo = (progress: Progress, t: number): Progress => {
@@ -200,7 +214,7 @@ const advanceTo = (progress: Progress, t: number): Progress => {
     {
       kind: "Running",
       phase: nextPhase(progress.phase),
-      completedSets: completedSetsAfter(progress.phase, progress.completedSets),
+      completedSetEnds: completedSetEndsAfter(progress.phase, progress.completedSetEnds, endsAt),
       phaseStartedAt: endsAt,
     },
     t,
@@ -221,12 +235,12 @@ const stateKindOf = (progress: Progress): TimerState["kind"] => {
 const startFocus = (
   round: number,
   setNumber: number,
-  completedSets: number,
+  completedSetEnds: ReadonlyArray<number>,
   t: number,
 ): Progress => ({
   kind: "Running",
   phase: { kind: "Focus", round, setNumber },
-  completedSets,
+  completedSetEnds,
   phaseStartedAt: t,
 });
 
@@ -235,7 +249,7 @@ const end = (progress: Progress, t: number, endedBy: "End" | "AutoEnd"): Progres
   kind: "Ended",
   endedAt: t,
   endedBy,
-  completedSets: progress.completedSets,
+  completedSetEnds: progress.completedSetEnds,
 });
 
 /** 時刻 `operation.at` まで進めた状態に、人の操作を当てはめる */
@@ -261,7 +275,7 @@ const applyOperation = (
         ? accept({
             kind: "Paused",
             phase: progress.phase,
-            completedSets: progress.completedSets,
+            completedSetEnds: progress.completedSetEnds,
             elapsedMs: t - progress.phaseStartedAt,
             pausedAt: t,
           })
@@ -271,7 +285,7 @@ const applyOperation = (
         ? accept({
             kind: "Running",
             phase: progress.phase,
-            completedSets: progress.completedSets,
+            completedSetEnds: progress.completedSetEnds,
             phaseStartedAt: t - progress.elapsedMs,
           })
         : reject();
@@ -283,18 +297,18 @@ const applyOperation = (
             kind: "Idle",
             round: progress.phase.round,
             setNumber: progress.phase.setNumber,
-            completedSets: progress.completedSets,
+            completedSetEnds: progress.completedSetEnds,
           })
         : reject();
     case "RestartFocus":
       return progress.kind === "Idle"
-        ? accept(startFocus(progress.round, progress.setNumber, progress.completedSets, t))
+        ? accept(startFocus(progress.round, progress.setNumber, progress.completedSetEnds, t))
         : reject();
     case "SkipBreak":
       // 休憩スキップは休憩中のみ（一時停止中の休憩を含む）。次のラウンドの集中がすぐ始まる
       return (progress.kind === "Running" || progress.kind === "Paused") &&
         progress.phase.kind === "Break"
-        ? accept(startFocus(progress.phase.round + 1, 1, progress.completedSets, t))
+        ? accept(startFocus(progress.phase.round + 1, 1, progress.completedSetEnds, t))
         : reject();
     case "End":
       return progress.kind === "Ended" ? reject() : accept(end(progress, t, "End"));
@@ -394,12 +408,18 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
     }
   };
 
+  const completedSets = progress.completedSetEnds.length;
   switch (progress.kind) {
     case "Idle":
-      return progress;
+      return {
+        kind: "Idle",
+        round: progress.round,
+        setNumber: progress.setNumber,
+        completedSets,
+      };
     case "Running": {
       const endsAt = progress.phaseStartedAt + durationOf(progress.phase);
-      return inPhase(progress.phase, progress.completedSets, endsAt - now, {
+      return inPhase(progress.phase, completedSets, endsAt - now, {
         kind: "Running",
         endsAt: new Date(endsAt),
       });
@@ -407,7 +427,7 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
     case "Paused":
       return inPhase(
         progress.phase,
-        progress.completedSets,
+        completedSets,
         durationOf(progress.phase) - progress.elapsedMs,
         { kind: "Paused", pausedAt: new Date(progress.pausedAt) },
       );
@@ -416,30 +436,21 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
         kind: "Ended",
         endedAt: new Date(progress.endedAt),
         endedBy: progress.endedBy,
-        completedSets: progress.completedSets,
+        completedSets,
       };
   }
 };
 
-/**
- * 操作イベントと時刻から、時刻 `now` のタイマーの状態を計算する（ADR 0003）。
- *
- * フェーズの自動的な切り替わりは記録されていないので、ここで時刻から計算する。
- * `now` より後の操作イベントとジャーナル記入は、まだ起きていないものとして扱わない。
- *
- * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
- * - その状態ではできない操作が含まれていれば `OperationRejected` を返す。
- *   新しい操作を受け付けてよいかは、記録済みのイベントに足して計算し直せば判断できる
- */
-export const deriveTimerState = (
+/** 時刻 `now` までの操作イベントとジャーナル記入を順に当てはめ、`now` まで進めた途中の状態 */
+const progressAt = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date>,
-): Result.Result<TimerState, DeriveTimerStateError> => {
+): Result.Result<Progress, DeriveTimerStateError> => {
   const [start, ...operations] = events;
   const startedAt = start.at.getTime();
   const initial: Derivation = {
-    progress: startFocus(1, 1, 0, startedAt),
+    progress: startFocus(1, 1, [], startedAt),
     lastActivityAt: startedAt,
   };
 
@@ -459,10 +470,46 @@ export const deriveTimerState = (
     ),
     Result.map((derivation) => {
       const t = now.getTime();
-      return toTimerState(advanceTo(autoEndIfInactiveUntil(derivation, t).progress, t), t);
+      return advanceTo(autoEndIfInactiveUntil(derivation, t).progress, t);
     }),
   );
 };
+
+/**
+ * 操作イベントと時刻から、時刻 `now` のタイマーの状態を計算する（ADR 0003）。
+ *
+ * フェーズの自動的な切り替わりは記録されていないので、ここで時刻から計算する。
+ * `now` より後の操作イベントとジャーナル記入は、まだ起きていないものとして扱わない。
+ *
+ * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
+ * - その状態ではできない操作が含まれていれば `OperationRejected` を返す。
+ *   新しい操作を受け付けてよいかは、記録済みのイベントに足して計算し直せば判断できる
+ */
+export const deriveTimerState = (
+  events: SessionEvents,
+  now: Date,
+  journalEntryTimes: ReadonlyArray<Date>,
+): Result.Result<TimerState, DeriveTimerStateError> =>
+  Result.pipe(
+    progressAt(events, now, journalEntryTimes),
+    Result.map((progress) => toTimerState(progress, now.getTime())),
+  );
+
+/**
+ * 時刻 `now` までに完了セットになったセットの、集中を終えた時刻（古い順）。
+ *
+ * タイムラインで、日付ごとの完了セット数を数えるのに使う。完了セットはその集中を終えた時刻の日付に数える。
+ * 計算は `deriveTimerState` と同じなので、数は `TimerState` の `completedSets` と必ず一致する。
+ */
+export const deriveCompletedSetTimes = (
+  events: SessionEvents,
+  now: Date,
+  journalEntryTimes: ReadonlyArray<Date>,
+): Result.Result<ReadonlyArray<Date>, DeriveTimerStateError> =>
+  Result.pipe(
+    progressAt(events, now, journalEntryTimes),
+    Result.map((progress) => progress.completedSetEnds.map((ms) => new Date(ms))),
+  );
 
 /**
  * 記入も操作もないまま過ぎれば自動終了する時刻（最後の記入・操作から2ラウンド分の位置）。

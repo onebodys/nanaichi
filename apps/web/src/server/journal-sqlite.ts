@@ -1,0 +1,182 @@
+import * as v from "valibot";
+import {
+  JournalEntryBody,
+  JournalEntryId,
+  type DeleteJournalEntry,
+  type FindJournalEntry,
+  type JournalEntry,
+  type SaveEditedJournalEntry,
+  type SaveJournalEntry,
+  type StoredJournalEntry,
+  type WrittenDuring,
+} from "../domain/journal-entry.ts";
+import { SessionId } from "../domain/session.ts";
+import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
+import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
+
+// ---------------------------------------------------------------------------
+// DB の行（境界）。読み出した行はスキーマで検証し、その場でドメインの型に変換する
+// ---------------------------------------------------------------------------
+
+const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const JOURNAL_ENTRY_COLUMNS =
+  "id, session_id, body, written_at, updated_at, round, set_number, phase, deleted_at";
+
+/**
+ * 紐付きの列（`round` / `set_number` / `phase`）を、書いた時点のタイマーの状態の型に戻す。
+ * 休憩中はセット番号がなく、待機中はフェーズがない。それ以外の組み合わせは記録が壊れている。
+ */
+const writtenDuringOf = (
+  round: number,
+  setNumber: number | null,
+  phase: "Focus" | "Journal" | "Break" | null,
+): WrittenDuring | undefined => {
+  if (phase === "Break") {
+    return setNumber === null ? { kind: "Break", round } : undefined;
+  }
+  if (setNumber === null) {
+    return undefined;
+  }
+  return phase === null ? { kind: "Idle", round, setNumber } : { kind: phase, round, setNumber };
+};
+
+const JournalEntryRowSchema = v.pipe(
+  v.object({
+    id: JournalEntryId.schema,
+    session_id: SessionId.schema,
+    body: JournalEntryBody.schema,
+    written_at: epochMs,
+    updated_at: epochMs,
+    round: positiveInt,
+    set_number: v.nullable(positiveInt),
+    phase: v.nullable(v.picklist(["Focus", "Journal", "Break"])),
+    deleted_at: v.nullable(epochMs),
+  }),
+  v.rawTransform(({ dataset, addIssue, NEVER }): StoredJournalEntry => {
+    const row = dataset.value;
+    if (row.deleted_at !== null) {
+      return { kind: "Deleted", deleted: { id: row.id, deletedAt: new Date(row.deleted_at) } };
+    }
+    const writtenDuring = writtenDuringOf(row.round, row.set_number, row.phase);
+    if (writtenDuring === undefined) {
+      addIssue({ message: "紐付きの列の組み合わせが不正", path: undefined });
+      return NEVER;
+    }
+    return {
+      kind: "Written",
+      entry: {
+        id: row.id,
+        sessionId: row.session_id,
+        body: row.body,
+        writtenAt: new Date(row.written_at),
+        updatedAt: new Date(row.updated_at),
+        writtenDuring,
+      },
+    };
+  }),
+);
+
+const parseJournalEntryRow = parseRow(JournalEntryRowSchema, "journal_entries");
+
+const SessionIdRowsSchema = v.array(v.object({ id: SessionId.schema }));
+const parseSessionIdRows = parseRow(SessionIdRowsSchema, "sessions");
+
+/** 紐付きを列に書く形にする */
+const columnsOf = (writtenDuring: WrittenDuring) => {
+  switch (writtenDuring.kind) {
+    case "Focus":
+    case "Journal":
+      return { setNumber: writtenDuring.setNumber, phase: writtenDuring.kind };
+    case "Break":
+      return { setNumber: null, phase: writtenDuring.kind };
+    case "Idle":
+      return { setNumber: writtenDuring.setNumber, phase: null };
+  }
+};
+
+// ---------------------------------------------------------------------------
+// 読み書きの契約（domain/journal-entry.ts, domain/timeline.ts）を DO の SQLite で実装する
+// ---------------------------------------------------------------------------
+
+export type JournalSqlite = Readonly<{
+  findJournalEntry: FindJournalEntry;
+  saveJournalEntry: SaveJournalEntry;
+  saveEditedJournalEntry: SaveEditedJournalEntry;
+  deleteJournalEntry: DeleteJournalEntry;
+  findTimelineSessions: FindTimelineSessions;
+}>;
+
+export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
+  const loadSession = sessionLoader(sql);
+
+  /** セッションの削除していない記入 */
+  const writtenEntriesOf = (sessionId: SessionId): ReadonlyArray<JournalEntry> =>
+    sql
+      .exec(
+        `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+         WHERE session_id = ? AND deleted_at IS NULL ORDER BY written_at`,
+        sessionId,
+      )
+      .toArray()
+      .map(parseJournalEntryRow)
+      .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : []));
+
+  return {
+    findJournalEntry: (id) => {
+      const [row] = sql
+        .exec(`SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries WHERE id = ?`, id)
+        .toArray();
+      return row === undefined ? undefined : parseJournalEntryRow(row);
+    },
+
+    saveJournalEntry: (entry) => {
+      const { setNumber, phase } = columnsOf(entry.writtenDuring);
+      sql.exec(
+        `INSERT INTO journal_entries
+           (id, session_id, body, written_at, round, set_number, phase, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        entry.id,
+        entry.sessionId,
+        entry.body.unwrap(),
+        entry.writtenAt.getTime(),
+        entry.writtenDuring.round,
+        setNumber,
+        phase,
+        entry.updatedAt.getTime(),
+      );
+    },
+
+    saveEditedJournalEntry: (entry) => {
+      sql.exec(
+        "UPDATE journal_entries SET body = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+        entry.body.unwrap(),
+        entry.updatedAt.getTime(),
+        entry.id,
+      );
+    },
+
+    deleteJournalEntry: (deleted) => {
+      sql.exec(
+        "UPDATE journal_entries SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+        deleted.deletedAt.getTime(),
+        deleted.id,
+      );
+    },
+
+    findTimelineSessions: (range) => {
+      const rows =
+        range.kind === "Latest"
+          ? sql.exec("SELECT id FROM sessions ORDER BY started_at DESC LIMIT ?", range.limit)
+          : sql.exec(
+              "SELECT id FROM sessions WHERE started_at < ? ORDER BY started_at DESC LIMIT ?",
+              range.before.getTime(),
+              range.limit,
+            );
+      return parseSessionIdRows(rows.toArray()).map(({ id }): TimelineSession => ({
+        session: loadSession(id),
+        entries: writtenEntriesOf(id),
+      }));
+    },
+  };
+};

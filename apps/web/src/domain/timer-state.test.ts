@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import type { SessionEvents } from "./session-event.ts";
-import { deriveTimerState, type TimerState } from "./timer-state.ts";
+import { deriveCompletedSetTimes, deriveTimerState, type TimerState } from "./timer-state.ts";
 
 // セッションを始めた時刻からの経過で時刻を書く（`at(7)` は開始から7分後、`at(3, 20)` は3分20秒後）
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
@@ -442,5 +442,53 @@ describe("操作イベントの並び", () => {
     ] as const satisfies SessionEvents;
 
     expect(reject(events, at(6))).toEqual({ kind: "EventOutOfOrder", at: at(4) });
+  });
+});
+
+describe("完了セットになった時刻", () => {
+  const completedSetTimes = (
+    events: SessionEvents,
+    now: Date,
+    journalEntryTimes: ReadonlyArray<Date> = [],
+  ) => {
+    const derived = deriveCompletedSetTimes(events, now, journalEntryTimes);
+    if (Result.isFailure(derived)) {
+      throw new Error(`完了セットを計算できなかった: ${derived.error.kind}`);
+    }
+    return derived.value;
+  };
+
+  test("完了セットは集中を最後まで終えた時刻に数え、ジャーナルの終わりではない", () => {
+    expect(completedSetTimes(start, at(16))).toEqual([at(7), at(15)]);
+  });
+
+  test("一時停止した分だけ、集中を終えた時刻が後ろにずれる", () => {
+    const events = [
+      ...start,
+      { kind: "Pause", at: at(2) },
+      { kind: "Resume", at: at(5) },
+    ] as const satisfies SessionEvents;
+
+    expect(completedSetTimes(events, at(11))).toEqual([at(10)]);
+  });
+
+  test("中断した不成立セットは数えない", () => {
+    const events = [...start, { kind: "Abort", at: at(3) }] as const satisfies SessionEvents;
+
+    expect(completedSetTimes(events, at(20))).toEqual([]);
+  });
+
+  test("自動終了したら、最後の操作より後に終わるはずだったセットは数えない", () => {
+    expect(completedSetTimes(start, at(120))).toEqual([]);
+  });
+
+  test("数はタイマーの状態の完了セット数と一致する", () => {
+    const events = [
+      ...start,
+      { kind: "Pause", at: at(20) },
+      { kind: "Resume", at: at(21) },
+    ] as const satisfies SessionEvents;
+
+    expect(completedSetTimes(events, at(40))).toHaveLength(derive(events, at(40)).completedSets);
   });
 });

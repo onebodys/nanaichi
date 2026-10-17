@@ -13,12 +13,14 @@ const API_ERROR_CODES = [
   "INVALID_REQUEST",
   /** 同時に持てるセッションは1つまで（409） */
   "SESSION_ALREADY_IN_PROGRESS",
-  /** セッションの外での操作（409） */
+  /** セッションの外での操作やジャーナル記入（409） */
   "NO_SESSION_IN_PROGRESS",
   /** その状態ではできない操作（409） */
   "OPERATION_REJECTED",
   /** 記録済みの操作イベントと同じ ID で別の操作（409、ADR 0007） */
   "EVENT_ID_CONFLICT",
+  /** ジャーナル記入が記録されていないか、削除されている（404、ADR 0010） */
+  "JOURNAL_ENTRY_NOT_FOUND",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

@@ -319,18 +319,8 @@ describe("自動終了", () => {
 
   test("ジャーナル記入があれば、最後の記入から2ラウンド分の位置に alarm を張り直す", async () => {
     await start();
-    const { session } = await (await getCurrent()).json<{ session: { id: string } }>();
-    // 記入の API は #6 で作るので、テストでは行を直接入れる
-    await runInDurableObject(userDO(), (_, state) => {
-      state.storage.sql.exec(
-        `INSERT INTO journal_entries (id, session_id, body, written_at, round, set_number, phase, updated_at)
-         VALUES (?, ?, 'メモ', ?, 1, 1, 'Journal', ?)`,
-        crypto.randomUUID(),
-        session.id,
-        minutes(7, 30),
-        minutes(7, 30),
-      );
-    });
+    passTo(minutes(7, 30));
+    await request("/api/journal-entries", json({ id: crypto.randomUUID(), body: "メモ" }));
     passTo(minutes(8));
 
     await getCurrent();

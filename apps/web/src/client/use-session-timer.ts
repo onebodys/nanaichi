@@ -111,6 +111,10 @@ const redirectToLoginIfSignedOut = (error: ApiError) => {
  */
 export const useSessionTimer = (): Readonly<{
   view: TimerView;
+  /** 最後に受け取ったスナップショットのセッション（終了したばかりのものを含む）。タイムラインに重ねる */
+  session: Session | undefined;
+  /** 時計のずれで補正した、サーバーの今の時刻の見積もり */
+  serverNow: Date;
   /** 操作を送っている途中。ボタンを押せなくして、二重に送らないようにする */
   pending: boolean;
   /** 直前の操作の失敗 */
@@ -118,6 +122,8 @@ export const useSessionTimer = (): Readonly<{
   start: () => void;
   operate: (kind: SessionOperation["kind"]) => void;
   reload: () => void;
+  /** 画面を「読み込み中」にせず、今の状態を読み込み直す（ジャーナル記入で自動終了の時刻が延びたときなど） */
+  refresh: () => void;
 }> => {
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
@@ -194,8 +200,14 @@ export const useSessionTimer = (): Readonly<{
     setPending(false);
   };
 
+  const snapshot = received?.snapshot;
   return {
     view,
+    session: snapshot?.kind === "Session" ? snapshot.session : undefined,
+    serverNow:
+      received === undefined
+        ? deviceNow
+        : ClockOffset.serverNow(received.offset, deviceNow, received.snapshot.serverTime),
     pending,
     errorMessage,
     start: () => {
@@ -213,5 +225,10 @@ export const useSessionTimer = (): Readonly<{
       setLoading({ kind: "Loading" });
       void load();
     },
+    refresh: () => {
+      void load();
+    },
   };
 };
+
+export type SessionTimer = ReturnType<typeof useSessionTimer>;

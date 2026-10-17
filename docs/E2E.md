@@ -37,6 +37,8 @@ test("ログインするとホームが表示される", { session: "signedIn" }
   ユーザーの名前は `Test User`。
 - ログアウトするテストは `{ session: "signedInToSignOut" }` を使う。ログアウトするとサーバー側のセッションが消えるので、
   `signedIn` でログアウトすると、後に走るテストがログイン画面に飛ばされる。
+- ジャーナル記入のテスト（`tests/journal.e2e.ts`）は `{ session: "journalWriter" }` を使う。`e2e-journal@example.com` として
+  ログインする別のユーザーなので、同じ時間に走るタイマーのテストとセッション（UserDO）が混ざらない。
 - 保存されるのはブラウザの cookie だけで、サーバーの状態（D1 や UserDO のセッション）は持ち越さない。
   ローカルの D1 は実行のあいだで残るので、テストは前の実行の状態に依存しないように書く。
 
