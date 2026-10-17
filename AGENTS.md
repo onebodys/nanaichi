@@ -83,6 +83,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 ## 7. ツールと作業の進め方
 
 - ツールチェーンは Vite+（`vp`）。`vp check`（Oxlint / Oxfmt / 型チェック）と `vp test`（Vitest）を使う。ESLint / Prettier は入れない。
+- チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は `vp check` と `vp test` が走る。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
 - Issue ごとにブランチを切り、PR で `Closes #N` を書く。main に直接 push しない。
 - ドキュメント、コードコメント、PR の本文、テスト名は日本語。識別子とコミットメッセージは英語。
 - 覆しにくい判断をしたら `docs/adr/` に ADR を書く（domain-modeling スキルの基準に従う）。
