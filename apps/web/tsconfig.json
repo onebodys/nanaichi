@@ -1,5 +1,7 @@
 {
   "files": [],
+  // shadcn の CLI はここからエイリアスを読む。実際の型チェックは tsconfig.app.json の同じ設定で行う
+  "compilerOptions": { "paths": { "@/*": ["./src/*"] } },
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.worker.json" },

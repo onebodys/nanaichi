@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -14,6 +15,10 @@ export default defineConfig(({ mode }) => ({
     react(),
     tailwindcss(),
   ]),
+  resolve: {
+    // shadcn/ui のコンポーネントが使う import エイリアス（tsconfig.app.json の paths と同じ）
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   server: {
     // 認証は Host を許可リスト（src/server/base-url.ts）と突き合わせるため、
     // ポートがずれるとログインだけが静かに失敗する。別ポートに逃げず落とす。

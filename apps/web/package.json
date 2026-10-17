@@ -16,9 +16,13 @@
     "@standard-schema/spec": "catalog:",
     "@tanstack/react-router": "catalog:",
     "better-auth": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
     "hono": "catalog:",
+    "radix-ui": "catalog:",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tailwind-merge": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {
@@ -33,6 +37,7 @@
     "e2e": "catalog:",
     "miniflare": "catalog:",
     "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
     "typescript": "~6.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:",

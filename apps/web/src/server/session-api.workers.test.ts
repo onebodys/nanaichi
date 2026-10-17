@@ -432,6 +432,16 @@ describe("応答はクライアントが検証するスキーマ（domain/）に
     expect(parsed).toEqual(Result.succeed({ kind: "NoSession", serverTime: new Date(minutes(0)) }));
   });
 
+  test("開始の応答も、スナップショットのスキーマに合う", async () => {
+    const parsed = parseSnapshot(await (await start()).json());
+
+    expect(Result.isSuccess(parsed) && parsed.value).toMatchObject({
+      kind: "Session",
+      serverTime: new Date(minutes(0)),
+      state: { kind: "Focus", round: 1, setNumber: 1, remainingSeconds: 7 * 60 },
+    });
+  });
+
   test("一時停止・中断・休憩・終了を経たスナップショットも、スキーマで元の時刻に戻せる", async () => {
     await start();
     passTo(minutes(2));

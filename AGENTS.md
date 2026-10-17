@@ -85,7 +85,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 
 ## 6. 用語とコードの対応
 
-- コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline）。
+- コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline, PhaseChange, ClockOffset）。
 - `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。
 - 新しい概念が出てきたら、コードを書く前に `GLOSSARY.md` を更新する（domain-modeling スキル）。
 
