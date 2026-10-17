@@ -23,7 +23,7 @@ import { describeIssuePaths } from "./validation-error.ts";
 // DB の行（境界）。読み出した行はスキーマで検証し、その場でドメインの型に変換する
 // ---------------------------------------------------------------------------
 
-const epochMs = v.pipe(v.number(), v.integer());
+export const epochMs = v.pipe(v.number(), v.integer());
 
 const StartRowSchema = v.pipe(
   v.object({ id: SessionEventId.schema, kind: v.literal("Start"), at: epochMs }),
@@ -59,7 +59,7 @@ const SessionIdRowSchema = v.object({ id: SessionId.schema });
  * 自分で書いた行が読めないのは、記録が壊れているか実装の誤り。想定内の失敗ではないので例外にする。
  * どの列がおかしいかだけを出し、値は出さない（ジャーナル記入の本文は PII）。
  */
-const parseRow =
+export const parseRow =
   <T>(schema: v.GenericSchema<unknown, T>, table: string) =>
   (raw: unknown): T => {
     const parsed = schemaResult(schema)(raw);
@@ -85,8 +85,10 @@ export type SessionSqlite = Readonly<{
   closeSession: CloseSession;
 }>;
 
-export const sessionSqlite = (sql: SqlStorage): SessionSqlite => {
-  const loadSession = (id: SessionId): Session => ({
+/** 記録されているセッションを、操作イベントと記入の時刻とともに読み込む */
+export const sessionLoader =
+  (sql: SqlStorage) =>
+  (id: SessionId): Session => ({
     id,
     // 同じミリ秒の操作は記録した順（rowid）に並べる
     events: parseEventRows(
@@ -101,6 +103,9 @@ export const sessionSqlite = (sql: SqlStorage): SessionSqlite => {
         .toArray(),
     ),
   });
+
+export const sessionSqlite = (sql: SqlStorage): SessionSqlite => {
+  const loadSession = sessionLoader(sql);
 
   const sessionIdOf = (rows: ReadonlyArray<unknown>): SessionId | undefined => {
     const [row] = rows;

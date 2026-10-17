@@ -3,7 +3,15 @@ import { Result } from "@praha/byethrow";
 import { ApiErrorBodyJsonSchema, type ApiErrorCode } from "../domain/api-error.ts";
 import { schemaResult } from "../domain/schema-result.ts";
 import type { SessionEventId, SessionOperation } from "../domain/session-event.ts";
+import {
+  DeletedJournalEntryJsonSchema,
+  JournalEntryJsonSchema,
+  type DeletedJournalEntry,
+  type JournalEntry,
+  type JournalEntryId,
+} from "../domain/journal-entry.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "../domain/session.ts";
+import { TimelinePageJsonSchema, type TimelinePage } from "../domain/timeline.ts";
 
 /**
  * API の通信層（AGENTS.md §5）。
@@ -84,11 +92,13 @@ const requestApi =
       Result.andThen(decode(schema)),
     );
 
-const postJson = (body: unknown): RequestInit => ({
-  method: "POST",
+const sendJson = (method: "POST" | "PATCH", body: unknown): RequestInit => ({
+  method,
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
 });
+
+const postJson = (body: unknown): RequestInit => sendJson("POST", body);
 
 /**
  * API のクライアントを作る。`fetchApi` はテストで差し替えるためのもので、画面からは省略する。
@@ -109,6 +119,23 @@ export const createApiClient = (
     id: SessionEventId,
     kind: SessionOperation["kind"],
   ) => Result.ResultAsync<SessionSnapshot, ApiError>;
+  /**
+   * `POST /api/journal-entries`: ジャーナル記入を書く。`id` は記入の ID（ADR 0010）。
+   * やり直すときは同じ ID で送れば、二重に書かない。本文は送るときだけ取り出す
+   */
+  writeJournalEntry: (
+    id: JournalEntryId,
+    body: string,
+  ) => Result.ResultAsync<JournalEntry, ApiError>;
+  /** `PATCH /api/journal-entries/:id`: 記入の本文を書き直す */
+  editJournalEntry: (
+    id: JournalEntryId,
+    body: string,
+  ) => Result.ResultAsync<JournalEntry, ApiError>;
+  /** `DELETE /api/journal-entries/:id`: 記入を削除する */
+  deleteJournalEntry: (id: JournalEntryId) => Result.ResultAsync<DeletedJournalEntry, ApiError>;
+  /** `GET /api/timeline?before=`: タイムラインの1ページ。`before` を省けば最新のページ */
+  getTimeline: (before?: Date) => Result.ResultAsync<TimelinePage, ApiError>;
 }> => {
   const request = requestApi(fetchApi);
   return {
@@ -116,5 +143,18 @@ export const createApiClient = (
     startSession: (id) => request("/api/session", SessionSnapshotJsonSchema, postJson({ id })),
     operateSession: (id, kind) =>
       request("/api/session/commands", SessionSnapshotJsonSchema, postJson({ id, kind })),
+    writeJournalEntry: (id, body) =>
+      request("/api/journal-entries", JournalEntryJsonSchema, postJson({ id, body })),
+    editJournalEntry: (id, body) =>
+      request(`/api/journal-entries/${id}`, JournalEntryJsonSchema, sendJson("PATCH", { body })),
+    deleteJournalEntry: (id) =>
+      request(`/api/journal-entries/${id}`, DeletedJournalEntryJsonSchema, { method: "DELETE" }),
+    getTimeline: (before) =>
+      request(
+        before === undefined
+          ? "/api/timeline"
+          : `/api/timeline?${new URLSearchParams({ before: before.toISOString() }).toString()}`,
+        TimelinePageJsonSchema,
+      ),
   };
 };

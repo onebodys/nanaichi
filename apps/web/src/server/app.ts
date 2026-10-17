@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { authFor } from "./auth-context.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
+import { journalRoutes } from "./journal-routes.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
 import { testSignInRoutes } from "./test-sign-in.ts";
@@ -21,5 +22,6 @@ authenticated.get("/me", (c) => {
   return c.json({ user: { id: user.id, name: user.name, email: user.email, image: user.image } });
 });
 authenticated.route("/", sessionRoutes);
+authenticated.route("/", journalRoutes);
 
 app.route("/", authenticated);

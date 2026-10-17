@@ -11,6 +11,7 @@ import {
 } from "./session-event.ts";
 import {
   autoEndDueAt,
+  deriveCompletedSetTimes,
   deriveTimerState,
   TimerStateJsonSchema,
   type Ended,
@@ -49,6 +50,13 @@ export type SessionSnapshot =
   | Readonly<{ kind: "NoSession"; serverTime: Date }>
   | Readonly<{ kind: "Session"; serverTime: Date; session: Session; state: TimerState }>;
 
+/** JSON にしたセッション（スナップショットやタイムラインの応答の一部）を検証して戻す */
+export const SessionJsonSchema: v.GenericSchema<unknown, Session> = v.object({
+  id: SessionIdSchema,
+  events: RecordedSessionEventsJsonSchema,
+  journalEntryTimes: v.array(JsonDateSchema),
+});
+
 /**
  * JSON にしたスナップショット（`GET /api/session/current` などの応答）を検証して戻す。
  *
@@ -62,11 +70,7 @@ export const SessionSnapshotJsonSchema: v.GenericSchema<unknown, SessionSnapshot
     v.object({
       kind: v.literal("Session"),
       serverTime: JsonDateSchema,
-      session: v.object({
-        id: SessionIdSchema,
-        events: RecordedSessionEventsJsonSchema,
-        journalEntryTimes: v.array(JsonDateSchema),
-      }),
+      session: SessionJsonSchema,
       state: TimerStateJsonSchema,
     }),
   ],
@@ -127,6 +131,15 @@ export const Session = {
         deriveTimerState([...session.events, { kind, at: now }], now, session.journalEntryTimes),
       ),
     ),
+
+  /** 時刻 `now` までに完了セットになったセットの、集中を終えた時刻。計算できないのは `stateAt` と同じく不変条件違反 */
+  completedSetTimesAt: (session: Session, now: Date): ReadonlyArray<Date> => {
+    const derived = deriveCompletedSetTimes(session.events, now, session.journalEntryTimes);
+    if (Result.isFailure(derived)) {
+      throw new Error(`記録済みの操作イベントから完了セットを計算できない: ${derived.error.kind}`);
+    }
+    return derived.value;
+  },
 
   /** 記入も操作もないまま過ぎれば自動終了する時刻 */
   autoEndDueAt: (session: Session): Date => autoEndDueAt(session.events, session.journalEntryTimes),

@@ -32,3 +32,17 @@ test.setup(
     await session.save("signedInToSignOut");
   },
 );
+
+/**
+ * ジャーナル記入のテスト（tests/journal.e2e.ts）用のログイン済みの状態。タイマーのテストと並べて走っても
+ * セッションが混ざらないよう、別のユーザーにする（UserDO はユーザーごと、ADR 0002）。
+ */
+test.setup(
+  "ジャーナル記入のテスト用のログイン済みの状態を用意する",
+  { sessions: ["journalWriter"] },
+  async ({ app, browser, session }) => {
+    await app.open("/api/test/sign-in?email=e2e-journal%40example.com");
+    await expect(browser).toHaveURL("/");
+    await session.save("journalWriter");
+  },
+);

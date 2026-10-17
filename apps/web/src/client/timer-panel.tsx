@@ -2,7 +2,7 @@ import type { SessionOperation } from "../domain/session-event.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import { Button } from "./components/ui/button.tsx";
 import { formatCountdown, operationLabelOf, phaseLabelOf, positionOf } from "./timer-text.ts";
-import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
+import type { SessionTimer, TimerView } from "./use-session-timer.ts";
 import { useWakeLock } from "./wake-lock.ts";
 
 /** 操作ボタンの見た目。止める・閉じる操作は控えめにし、進める操作を目立たせる */
@@ -116,10 +116,10 @@ const Body = ({
 
 /**
  * 画面上部のタイマー（docs/PRODUCT.md「画面」）。カウントダウン、フェーズ、何ラウンド目・何セット目か、
- * その状態でできる操作のボタンを出す。状態の計算と判断は `useSessionTimer` とドメインにある。
+ * その状態でできる操作のボタンを出す。状態の計算と判断は `useSessionTimer`（ホーム画面が持つ）とドメインにある。
  */
-export const TimerPanel = () => {
-  const { view, pending, errorMessage, start, operate, reload } = useSessionTimer();
+export const TimerPanel = ({ timer }: Readonly<{ timer: SessionTimer }>) => {
+  const { view, pending, errorMessage, start, operate, reload } = timer;
   // セッション中（待機・一時停止を含む）は画面を消灯させない
   useWakeLock(view.kind === "InSession");
 

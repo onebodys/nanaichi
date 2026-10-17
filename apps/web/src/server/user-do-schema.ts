@@ -53,6 +53,10 @@ const MIGRATIONS: ReadonlyArray<string> = [
 
   CREATE INDEX journal_entries_by_session ON journal_entries (session_id, written_at);
   `,
+  `
+  -- タイムラインはセッションを開始時刻の新しい順にページを送る（ADR 0011）
+  CREATE INDEX sessions_by_started_at ON sessions (started_at);
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */
