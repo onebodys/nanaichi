@@ -79,16 +79,19 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await input.press("Enter");
     await expect(input).toHaveValue("");
 
-    const entries = screen.getByRole("listitem", { name: "ジャーナル記入" });
+    // ローカルの記録は実行のあいだで残るので、前の実行のセッションの記入を数えないよう、いちばん新しいセッションに絞る
+    const entries = screen
+      .getByRole("region", { name: /からのセッション$/ })
+      .first()
+      .getByRole("listitem", { name: "ジャーナル記入" });
     await expect(entries).toHaveCount(2);
     await expect(entries.first()).toContainText("続けて2件目");
     await expect(entries.nth(1)).toContainText("設計を書いた");
     await expect(entries.first()).toContainText("1ラウンド目・1セット目・集中");
     // URL だけがリンクになる
-    await expect(screen.getByRole("link", { name: "https://example.com/e2e" })).toHaveAttribute(
-      "href",
-      "https://example.com/e2e",
-    );
+    await expect(
+      entries.nth(1).getByRole("link", { name: "https://example.com/e2e" }),
+    ).toHaveAttribute("href", "https://example.com/e2e");
 
     await screen.getByRole("button", { name: "終了" }).tap();
   });

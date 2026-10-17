@@ -7,6 +7,7 @@ import {
   type JournalEntryJson,
 } from "../domain/journal-entry.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
+import { SyncMessage } from "../domain/sync-message.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
 import {
@@ -33,7 +34,10 @@ const newSessionId = (): SessionId => v.parse(SessionId.schema, crypto.randomUUI
  * ユーザーごとの Durable Object（ADR 0002）。セッション・操作イベント・ジャーナル記入を持つ。
  *
  * Imperative Shell として、時刻と ID を作り、ワークフローに SQLite の読み書きを渡し、
- * alarm を張るだけにする。判断はすべてワークフローとドメインにある。
+ * alarm を張り、記録を変えたら同期メッセージを全接続へ送るだけにする。判断はすべてワークフローとドメインにある。
+ *
+ * 同期の WebSocket は Hibernation API で受け入れる（ADR 0012）。画面からの `ping` にはランタイムが
+ * `pong` を返すので、接続があっても UserDO は休止できる。
  *
  * Durable Object はランタイムの都合でクラス継承が必須（kamae の「クラスを使わない」からの例外）。
  */
@@ -47,6 +51,17 @@ export class UserDO extends DurableObject<Env> {
     migrate(ctx.storage.sql, new Date());
     this.#sessions = sessionSqlite(ctx.storage.sql);
     this.#journal = journalSqlite(ctx.storage.sql);
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+  }
+
+  /**
+   * `GET /api/ws`。ログインと Upgrade・Origin の確認は Worker 側のルートが済ませている（sync-routes.ts）。
+   * 画面からのメッセージ（`ping` 以外）は使わないので、`webSocketMessage` は定義しない。
+   */
+  override async fetch(): Promise<Response> {
+    const { 0: client, 1: server } = new WebSocketPair();
+    this.ctx.acceptWebSocket(server);
+    return new Response(null, { status: 101, webSocket: client });
   }
 
   /** `GET /api/session/current` */
@@ -56,12 +71,14 @@ export class UserDO extends DurableObject<Env> {
 
   /** `POST /api/session`。`raw` はリクエストの本文で、検証はワークフローが行う */
   async startSession(raw: unknown): Promise<Result.Result<SessionSnapshot, StartSessionError>> {
-    return this.#run((now) => startSession(this.#sessions)(raw, now, newSessionId()));
+    const result = await this.#run((now) => startSession(this.#sessions)(raw, now, newSessionId()));
+    return Result.pipe(result, Result.inspect(this.#broadcastSessionChanged));
   }
 
   /** `POST /api/session/commands`。`raw` はリクエストの本文で、検証はワークフローが行う */
   async operateSession(raw: unknown): Promise<Result.Result<SessionSnapshot, OperateSessionError>> {
-    return this.#run((now) => operateSession(this.#sessions)(raw, now));
+    const result = await this.#run((now) => operateSession(this.#sessions)(raw, now));
+    return Result.pipe(result, Result.inspect(this.#broadcastSessionChanged));
   }
 
   // 記入の本文は `Sensitive` に包まれていて RPC で送れない（関数を含む）ため、
@@ -71,11 +88,22 @@ export class UserDO extends DurableObject<Env> {
   async writeJournalEntry(
     raw: unknown,
   ): Promise<Result.Result<JournalEntryJson, WriteJournalEntryError>> {
-    return this.#run((now) =>
+    const result = await this.#run((now) =>
       Result.pipe(
         writeJournalEntry({ ...this.#sessions, ...this.#journal })(raw, now),
-        Result.map(JournalEntry.toJson),
+        // 記入で自動終了の時刻が延びるので、新しいスナップショットもあわせて送る（ADR 0012）
+        Result.map((entry) => ({ entry, snapshot: getCurrentSession(this.#sessions)(now) })),
       ),
+    );
+    return Result.pipe(
+      result,
+      Result.inspect(({ entry, snapshot }) =>
+        this.#broadcast([
+          { kind: "JournalEntrySaved", entry },
+          { kind: "SessionChanged", snapshot },
+        ]),
+      ),
+      Result.map(({ entry }) => JournalEntry.toJson(entry)),
     );
   }
 
@@ -84,11 +112,11 @@ export class UserDO extends DurableObject<Env> {
     rawId: unknown,
     raw: unknown,
   ): Promise<Result.Result<JournalEntryJson, EditJournalEntryError>> {
-    return this.#run((now) =>
-      Result.pipe(
-        editJournalEntry(this.#journal)(rawId, raw, now),
-        Result.map(JournalEntry.toJson),
-      ),
+    const result = await this.#run((now) => editJournalEntry(this.#journal)(rawId, raw, now));
+    return Result.pipe(
+      result,
+      Result.inspect((entry) => this.#broadcast([{ kind: "JournalEntrySaved", entry }])),
+      Result.map(JournalEntry.toJson),
     );
   }
 
@@ -96,7 +124,11 @@ export class UserDO extends DurableObject<Env> {
   async deleteJournalEntry(
     rawId: unknown,
   ): Promise<Result.Result<DeletedJournalEntry, DeleteJournalEntryError>> {
-    return this.#run((now) => deleteJournalEntry(this.#journal)(rawId, now));
+    const result = await this.#run((now) => deleteJournalEntry(this.#journal)(rawId, now));
+    return Result.pipe(
+      result,
+      Result.inspect((deleted) => this.#broadcast([{ kind: "JournalEntryDeleted", deleted }])),
+    );
   }
 
   /** `GET /api/timeline?before=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
@@ -109,7 +141,12 @@ export class UserDO extends DurableObject<Env> {
     );
   }
 
-  /** 自動終了の時刻に鳴る。自動終了を記録し、まだなら張り直す（`#run` が行う） */
+  /**
+   * 自動終了の時刻に鳴る。自動終了を記録し、まだなら張り直す（`#run` が行う）。
+   *
+   * 同期メッセージは送らない。自動終了はどの画面も時刻から計算しているので知らせることがなく、
+   * 送ると「自動終了しました」の表示が「セッションなし」に置き換わってしまう（ADR 0012）。
+   */
   override async alarm(): Promise<void> {
     await this.#run(() => undefined);
   }
@@ -127,6 +164,24 @@ export class UserDO extends DurableObject<Env> {
     }));
     await this.#applySchedule(schedule);
     return result;
+  }
+
+  readonly #broadcastSessionChanged = (snapshot: SessionSnapshot): void =>
+    this.#broadcast([{ kind: "SessionChanged", snapshot }]);
+
+  /** 同期メッセージを、このユーザーのすべての接続へ送る（ADR 0012） */
+  #broadcast(messages: ReadonlyArray<SyncMessage>): void {
+    const sent = messages.map(SyncMessage.serialize);
+    for (const ws of this.ctx.getWebSockets()) {
+      for (const message of sent) {
+        // 閉じかけの接続には送れず例外になる。その画面は繋ぎ直して読み込み直すので、捨ててよい
+        try {
+          ws.send(message);
+        } catch {
+          break;
+        }
+      }
+    }
   }
 
   async #applySchedule(schedule: AutoEndSchedule): Promise<void> {

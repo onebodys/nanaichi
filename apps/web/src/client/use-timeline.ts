@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
-import { JournalEntryId } from "../domain/journal-entry.ts";
+import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
 import type { Session } from "../domain/session.ts";
 import {
   Timeline,
@@ -61,6 +61,7 @@ const redirectToLoginIfSignedOut = (error: ApiError) => {
  *
  * - 最新のページを読み込み、「さらに読み込む」で古いページを足す（ADR 0011）
  * - タイマーのスナップショットのセッションを重ね、進行中・終了したばかりのセッションを新しく保つ
+ * - 他のタブ・端末で書いた・編集した・削除した記入は、同期メッセージで受け取って反映する（ADR 0012）
  * - 日付の区切りと完了セット数は、サーバーの今の時刻の見積もりと端末のタイムゾーンでドメインが組み立てる
  *
  * - `current`: タイマーが最後に受け取ったセッション
@@ -82,6 +83,12 @@ export const useTimeline = (
   remove: (id: JournalEntryId) => Promise<void>;
   loadMore: () => void;
   reload: () => void;
+  /** 画面を「読み込み中」にせず、最新のページを読み込み直す（同期が繋がったときなど） */
+  refresh: () => void;
+  /** 同期メッセージで届いた、書いた・編集した記入を反映する */
+  receiveEntry: (entry: JournalEntry) => void;
+  /** 同期メッセージで届いた、削除した記入を取り除く */
+  receiveDeletion: (id: JournalEntryId) => void;
 }> => {
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -205,6 +212,15 @@ export const useTimeline = (
     reload: () => {
       setLoading({ kind: "Loading" });
       void loadLatest();
+    },
+    refresh: () => {
+      void loadLatest();
+    },
+    receiveEntry: (entry) => {
+      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+    },
+    receiveDeletion: (id) => {
+      update((loaded) => ({ ...loaded, sessions: Timeline.removeEntry(loaded.sessions, id) }));
     },
   };
 };

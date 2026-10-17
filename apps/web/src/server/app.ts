@@ -4,6 +4,7 @@ import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { journalRoutes } from "./journal-routes.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
+import { syncRoutes } from "./sync-routes.ts";
 import { testSignInRoutes } from "./test-sign-in.ts";
 
 export const app = new Hono<AppEnv>().basePath("/api");
@@ -23,5 +24,6 @@ authenticated.get("/me", (c) => {
 });
 authenticated.route("/", sessionRoutes);
 authenticated.route("/", journalRoutes);
+authenticated.route("/", syncRoutes);
 
 app.route("/", authenticated);
