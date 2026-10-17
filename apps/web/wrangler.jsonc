@@ -14,9 +14,8 @@
     {
       "binding": "DB",
       "database_name": "nanaichi",
-      // `wrangler d1 create nanaichi` が表示する database_id に置き換える。
-      // ローカル開発（wrangler dev）ではローカル SQLite の識別子になるだけなので、実在しなくても動く。
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // `pnpm cf d1 create nanaichi` で作成した本番のデータベース。
+      "database_id": "0aa9e02f-791c-4090-b449-e8496dfe63db",
     },
   ],
   "durable_objects": {
