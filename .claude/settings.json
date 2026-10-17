@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-before-stop.sh",
+            "timeout": 180,
+            "statusMessage": "vp check と vp test を実行しています…"
+          }
+        ]
+      }
+    ]
+  }
+}
