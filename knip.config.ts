@@ -12,6 +12,8 @@ export default {
       ignoreDependencies: ["vite"],
     },
     "apps/web": {
+      // E2E ランナー（e2e、docs/E2E.md）には knip のプラグインがないので、設定とテストを入口として教える
+      entry: ["e2e.config.ts", "tests/**/*.e2e.ts"],
       // `cloudflare:workers` は Workers ランタイムの組み込みモジュールで、npm パッケージではない
       ignoreDependencies: ["cloudflare"],
     },

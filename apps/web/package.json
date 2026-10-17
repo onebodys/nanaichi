@@ -8,7 +8,8 @@
     "build": "tsc -b && vp build",
     "preview": "vp preview",
     "test": "vp test",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "test:e2e": "wrangler d1 migrations apply nanaichi --local && e2e run"
   },
   "dependencies": {
     "@praha/byethrow": "catalog:",
@@ -22,11 +23,13 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
+    "@e2e-dev/web": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "e2e": "catalog:",
     "miniflare": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "~6.0.2",

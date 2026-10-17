@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "e2e": {
+      "source": "tester-army/e2e",
+      "sourceType": "github",
+      "skillPath": "skills/e2e/SKILL.md",
+      "computedHash": "d5d8c76f34273fe7b6dbf95fc930e35b4f6ae810e368e0b386e7fa213a7475a1"
+    },
     "kamae": {
       "source": "iwasa-kosui/kamae-ts",
       "sourceType": "github",
