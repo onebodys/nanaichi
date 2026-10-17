@@ -1,14 +1,17 @@
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
-import type {
-  RecordedSessionEvent,
-  RecordedSessionEvents,
-  SessionEventId,
-  SessionOperation,
+import { JsonDateSchema } from "./json-date.ts";
+import {
+  RecordedSessionEventsJsonSchema,
+  type RecordedSessionEvent,
+  type RecordedSessionEvents,
+  type SessionEventId,
+  type SessionOperation,
 } from "./session-event.ts";
 import {
   autoEndDueAt,
   deriveTimerState,
+  TimerStateJsonSchema,
   type Ended,
   type OperationRejected,
   type TimerState,
@@ -44,6 +47,29 @@ export type Session = Readonly<{
 export type SessionSnapshot =
   | Readonly<{ kind: "NoSession"; serverTime: Date }>
   | Readonly<{ kind: "Session"; serverTime: Date; session: Session; state: TimerState }>;
+
+/**
+ * JSON にしたスナップショット（`GET /api/session/current` などの応答）を検証して戻す。
+ *
+ * サーバーは `SessionSnapshot` をそのまま JSON にして返し、クライアントはこれで検証してから使う
+ * （AGENTS.md §5）。時刻は ISO 8601 の文字列から `Date` に戻る。
+ */
+export const SessionSnapshotJsonSchema: v.GenericSchema<unknown, SessionSnapshot> = v.variant(
+  "kind",
+  [
+    v.object({ kind: v.literal("NoSession"), serverTime: JsonDateSchema }),
+    v.object({
+      kind: v.literal("Session"),
+      serverTime: JsonDateSchema,
+      session: v.object({
+        id: SessionIdSchema,
+        events: RecordedSessionEventsJsonSchema,
+        journalEntryTimes: v.array(JsonDateSchema),
+      }),
+      state: TimerStateJsonSchema,
+    }),
+  ],
+);
 
 export const Session = {
   /** セッションを始める。1ラウンド目の1セット目の集中がすぐに始まる */

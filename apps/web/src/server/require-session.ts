@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { Allowlist } from "../domain/allowlist.ts";
+import type { ApiErrorBody } from "../domain/api-error.ts";
 import { allowlistFor, authFor } from "./auth-context.ts";
 import type { AppEnv } from "./hono-context.ts";
 
@@ -17,10 +18,10 @@ export const requireSession = createMiddleware<AppEnv>(async (c, next) => {
   const session = await authFor(c).api.getSession({ headers: c.req.raw.headers });
 
   if (session === null) {
-    return c.json({ error: "UNAUTHENTICATED" }, 401);
+    return c.json({ error: "UNAUTHENTICATED" } satisfies ApiErrorBody, 401);
   }
   if (!Allowlist.permits(allowlistFor(c), session.user.email)) {
-    return c.json({ error: "EMAIL_NOT_ALLOWED" }, 403);
+    return c.json({ error: "EMAIL_NOT_ALLOWED" } satisfies ApiErrorBody, 403);
   }
 
   c.set("session", session);

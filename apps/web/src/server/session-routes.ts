@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { Result } from "@praha/byethrow";
+import type { ApiErrorBody } from "../domain/api-error.ts";
 import type { OperateSessionError } from "../workflows/operate-session.ts";
 import type { StartSessionError } from "../workflows/start-session.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
@@ -19,7 +20,7 @@ type SessionError = StartSessionError | OperateSessionError;
 /** 想定内の失敗を HTTP の応答にする。どれもクライアントが直せる失敗なので 4xx */
 const errorResponseOf = (
   error: SessionError,
-): Readonly<{ status: ContentfulStatusCode; body: Readonly<Record<string, unknown>> }> => {
+): Readonly<{ status: ContentfulStatusCode; body: ApiErrorBody }> => {
   switch (error.kind) {
     case "ValidationError":
       // 入力値はレスポンスに含めず、どの項目が不正かだけを返す
