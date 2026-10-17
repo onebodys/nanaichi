@@ -1,18 +1,17 @@
 import type { Context } from "hono";
-import type { Allowlist } from "../domain/allowlist.ts";
 import type { Auth } from "./auth.ts";
+import type { AuthConfig } from "./env.ts";
 
 /** ログイン中のユーザーとセッション。`requireSession` を通ったリクエストでのみ存在する。 */
 export type AuthSession = NonNullable<Awaited<ReturnType<Auth["api"]["getSession"]>>>;
 
-/** リクエストごとに作る Better Auth のインスタンスと、それを作ったときの許可リスト。 */
-export type RequestAuth = Readonly<{ auth: Auth; allowlist: Allowlist }>;
-
 export type AppEnv = {
   Bindings: Env;
   Variables: {
-    /** リクエストに紐づく Better Auth のインスタンスと許可リスト。`authFor` が遅延して設定する */
-    auth: RequestAuth | undefined;
+    /** リクエストのバインディングから検証した認証の設定。`authConfigFor` が遅延して設定する */
+    authConfig: AuthConfig | undefined;
+    /** リクエストに紐づく Better Auth のインスタンス。`authFor` が遅延して設定する */
+    auth: Auth | undefined;
     /** `requireSession` が設定する。未ログインなら undefined のまま */
     session: AuthSession | undefined;
   };

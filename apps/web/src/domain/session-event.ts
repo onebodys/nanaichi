@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { JsonDateSchema } from "./json-date.ts";
 
 /**
  * 操作イベント（GLOSSARY の「操作イベント」）。
@@ -59,3 +60,14 @@ export type RecordedSessionEvents = readonly [
 export const SessionOperationKind = {
   schema: v.picklist(SESSION_OPERATION_KINDS),
 } as const;
+
+/** JSON にした記録済みの操作イベントの並び（API の応答）を検証して戻す（AGENTS.md §5） */
+export const RecordedSessionEventsJsonSchema: v.GenericSchema<unknown, RecordedSessionEvents> =
+  v.tupleWithRest(
+    [v.object({ kind: v.literal("Start"), id: SessionEventIdSchema, at: JsonDateSchema })],
+    v.object({
+      kind: SessionOperationKind.schema,
+      id: SessionEventIdSchema,
+      at: JsonDateSchema,
+    }),
+  );

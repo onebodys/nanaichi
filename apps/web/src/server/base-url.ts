@@ -7,11 +7,9 @@ import { HTTPException } from "hono/http-exception";
  * サブドメインで決まる）、開発は Vite の dev サーバー。Worker 名やサブドメインを変えたら
  * ここも直す。Google Cloud Console に登録したリダイレクト URI と揃っている必要がある。
  */
-const ALLOWED_HOSTS = [
-  "localhost:5173",
-  "127.0.0.1:5173",
-  "nanaichi.onori-black1984.workers.dev",
-] as const;
+const LOCAL_HOSTS = ["localhost:5173", "127.0.0.1:5173"] as const;
+
+const ALLOWED_HOSTS = [...LOCAL_HOSTS, "nanaichi.onori-black1984.workers.dev"] as const;
 
 const matchesHost = (pattern: string, host: string): boolean =>
   pattern.startsWith("*.") ? host.endsWith(pattern.slice(1)) : pattern === host;
@@ -34,3 +32,11 @@ export const resolveBaseURL = (requestUrl: string): string => {
 
   return url.origin;
 };
+
+/**
+ * ローカルの開発サーバー（Vite の dev サーバー）へのリクエストか。
+ *
+ * テスト用のログイン（`test-sign-in.ts`）を、本番のホストでは設定に関わらず開かないために使う。
+ */
+export const isLocalRequest = (requestUrl: string): boolean =>
+  LOCAL_HOSTS.some((host) => host === new URL(requestUrl).host);

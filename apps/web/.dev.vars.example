@@ -14,3 +14,7 @@ GOOGLE_CLIENT_SECRET=
 # 空にすると誰もログインできない。
 # 本番は `wrangler secret put ALLOWED_EMAILS`。
 ALLOWED_EMAILS=
+
+# Google を通さないテスト用のログイン（/api/test/sign-in）を開くなら `enabled` にする（docs/E2E.md、ADR 0008）。
+# ローカルの開発サーバー（localhost:5173）でだけ効く。本番では登録しない。
+TEST_SIGN_IN=enabled

@@ -16,6 +16,11 @@ declare global {
     readonly GOOGLE_CLIENT_SECRET: string;
     /** 許可リスト。カンマ区切りのメールアドレス。PII なので secret として登録する */
     readonly ALLOWED_EMAILS: string;
+    /**
+     * `enabled` のときだけテスト用のログイン（`test-sign-in.ts`）を開く。ローカルの開発サーバーと
+     * E2E でだけ `.dev.vars` や `e2e.config.ts` から渡す。本番では登録しない（ADR 0008）
+     */
+    readonly TEST_SIGN_IN?: string;
   }
 }
 

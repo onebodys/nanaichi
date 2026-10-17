@@ -1,4 +1,6 @@
 import { Result } from "@praha/byethrow";
+import * as v from "valibot";
+import { JsonDateSchema } from "./json-date.ts";
 import type { SessionEvents, SessionOperation } from "./session-event.ts";
 
 // MVP では時間とセット数のカスタム設定を作らないので固定する（docs/PRODUCT.md「タイマー」）。
@@ -62,6 +64,52 @@ export type Ended = Readonly<{
 }>;
 
 export type TimerState = Idle | Focus | Journal | Break | Ended;
+
+// ---------------------------------------------------------------------------
+// JSON にしたタイマーの状態（API の応答）を検証して TimerState に戻す（AGENTS.md §5）
+// ---------------------------------------------------------------------------
+
+const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
+const nonNegativeInt = v.pipe(v.number(), v.integer(), v.minValue(0));
+
+const ClockJsonSchema = v.variant("kind", [
+  v.object({ kind: v.literal("Running"), endsAt: JsonDateSchema }),
+  v.object({ kind: v.literal("Paused"), pausedAt: JsonDateSchema }),
+]);
+
+const setPhaseJsonSchema = <K extends "Focus" | "Journal">(kind: K) =>
+  v.object({
+    kind: v.literal(kind),
+    round: positiveInt,
+    setNumber: positiveInt,
+    completedSets: nonNegativeInt,
+    remainingSeconds: nonNegativeInt,
+    clock: ClockJsonSchema,
+  });
+
+export const TimerStateJsonSchema: v.GenericSchema<unknown, TimerState> = v.variant("kind", [
+  v.object({
+    kind: v.literal("Idle"),
+    round: positiveInt,
+    setNumber: positiveInt,
+    completedSets: nonNegativeInt,
+  }),
+  setPhaseJsonSchema("Focus"),
+  setPhaseJsonSchema("Journal"),
+  v.object({
+    kind: v.literal("Break"),
+    round: positiveInt,
+    completedSets: nonNegativeInt,
+    remainingSeconds: nonNegativeInt,
+    clock: ClockJsonSchema,
+  }),
+  v.object({
+    kind: v.literal("Ended"),
+    endedAt: JsonDateSchema,
+    endedBy: v.picklist(["End", "AutoEnd"]),
+    completedSets: nonNegativeInt,
+  }),
+]);
 
 /** その状態ではできない操作（休憩中の中断、待機中の一時停止、終了後の操作など） */
 export type OperationRejected = Readonly<{

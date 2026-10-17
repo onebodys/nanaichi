@@ -1,6 +1,10 @@
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { Result } from "@praha/byethrow";
+import { ApiErrorBodyJsonSchema } from "../domain/api-error.ts";
+import { schemaResult } from "../domain/schema-result.ts";
+import { SessionSnapshotJsonSchema } from "../domain/session.ts";
 import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
 
 // テストの時計は `vi.setSystemTime` で進めるが、alarm の発火はランタイムの本当の時計で決まる。
@@ -415,5 +419,53 @@ describe("API だけでセッションを最初から最後まで回す", () => 
       state: { kind: "Ended", endedBy: "End", completedSets: 4 },
     });
     expect(await (await getCurrent()).json()).toMatchObject({ kind: "NoSession" });
+  });
+});
+
+describe("応答はクライアントが検証するスキーマ（domain/）に合う", () => {
+  const parseSnapshot = schemaResult(SessionSnapshotJsonSchema);
+  const parseErrorBody = schemaResult(ApiErrorBodyJsonSchema);
+
+  test("セッションなしの現在のセッションは、スナップショットのスキーマに合う", async () => {
+    const parsed = parseSnapshot(await (await getCurrent()).json());
+
+    expect(parsed).toEqual(Result.succeed({ kind: "NoSession", serverTime: new Date(minutes(0)) }));
+  });
+
+  test("一時停止・中断・休憩・終了を経たスナップショットも、スキーマで元の時刻に戻せる", async () => {
+    await start();
+    passTo(minutes(2));
+    await operate("Pause");
+    passTo(minutes(3));
+    expect(Result.isSuccess(parseSnapshot(await (await getCurrent()).json()))).toBe(true);
+
+    await operate("Resume");
+    passTo(minutes(5));
+    expect(Result.isSuccess(parseSnapshot(await (await operate("Abort")).json()))).toBe(true);
+
+    // 5分に1セット目からやり直したので、休憩は 29分〜34分 の位置にある
+    await operate("RestartFocus");
+    passTo(minutes(31));
+    const inBreak = parseSnapshot(await (await getCurrent()).json());
+    expect(Result.isSuccess(inBreak) && inBreak.value).toMatchObject({
+      kind: "Session",
+      serverTime: new Date(minutes(31)),
+      state: { kind: "Break" },
+    });
+
+    const ended = parseSnapshot(await (await operate("End")).json());
+    expect(Result.isSuccess(ended) && ended.value).toMatchObject({
+      state: { kind: "Ended", endedAt: new Date(minutes(31)) },
+    });
+  });
+
+  test.each([
+    ["未ログイン", () => request("/api/session/current"), "UNAUTHENTICATED"],
+    ["入力が不正", () => start("not-a-uuid"), "INVALID_REQUEST"],
+    ["セッションの外での操作", () => operate("Pause"), "NO_SESSION_IN_PROGRESS"],
+  ] as const)("%sのエラーの応答は、エラーの本文のスキーマに合う", async (_, send, code) => {
+    const parsed = parseErrorBody(await (await send()).json());
+
+    expect(Result.isSuccess(parsed) && parsed.value.error).toBe(code);
   });
 });
