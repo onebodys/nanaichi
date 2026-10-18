@@ -2,6 +2,7 @@ scripts:
   setup: |
     vp install
     vp hooks enable
+    CI=true pnpm cf d1 migrations apply nanaichi --local
     src="$ORCA_ROOT_PATH/apps/web/.env"
     dest="$ORCA_WORKTREE_PATH/apps/web/.dev.vars"
     if [ -r "$src" ] && [ ! -e "$dest" ]; then

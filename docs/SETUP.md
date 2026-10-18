@@ -87,12 +87,14 @@ pnpm dev                                           # http://localhost:5173
 
 `.dev.vars` は git 管理外なので、Orca が作る worktree には入らない。リポジトリ直下の `orca.yaml` の
 Setup Script が、worktree を作るときに元のチェックアウトの `apps/web/.env` を worktree の
-`apps/web/.dev.vars` にコピーする（あわせて `vp install` と `vp hooks enable` も走らせる）。
+`apps/web/.dev.vars` にコピーする。あわせて `vp install` と `vp hooks enable` を走らせ、
+worktree ごとに空で始まるローカルの D1 にマイグレーションを当てる。
 
 - 元のチェックアウトに `apps/web/.env` を置いておく（中身は `.dev.vars.example` と同じ形）。
   1Password Environments でマウントしたファイル（名前付きパイプ）でもよい。1Password Environments が
   `.env` という名前にしか対応していないため、元では `.env`、worktree では `.dev.vars` という名前にしている。
 - `.env` がなければ何もしない。worktree にもう `.dev.vars` があれば上書きしない。
+- マイグレーションは端末の中だと確認を求めて止まるので、`CI=true` を付けて確認なしで当てる（ローカルの D1 だけ）。
 - Orca の設定画面（リポジトリの Hooks）に Setup Script が書いてあると、Orca はそちらだけを使い `orca.yaml` を読まない。
   設定画面の Setup Script は空にしておく（または実行するコマンドの取り方を `orca.yaml` を使うほうにする）。
 
