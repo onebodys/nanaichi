@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { SessionEventId } from "../domain/session-event.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "../domain/journal-entry.ts";
 import { Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
+import { Stats } from "../domain/stats.ts";
 import { TagName } from "../domain/tag.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { createApiClient } from "./api.ts";
@@ -301,6 +302,37 @@ describe("タグ", () => {
     const { client } = respondWith(200, { tags: ["空白 を含む"] });
 
     expect(await client.getTags()).toEqual(
+      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+    );
+  });
+});
+
+describe("スタッツ", () => {
+  const report = Stats.of({
+    records: { sessions: [started], entries: [] },
+    period: "Week",
+    now: at(30),
+    timeZone: "Asia/Tokyo",
+  });
+
+  test("GET /api/stats に期間と端末のタイムゾーンを渡す", async () => {
+    const { client, paths } = respondWith(200, report);
+
+    await client.getStats("Week", "Asia/Tokyo");
+
+    expect(paths).toEqual(["/api/stats?period=Week&timeZone=Asia%2FTokyo"]);
+  });
+
+  test("スタッツを、時刻を Date に戻して返す", async () => {
+    const { client } = respondWith(200, report);
+
+    expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(Result.succeed(report));
+  });
+
+  test("応答がスキーマに合わなければ UnexpectedResponse を返す", async () => {
+    const { client } = respondWith(200, { ...report, period: "Year" });
+
+    expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(
       Result.fail({ kind: "UnexpectedResponse", status: 200 }),
     );
   });

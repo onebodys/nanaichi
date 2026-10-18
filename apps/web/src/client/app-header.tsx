@@ -1,4 +1,4 @@
-import { SettingsIcon } from "lucide-react";
+import { ChartColumnIcon, SettingsIcon } from "lucide-react";
 import { authClient, signOut } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import {
@@ -62,13 +62,14 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
 };
 
 /**
- * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、設定画面を開くボタンとアカウントのメニュー。
+ * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、スタッツと設定画面を開くボタン、アカウントのメニュー。
  * 「7·1」は集中7分とジャーナル1分のマーク。
  */
 export const AppHeader = ({
   today,
+  openStats,
   openSettings,
-}: Readonly<{ today: TodayFocus; openSettings: () => void }>) => (
+}: Readonly<{ today: TodayFocus; openStats: () => void; openSettings: () => void }>) => (
   <header className="shrink-0 border-b bg-card">
     {/* 広い画面では中身をタイマーとジャーナルの2ペインと同じ幅にそろえる（home-page.tsx） */}
     <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 lg:h-16 lg:px-8">
@@ -83,6 +84,15 @@ export const AppHeader = ({
       </div>
       <div className="flex items-center gap-2 lg:gap-3">
         <TodayFocusBadge today={today} />
+        <Button
+          variant="outline"
+          size="icon-lg"
+          className="rounded-[10px]"
+          aria-label="スタッツ"
+          onClick={openStats}
+        >
+          <ChartColumnIcon className="size-[18px]" />
+        </Button>
         <Button
           variant="outline"
           size="icon-lg"

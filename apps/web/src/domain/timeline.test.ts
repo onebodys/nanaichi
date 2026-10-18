@@ -183,6 +183,30 @@ describe("古いページが残っているとき", () => {
       ["2026-10-16", { kind: "NotYetCounted" }],
     ]);
   });
+
+  test("数が確定しない日には、スタッツで数えた今日の完了セット数を入れられる", () => {
+    const older = sessionStartedAt(-24 * 60, [endAt(-24 * 60 + 9)]);
+    const newer = sessionStartedAt(-60, [endAt(-50)]);
+    const days = build(
+      [
+        { session: newer, entries: [] },
+        { session: older, entries: [] },
+      ],
+      at(0),
+      TOKYO,
+      { kind: "More", before: at(-24 * 60) },
+    );
+
+    const counted = Timeline.withDayCounted(days, "2026-10-16", 14);
+    // 確定している日はそのまま
+    const unchanged = Timeline.withDayCounted(days, "2026-10-17", 14);
+
+    expect(counted.map((day) => day.completedSets)).toEqual([
+      { kind: "Counted", count: 1 },
+      { kind: "Counted", count: 14 },
+    ]);
+    expect(unchanged).toEqual(days);
+  });
 });
 
 describe("読み込んだ記録の更新", () => {

@@ -35,7 +35,7 @@ const JOURNAL_ENTRY_COLUMNS = `id, session_id, body, written_at, updated_at, rou
  * 紐付きの列（`round` / `set_number` / `phase`）を、書いた時点のタイマーの状態の型に戻す。
  * 休憩中はセット番号がなく、待機中はフェーズがない。それ以外の組み合わせは記録が壊れている。
  */
-const writtenDuringOf = (
+export const writtenDuringOf = (
   round: number,
   setNumber: number | null,
   phase: "Focus" | "Journal" | "Break" | null,

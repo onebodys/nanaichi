@@ -1,17 +1,19 @@
 import type { WrittenDuring } from "../domain/journal-entry.ts";
-import type { DayCompletedSets, LocalDate } from "../domain/timeline.ts";
+import type { LocalDate } from "../domain/local-date.ts";
+import type { DayCompletedSets } from "../domain/timeline.ts";
 import { completedSetsAndFocusTimeOf } from "./focus-time-text.ts";
 
 /** タイムラインに出す文言。判断はせず、ドメインの値を言葉にするだけ（AGENTS.md §5） */
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
+/** 曜日（`土`）。曜日は日付だけで決まるので、タイムゾーンに関係なく UTC の暦で数える */
+export const weekdayLabelOf = (date: LocalDate): string =>
+  WEEKDAYS[new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()] ?? "";
+
 /** 日付の区切りの見出し（`10月17日（土）`） */
-export const dateLabelOf = (date: LocalDate): string => {
-  // 曜日は日付だけで決まるので、タイムゾーンに関係なく UTC の暦で数える
-  const weekday = WEEKDAYS[new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()];
-  return `${date.month}月${date.day}日（${weekday}）`;
-};
+export const dateLabelOf = (date: LocalDate): string =>
+  `${date.month}月${date.day}日（${weekdayLabelOf(date)}）`;
 
 /** 日付の区切りに出す、その日の完了セット数と集中時間（`完了 10セット · 集中 1時間10分`） */
 export const completedSetsLabelOf = (completedSets: DayCompletedSets): string => {

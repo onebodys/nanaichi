@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import type { EntryCount } from "../domain/session-summary.ts";
+import { Stats, type StatsPeriod } from "../domain/stats.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { AppHeader } from "./app-header.tsx";
 import type { TodayFocus } from "./focus-time-text.ts";
 import { JournalInput } from "./journal-input.tsx";
 import { createPhaseAlert } from "./phase-alert.ts";
 import { SettingsScreen } from "./settings-screen.tsx";
+import { statsRefreshKeyOf } from "./stats-refresh.ts";
+import { StatsScreen } from "./stats-screen.tsx";
 import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
+import { deviceTimeZone, useStats, type StatsView } from "./use-stats.ts";
 import { useSync } from "./use-sync.ts";
 import { useTags } from "./use-tags.ts";
-import { useTimeline, type TimelineView } from "./use-timeline.ts";
+import { useTimeline, type TimelineState, type TimelineView } from "./use-timeline.ts";
 
 /** ジャーナルのフェーズにいれば、そのセットを見分ける値。フェーズに入ったことを見分けるのに使う */
 const journalPhaseKeyOf = (view: TimerView): string | undefined =>
@@ -19,9 +23,35 @@ const journalPhaseKeyOf = (view: TimerView): string | undefined =>
     ? `${view.state.round}:${view.state.setNumber}`
     : undefined;
 
-/** ヘッダーに出す今日の完了セット数。タイムラインを読み込むまでは数えられない */
-const todayFocusOf = (timeline: TimelineView): TodayFocus =>
-  timeline.kind === "Loaded" ? timeline.today : { kind: "Loading" };
+/**
+ * ヘッダーに出す今日の完了セット数。スタッツ（期間は今日）で数えた値を出す（ADR 0014）。
+ * スタッツを読み込めるまでは、タイムラインで数えた値を出す
+ */
+const todayFocusOf = (today: StatsView, timeline: TimelineView): TodayFocus => {
+  if (today.kind === "Loaded") {
+    return { kind: "Counted", count: Stats.completedSetsOf(today.report) };
+  }
+  return timeline.kind === "Loaded" ? timeline.today : { kind: "Loading" };
+};
+
+/**
+ * タイムラインの今日の区切りに、スタッツで数えた今日の完了セット数を入れる。1日にセッションが多く、
+ * 今日の区切りの数がタイムラインだけでは確定しないとき（ADR 0011）に使われる
+ */
+const withTodayCounted = (timeline: TimelineState, today: StatsView): TimelineState =>
+  timeline.view.kind === "Loaded" && today.kind === "Loaded"
+    ? {
+        ...timeline,
+        view: {
+          ...timeline.view,
+          days: Timeline.withDayCounted(
+            timeline.view.days,
+            today.report.today.key,
+            Stats.completedSetsOf(today.report),
+          ),
+        },
+      }
+    : timeline;
 
 /** 終了したセッションの記入の数。タイムラインに重ねたセッションから数える */
 const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
@@ -36,9 +66,17 @@ const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
  */
 export const HomePage = ({
   settings,
+  stats,
 }: Readonly<{
   /** 設定画面を重ねて開いているか。開閉は URL（`?settings=open`）で持ち、ブラウザの戻るで閉じられる */
   settings: Readonly<{ open: boolean; show: () => void; close: () => void }>;
+  /** スタッツを重ねて開いているなら、その期間（`?stats=<期間>`）。開いていなければ `undefined` */
+  stats: Readonly<{
+    period: StatsPeriod | undefined;
+    show: () => void;
+    changePeriod: (period: StatsPeriod) => void;
+    close: () => void;
+  }>;
 }>) => {
   // タイマー（フェーズの切り替わりで知らせる）と設定（試しに鳴らす）で同じ音の準備を使う
   const [phaseAlert] = useState(createPhaseAlert);
@@ -49,23 +87,32 @@ export const HomePage = ({
     tags.refresh();
   });
   useSync(timer, timeline, tags);
+  // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
+  const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
+  const todayStats = useStats("Today", statsRefreshKey);
+  const statsPeriod = stats.period ?? "Week";
+  const statsView = useStats(statsPeriod, statsRefreshKey, stats.period !== undefined);
+  const overlayOpen = settings.open || stats.period !== undefined;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）。
-  // 設定画面を開いている間は置けないので、ジャーナル中に設定画面を閉じたときに置く
+  // 設定画面・スタッツを開いている間は置けないので、ジャーナル中に閉じたときに置く
   const journalPhaseKey = journalPhaseKeyOf(timer.view);
-  const settingsOpen = settings.open;
   useEffect(() => {
-    if (journalPhaseKey !== undefined && !settingsOpen) {
+    if (journalPhaseKey !== undefined && !overlayOpen) {
       textareaRef.current?.focus();
     }
-  }, [journalPhaseKey, settingsOpen]);
+  }, [journalPhaseKey, overlayOpen]);
 
   return (
     <>
-      {/* 設定画面を開いている間も閉じずに描き、タイマーと知らせを進め続ける。操作と読み上げからは外す */}
-      <div className="flex min-h-dvh flex-col lg:h-dvh" inert={settings.open}>
-        <AppHeader today={todayFocusOf(timeline.view)} openSettings={settings.show} />
+      {/* 設定画面・スタッツを開いている間も閉じずに描き、タイマーと知らせを進め続ける。操作と読み上げからは外す */}
+      <div className="flex min-h-dvh flex-col lg:h-dvh" inert={overlayOpen}>
+        <AppHeader
+          today={todayFocusOf(todayStats, timeline.view)}
+          openStats={stats.show}
+          openSettings={settings.show}
+        />
         {/* 4K のような広い画面でも左に寄らないよう、2ペインの幅を抑えて中央に置く。十分に広い画面では左右に線を引いて区切る */}
         <div className="flex flex-1 flex-col gap-4 py-4 lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[1400px] lg:flex-row lg:gap-0 lg:py-0 min-[1600px]:border-x">
           <TimerPanel
@@ -89,13 +136,25 @@ export const HomePage = ({
                   </p>
                 )}
               </div>
-              <TimelinePanel timeline={timeline} knownTags={tags.known} />
+              <TimelinePanel
+                timeline={withTodayCounted(timeline, todayStats)}
+                knownTags={tags.known}
+              />
             </div>
           </main>
         </div>
       </div>
       {settings.open && (
         <SettingsScreen phaseAlert={phaseAlert} timer={timer.view} close={settings.close} />
+      )}
+      {stats.period !== undefined && (
+        <StatsScreen
+          timer={timer.view}
+          stats={statsView}
+          period={statsPeriod}
+          changePeriod={stats.changePeriod}
+          close={stats.close}
+        />
       )}
     </>
   );
