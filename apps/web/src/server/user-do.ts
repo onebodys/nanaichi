@@ -8,6 +8,7 @@ import {
 } from "../domain/journal-entry.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
+import type { StatsReport } from "../domain/stats.ts";
 import type { TagList } from "../domain/tag.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
@@ -17,6 +18,7 @@ import {
 } from "../workflows/delete-journal-entry.ts";
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
+import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTags } from "../workflows/get-tags.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
 import { operateSession, type OperateSessionError } from "../workflows/operate-session.ts";
@@ -27,6 +29,7 @@ import {
 } from "../workflows/write-journal-entry.ts";
 import { journalSqlite, type JournalSqlite } from "./journal-sqlite.ts";
 import { sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
+import { statsSqlite } from "./stats-sqlite.ts";
 import { migrate } from "./user-do-schema.ts";
 
 // `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）
@@ -46,6 +49,7 @@ const newSessionId = (): SessionId => v.parse(SessionId.schema, crypto.randomUUI
 export class UserDO extends DurableObject<Env> {
   readonly #sessions: SessionSqlite;
   readonly #journal: JournalSqlite;
+  readonly #stats: ReturnType<typeof statsSqlite>;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -53,6 +57,7 @@ export class UserDO extends DurableObject<Env> {
     migrate(ctx.storage.sql, new Date());
     this.#sessions = sessionSqlite(ctx.storage.sql);
     this.#journal = journalSqlite(ctx.storage.sql);
+    this.#stats = statsSqlite(ctx.storage.sql);
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
@@ -146,6 +151,11 @@ export class UserDO extends DurableObject<Env> {
   /** `GET /api/tags`。入力の候補に出す、使っているタグ */
   async getTags(): Promise<Result.Result<TagList, never>> {
     return this.#run(() => getTags(this.#journal)());
+  }
+
+  /** `GET /api/stats?period=&timeZone=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
+  async getStats(rawQuery: unknown): Promise<Result.Result<StatsReport, GetStatsError>> {
+    return this.#run((now) => getStats({ ...this.#sessions, ...this.#stats })(rawQuery, now));
   }
 
   /**

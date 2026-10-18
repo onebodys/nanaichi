@@ -49,22 +49,26 @@ const chooseSubmitKey = async (screen: Screen, label: RegExp) => {
 };
 
 /**
- * 今日の日付の区切りに完了セット数が出るまで、タイムラインの続きを読み込む。
- * 1日に1ページ分（10件）より多くのセッションがあると、その日の完了セット数は続きを読み込むまで出ない
- * （ADR 0011）。ローカルの記録は実行のあいだで残り、今日のセッションは実行のたびに増えるので、
- * 何度走らせても数を確かめられるようにする。
+ * 今日の日付の区切りに `expected` の完了セット数が出るまで、タイムラインの続きを読み込む。
+ *
+ * 1日に1ページ分（10件）より多くのセッションがあると、今日の区切りの数はタイムラインだけでは確定せず、
+ * サーバーが数えたスタッツの今日の数を出す（ADR 0011、0014）。このテストはページの時計だけを進めるので、
+ * サーバーは集中を終えたことを知らず、その数は合わない。ローカルの記録は実行のあいだで残り、今日のセッションは
+ * 実行のたびに増えるので、何度走らせても確かめられるよう、タイムラインが今日の分を読み終えるまで続きを読み込む。
  */
-const loadUntilTodayIsCounted = async (screen: Screen) => {
+const loadUntilTodayShows = async (screen: Screen, expected: RegExp) => {
   // 日付の区切りの見出しは新しい順に並ぶので、最初のものが今日
   const today = screen.getByRole("heading", { name: /完了/, level: 3 }).first();
+  const more = screen.getByRole("button", { name: "さらに読み込む" });
   // 続きはボタンが画面に入ると自動でも読み込まれるので、読み込み中なら終わるのを待ってから見出しを読む
   const loaded = () => expect(screen.getByRole("button", { name: "読み込み中…" })).toBeHidden();
   await expect(today).toBeVisible();
   await loaded();
-  while ((await today.textContent())?.endsWith("続きを読み込むと出ます") === true) {
-    await screen.getByRole("button", { name: "さらに読み込む" }).tap();
+  while (!expected.test((await today.textContent()) ?? "") && (await more.isVisible())) {
+    await more.tap();
     await loaded();
   }
+  await expect(today).toHaveText(expected);
 };
 
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
@@ -173,10 +177,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await expect(screen.getByLabel("ジャーナル記入の本文")).toBeFocused();
-    await loadUntilTodayIsCounted(screen);
-    await expect(
-      screen.getByRole("heading", { name: /完了 1セット · 集中 7分$/, level: 3 }),
-    ).toBeVisible();
+    await loadUntilTodayShows(screen, /完了 1セット · 集中 7分$/);
 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
@@ -250,5 +251,37 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(chip).toHaveCount(0);
+  });
+
+  test("記入を書いてからスタッツを開くと、今日のジャーナル記入として数えられ、期間を切り替えられる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    const input = screen.getByLabel("ジャーナル記入の本文");
+    await expect(input).toBeEnabled();
+    await input.pressSequentially("スタッツに数えられる記入");
+    await input.press("Control+Enter");
+    await expect(input).toHaveValue("");
+
+    await screen.getByRole("button", { name: "スタッツ" }).tap();
+    await expect(screen.getByRole("heading", { name: "スタッツ", level: 1 })).toBeVisible();
+    // 最初は週を開く
+    await expect(browser).toHaveURL(/[?&]stats=Week/);
+    await expect(screen.getByRole("radio", { name: "週" })).toBeChecked();
+
+    // 選択肢のラジオボタンは見た目の上ではラベルに覆われているので、ラベルの文字を押す
+    await screen.getByText("今日", { exact: true }).tap();
+    await expect(browser).toHaveURL(/[?&]stats=Today/);
+    await expect(screen.getByText("ジャーナル記入", { exact: true })).toBeVisible();
+    await expect(screen.getByText(/^記入率 /)).toBeVisible();
+    await expect(screen.getByText("この12週間")).toBeVisible();
+
+    // Escape で閉じ、裏で進んでいたセッションの画面に戻る
+    await screen.getByRole("radio", { name: "今日" }).press("Escape");
+    await expect(screen.getByRole("heading", { name: "スタッツ", level: 1 })).toHaveCount(0);
+    await screen.getByRole("button", { name: "終了" }).tap();
   });
 });

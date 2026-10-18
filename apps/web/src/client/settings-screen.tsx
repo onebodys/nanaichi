@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronLeftIcon, PlayIcon } from "lucide-react";
+import { PlayIcon } from "lucide-react";
 import * as v from "valibot";
 import {
   ALERT_TONES,
@@ -19,14 +19,12 @@ import {
   SelectValue,
 } from "./components/ui/select.tsx";
 import { Switch } from "./components/ui/switch.tsx";
-import { cn } from "@/client/lib/utils";
 import {
   notificationPermission,
   requestNotificationPermission,
   type PhaseAlert,
 } from "./phase-alert.ts";
 import {
-  backgroundTimerLabelOf,
   permissionNoteOf,
   themeLabelOf,
   TONE_TARGETS,
@@ -34,6 +32,8 @@ import {
   toneTargetOf,
   volumeLabelOf,
 } from "./settings-text.ts";
+import { OverlayScreen } from "./overlay-screen.tsx";
+import { Segmented } from "./segmented.tsx";
 import { modifierLabelOf, SubmitKeySchema, submitKeyLabelOf } from "./submit-key.ts";
 import { THEME_PREFERENCES, useThemePreference } from "./theme.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
@@ -44,48 +44,6 @@ const modifierLabel = modifierLabelOf(navigator.userAgent);
 const AlertToneSchema = v.picklist(ALERT_TONES);
 
 const toneItems = ALERT_TONES.map((tone) => ({ value: tone, label: toneLabelOf(tone) }));
-
-/** 選択肢を横に並べた切り替え（ラジオボタン）。見た目はモックのセグメント */
-const Segmented = <T extends string>({
-  name,
-  legend,
-  options,
-  value,
-  onChange,
-  disabled = false,
-}: Readonly<{
-  name: string;
-  legend: string;
-  options: ReadonlyArray<Readonly<{ value: T; label: string }>>;
-  value: T;
-  onChange: (value: T) => void;
-  disabled?: boolean;
-}>) => (
-  <fieldset
-    disabled={disabled}
-    className="flex flex-wrap gap-0.5 rounded-[10px] bg-muted p-[3px] disabled:opacity-50"
-  >
-    <legend className="sr-only">{legend}</legend>
-    {options.map((option) => (
-      <label
-        key={option.value}
-        className={cn(
-          "flex h-[34px] cursor-pointer items-center rounded-lg px-3.5 text-[13px] text-muted-foreground has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-          option.value === value && "bg-card font-semibold text-foreground shadow-xs",
-        )}
-      >
-        <input
-          type="radio"
-          name={name}
-          className="sr-only"
-          checked={option.value === value}
-          onChange={() => onChange(option.value)}
-        />
-        {option.label}
-      </label>
-    ))}
-  </fieldset>
-);
 
 /** 設定のまとまり。端末ごとの設定には「この端末」の印をつける（サーバーには送らず、他の端末には効かない） */
 const Section = ({
@@ -281,42 +239,14 @@ const SECTIONS = [
 ] as const;
 
 /**
- * 設定画面（Issue #34）。ホーム画面の上に重ねて出し、ホーム画面は閉じない。
- * タイマー・フェーズの切り替わりの知らせ・Wake Lock・同期はホーム画面が持っているので、
- * 設定画面を開いている間も止まらずに進む。
+ * 設定画面（Issue #34）。ホーム画面の上に重ねて出し、開いている間もタイマーと知らせは進む（`OverlayScreen`）
  */
 export const SettingsScreen = ({
   phaseAlert,
   timer,
   close,
 }: Readonly<{ phaseAlert: PhaseAlert; timer: TimerView; close: () => void }>) => (
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="settings-title"
-    className="fixed inset-0 z-40 overflow-y-auto bg-background"
-    onKeyDown={(event) => {
-      // 音色の選択肢（別の場所に描く）の中の Escape は、選択肢を閉じるだけにする
-      const inScreen = event.target instanceof Node && event.currentTarget.contains(event.target);
-      if (event.key === "Escape" && inScreen) {
-        close();
-      }
-    }}
-  >
-    <header className="sticky top-0 z-10 border-b bg-card">
-      <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-2 lg:h-16 lg:px-6">
-        <Button variant="ghost" size="lg" autoFocus onClick={close}>
-          <ChevronLeftIcon />
-          タイマーに戻る
-        </Button>
-        {timer.kind === "InSession" && (
-          <p className="truncate text-xs text-muted-foreground">
-            <span className="hidden sm:inline">セッションは裏で進み続けます · </span>
-            <span className="font-mono">{backgroundTimerLabelOf(timer.state)}</span>
-          </p>
-        )}
-      </div>
-    </header>
+  <OverlayScreen labelledBy="settings-title" timer={timer} close={close}>
     <div className="mx-auto flex max-w-[960px] gap-10 px-4 py-8 lg:px-8 lg:py-10">
       <nav
         aria-label="設定の項目"
@@ -345,5 +275,5 @@ export const SettingsScreen = ({
         <AccountSection />
       </div>
     </div>
-  </div>
+  </OverlayScreen>
 );

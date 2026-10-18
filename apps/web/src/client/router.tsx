@@ -6,6 +6,7 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import * as v from "valibot";
+import { STATS_PERIODS } from "../domain/stats.ts";
 import { authClient } from "./auth-client.ts";
 import { HomePage } from "./home-page.tsx";
 import { LoginPage } from "./login-page.tsx";
@@ -29,10 +30,13 @@ const loginRoute = createRoute({
 });
 
 /**
- * 設定画面を重ねて開いているか（`?settings=open`）。ホーム画面の上に重ねるだけなので、別のルートにはしない
- * （ルートを移るとホーム画面が外れ、タイマーと知らせが止まる）。外から来る値なのでスキーマで検証する
+ * 設定画面・スタッツを重ねて開いているか（`?settings=open`、`?stats=<期間>`）。ホーム画面の上に重ねるだけなので、
+ * 別のルートにはしない（ルートを移るとホーム画面が外れ、タイマーと知らせが止まる）。外から来る値なのでスキーマで検証する
  */
-const HomeSearchSchema = v.object({ settings: v.optional(v.literal("open")) });
+const HomeSearchSchema = v.object({
+  settings: v.optional(v.literal("open")),
+  stats: v.optional(v.picklist(STATS_PERIODS)),
+});
 
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -49,15 +53,23 @@ const homeRoute = createRoute({
     }
   },
   component: () => {
-    const { settings } = homeRoute.useSearch();
+    const { settings, stats } = homeRoute.useSearch();
     const navigate = homeRoute.useNavigate();
+    // 閉じた画面に戻るで戻らないよう、履歴を置き換える
+    const close = () => void navigate({ search: {}, replace: true });
     return (
       <HomePage
         settings={{
           open: settings === "open",
           show: () => void navigate({ search: { settings: "open" } }),
-          // 閉じた画面に戻るで戻らないよう、履歴を置き換える
-          close: () => void navigate({ search: {}, replace: true }),
+          close,
+        }}
+        stats={{
+          period: stats,
+          // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
+          show: () => void navigate({ search: { stats: "Week" } }),
+          changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
+          close,
         }}
       />
     );

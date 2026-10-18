@@ -11,6 +11,7 @@ import {
   type JournalEntryId,
 } from "../domain/journal-entry.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "../domain/session.ts";
+import { StatsReportJsonSchema, type StatsPeriod, type StatsReport } from "../domain/stats.ts";
 import { TagListJsonSchema, type TagList, type TagName } from "../domain/tag.ts";
 import { TimelinePageJsonSchema, type TimelinePage } from "../domain/timeline.ts";
 
@@ -141,6 +142,11 @@ export const createApiClient = (
   getTimeline: (before?: Date) => Result.ResultAsync<TimelinePage, ApiError>;
   /** `GET /api/tags`: 入力の候補に出す、使っているタグ（最近使った順） */
   getTags: () => Result.ResultAsync<TagList, ApiError>;
+  /**
+   * `GET /api/stats?period=&timeZone=`: 期間のスタッツ（ADR 0014）。
+   * `timeZone` は端末のタイムゾーンで、日付と時間帯はこれで区切る
+   */
+  getStats: (period: StatsPeriod, timeZone: string) => Result.ResultAsync<StatsReport, ApiError>;
 }> => {
   const request = requestApi(fetchApi);
   return {
@@ -166,5 +172,10 @@ export const createApiClient = (
         TimelinePageJsonSchema,
       ),
     getTags: () => request("/api/tags", TagListJsonSchema),
+    getStats: (period, timeZone) =>
+      request(
+        `/api/stats?${new URLSearchParams({ period, timeZone }).toString()}`,
+        StatsReportJsonSchema,
+      ),
   };
 };

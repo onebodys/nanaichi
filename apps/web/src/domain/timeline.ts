@@ -6,6 +6,7 @@ import {
   type JournalEntryJson,
 } from "./journal-entry.ts";
 import { JsonDateSchema } from "./json-date.ts";
+import { localDateIn, type LocalDate } from "./local-date.ts";
 import { Session, SessionJsonSchema, type SessionId } from "./session.ts";
 
 /** 1ページに含めるセッションの数（ADR 0011） */
@@ -66,9 +67,6 @@ export const TimelinePageJsonSchema: v.GenericSchema<unknown, TimelinePage> = v.
 // 画面に出すタイムライン（日付とセッションの区切り）
 // ---------------------------------------------------------------------------
 
-/** 端末のタイムゾーンでの日付。`key` は `YYYY-MM-DD` で、文字列の順が日付の順になる */
-export type LocalDate = Readonly<{ key: string; year: number; month: number; day: number }>;
-
 /**
  * 日付の区切りに出す、その日の完了セット数。
  *
@@ -96,30 +94,6 @@ export type TimelineDay = Readonly<{
   /** 開始時刻が新しい順 */
   sessions: ReadonlyArray<TimelineDaySession>;
 }>;
-
-/**
- * 時刻を、タイムゾーン `timeZone` での日付にする。
- *
- * `Intl` は時計も外部も読まず、同じ引数なら同じ結果を返すのでドメインで使ってよい。
- */
-const localDateIn = (timeZone: string) => {
-  const format = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  });
-  return (at: Date): LocalDate => {
-    const parts = format.formatToParts(at);
-    const numberOf = (type: Intl.DateTimeFormatPartTypes) =>
-      Number(parts.find((part) => part.type === type)?.value);
-    const year = numberOf("year");
-    const month = numberOf("month");
-    const day = numberOf("day");
-    const key = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return { key, year, month, day };
-  };
-};
 
 const startedAtOf = (session: Session): Date => session.events[0].at;
 
@@ -243,6 +217,23 @@ export const Timeline = {
     const key = localDateIn(timeZone)(now).key;
     return days.find((day) => day.date.key === key)?.completedSets ?? { kind: "Counted", count: 0 };
   },
+
+  /**
+   * 数が確定しない日付の区切りに、ほかで数えた完了セット数を入れる。
+   *
+   * 1日に1ページより多くセッションがあると、今日の区切りの数が確定しない（ADR 0011）。
+   * 今日の数はスタッツ（ADR 0014）で数えられるので、それを入れる。確定している日はそのまま
+   */
+  withDayCounted: (
+    days: ReadonlyArray<TimelineDay>,
+    dateKey: string,
+    count: number,
+  ): ReadonlyArray<TimelineDay> =>
+    days.map((day) =>
+      day.date.key === dateKey && day.completedSets.kind === "NotYetCounted"
+        ? { ...day, completedSets: { kind: "Counted", count } }
+        : day,
+    ),
 
   /** セッションに書いた記入の数（削除したものを除く）。日付をまたいだセッションは、すべての日付の分を足す */
   entryCountOf: (days: ReadonlyArray<TimelineDay>, sessionId: SessionId): number =>
