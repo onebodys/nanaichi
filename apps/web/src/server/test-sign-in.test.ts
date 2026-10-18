@@ -19,6 +19,8 @@ const cookieFrom = (res: Response): Headers =>
   });
 
 const PRODUCTION_ORIGIN = "https://nanaichi.onori-black1984.workers.dev";
+/** portless が worktree（ブランチ fix-ui）に割り振る URL */
+const PORTLESS_ORIGIN = "https://fix-ui.nanaichi.localhost";
 
 describe("テスト用のログインが有効なとき（ローカルの開発サーバーと E2E）", () => {
   test("許可リストのメールアドレスでログインしてホームへ戻り、そのまま認証が必要な API を使える", async () => {
@@ -29,6 +31,17 @@ describe("テスト用のログインが有効なとき（ローカルの開発�
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/");
     const me = await harness.request("/api/me", { headers: cookieFrom(res) });
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({ user: { email: "me@example.com" } });
+  });
+
+  test("portless の *.localhost で開いた開発サーバーでもログインでき、そのホストの cookie で API を使える", async () => {
+    harness = await startAuthHarness("me@example.com", { TEST_SIGN_IN: "enabled" });
+
+    const res = await harness.requestFrom(PORTLESS_ORIGIN, signInPath("me@example.com"));
+
+    expect(res.status).toBe(302);
+    const me = await harness.requestFrom(PORTLESS_ORIGIN, "/api/me", { headers: cookieFrom(res) });
     expect(me.status).toBe(200);
     expect(await me.json()).toMatchObject({ user: { email: "me@example.com" } });
   });
@@ -102,6 +115,18 @@ describe("本番ではテスト用のログインを使えない", () => {
     harness = await startAuthHarness("me@example.com", { TEST_SIGN_IN: "enabled" });
 
     const res = await harness.requestFrom(PRODUCTION_ORIGIN, signInPath("me@example.com"));
+
+    expect(res.status).toBe(404);
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  test("localhost で終わっていても .localhost の下でないホストでは 404 を返す", async () => {
+    harness = await startAuthHarness("me@example.com", { TEST_SIGN_IN: "enabled" });
+
+    const res = await harness.requestFrom(
+      "https://nanaichi.localhost.evil.test",
+      signInPath("me@example.com"),
+    );
 
     expect(res.status).toBe(404);
     expect(res.headers.getSetCookie()).toEqual([]);

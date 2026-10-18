@@ -75,6 +75,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - タイマーの状態計算など、ドメインの判断は `domain/` の関数を使う。React コンポーネントの中にドメインの判断を書かない。
 - コンポーネントは「状態を受け取って描画し、操作をワークフローの呼び出しに変換する」だけにする。
 - サーバーから受け取った値（API のレスポンス、WebSocket のメッセージ）もスキーマで検証してから使う。
+- shadcn/ui のコンポーネントは Base UI 版（`components.json` の style が `base-vega`）を `shadcn add` で入れる。Radix 版は使わない。CLI は `cn` を npm の `cn` パッケージから import し、依存にも足してしまうので、import は `@/client/lib/utils` に直し、`cn` パッケージは入れない。
 
 ### API のレスポンスの検証（ADR 0009）
 

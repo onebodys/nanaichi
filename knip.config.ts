@@ -16,6 +16,8 @@ export default {
       entry: ["e2e.config.ts", "tests/**/*.e2e.ts"],
       // `cloudflare:workers` は Workers ランタイムの組み込みモジュールで、npm パッケージではない
       ignoreDependencies: ["cloudflare"],
+      // portless は公式の方針どおりプロジェクトの依存にせずグローバルに入れる（`dev:portless`、docs/E2E.md）
+      ignoreBinaries: ["portless"],
     },
   },
 } satisfies KnipConfig;

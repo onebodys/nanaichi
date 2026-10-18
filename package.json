@@ -8,6 +8,7 @@
     "knip": "knip",
     "ready": "vp check && knip && vp run -r test && vp run -r build",
     "dev": "vp run web#dev",
+    "dev:portless": "pnpm --filter web dev:portless",
     "test:e2e": "pnpm --filter web test:e2e",
     "cf": "pnpm --filter web exec wrangler"
   },

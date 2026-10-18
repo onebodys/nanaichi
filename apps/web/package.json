@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
+    "dev:portless": "portless run --name nanaichi vp dev",
     "build": "tsc -b && vp build",
     "preview": "vp preview",
     "test": "vp test",
@@ -12,6 +13,7 @@
     "test:e2e": "wrangler d1 migrations apply nanaichi --local && e2e run"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@praha/byethrow": "catalog:",
     "@standard-schema/spec": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -20,7 +22,6 @@
     "clsx": "catalog:",
     "hono": "catalog:",
     "lucide-react": "catalog:",
-    "radix-ui": "catalog:",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "catalog:",

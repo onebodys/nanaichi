@@ -12,8 +12,12 @@ pnpm test:e2e    # リポジトリのどこからでもよい
 - ローカルの D1 にマイグレーションを当ててから、ランナーが `vp dev`（`localhost:5173`）を起動してテストする。
   手元で `pnpm dev` を起動済みならそのサーバーを使う。
 - 開発サーバーにはダミーの認証設定を環境変数で渡すので、`.dev.vars` がなくても動く。Google には繋がない。
-- chromium がなければ初回に自動でダウンロードされる。CI では先に `pnpm --filter web exec e2e-web install chromium --with-deps` を実行する。
+- chromium がなければ初回に自動でダウンロードされる。CI では先に `vp exec --filter web e2e-web install chromium --with-deps` を実行する。
 - 結果は `apps/web/.e2e/`（git 管理外）に出る。失敗したテストは `.e2e/results/<テスト>/trace.md` に手順と失敗時の画面が残り、開発サーバーのログは `.e2e/logs/app.log`。
+- CI（`.github/workflows/ci.yml` の `e2e` ジョブ）でも PR と main への push のたびに走る。CI のローカル D1 は毎回空から始まる。
+  落ちたときは、実行結果の画面の「Artifacts」から `e2e-results`（`apps/web/.e2e/` 一式）をダウンロードすれば、
+  失敗したテストの `results/<テスト>/trace.md` と開発サーバーのログ `logs/app.log` を見られる。
+  E2E が落ちた main ではデプロイしない。
 - 1ファイルだけ: `pnpm --filter web exec e2e run tests/smoke.e2e.ts`。ブラウザを表示するなら `--headed`。
 
 ## テストを書く
@@ -66,10 +70,34 @@ test("ログインするとホームが表示される", { session: "signedIn" }
 `GET /api/test/sign-in?email=<メールアドレス>` を開くと、Google を通さずにそのユーザーでログインし、
 cookie を付けてホーム（`/`）へ戻る。ユーザーがいなければ作る。
 
-- 開くのは、バインディング `TEST_SIGN_IN=enabled` があり、かつ `localhost:5173` / `127.0.0.1:5173` へのリクエストのときだけ。
+- 開くのは、バインディング `TEST_SIGN_IN=enabled` があり、かつ `localhost:5173` / `127.0.0.1:5173` か portless の `*.localhost` へのリクエストのときだけ。
   それ以外（本番を含む）では 404 になる。`TEST_SIGN_IN` は `wrangler.jsonc` にも `wrangler secret` にも登録しない。
 - 許可リスト（`ALLOWED_EMAILS`）に載っていないメールアドレスでは 403 になり、ログインしない。
 - E2E では `e2e.config.ts` が `TEST_SIGN_IN=enabled` を渡す。手元の `pnpm dev` では `.dev.vars` に書く（`.dev.vars.example` に入っている）。
+
+- 開発サーバーで開いたログイン画面には、Google のボタンの下に「開発用ログイン」のフォームが出る。メールアドレスを入れると
+  このテスト用のログインを開く。本番のビルドには入らない。
+
+## worktree ごとに開発サーバーを立てる（portless）
+
+worktree ごとに `pnpm dev` を立てると 5173 がぶつかる。[portless](https://portless.sh/) を使うと、worktree（ブランチ）ごとに
+名前のついた URL で開ける（Issue #43）。portless はプロジェクトの依存に入れず、グローバルに入れる。
+
+```bash
+mise use -g npm:portless                     # 初回だけ。mise なら Node のバージョンに関わらず使える
+portless proxy start --port 1355 --https     # proxy を常駐させる（sudo なし。マシンの再起動後はもう一度）
+pnpm dev:portless                            # → https://<ブランチ名>.nanaichi.localhost:1355
+```
+
+- `pnpm dev:portless` は TTY がないので、proxy が止まっていると sudo を聞けずに落ちる。先に proxy を起動しておく。
+  初回はローカルの CA を信頼するか聞かれることがある。443 番（`sudo portless proxy start --https`）でもよいが、proxy が root で常駐する。
+- URL は起動時に表示される。`portless list` でも見られる。portless が割り振った `PORT` / `HOST` で Vite が待ち受ける（`vite.config.ts`）。
+- このホストでは Google のログインは通らない（リダイレクト URI に登録できない）。ログイン画面の「開発用ログイン」を使う。
+  そのため `.dev.vars` に `TEST_SIGN_IN=enabled` と、ログインするメールアドレスを入れた `ALLOWED_EMAILS` が要る。
+- 新しい worktree ではローカルの D1 が空なので、先に `pnpm cf d1 migrations apply nanaichi --local` を当てる。
+- portless の `--tld` で `.localhost` 以外にすると、認証がホストを受け付けない（`src/server/base-url.ts`）。
+- 本物の Google ログインを確かめるときは、portless を使わずに `pnpm dev`（`localhost:5173`）で起動する。
+- E2E は今までどおり `localhost:5173` で走る。
 
 ## ワーカーが画面を確かめる
 

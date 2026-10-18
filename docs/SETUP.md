@@ -101,10 +101,12 @@ Vite が別のポートを使うとログインが 400 で弾かれる。
 
 ## 4. デプロイ
 
-main への push で GitHub Actions（`.github/workflows/ci.yml`）が次の順に実行する。PR では `check` だけが走り、デプロイはしない。
+main への push で GitHub Actions（`.github/workflows/ci.yml`）が次の順に実行する。PR では `check` と `e2e` だけが走り、デプロイはしない。
 
-1. `check`: `vp check` → `vp test` → `vp run -r build`
-2. `deploy-secrets`: Actions secrets（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`）が登録されているかを確かめる
+1. `check` と `e2e` が並んで走る
+   - `check`: `vp check` → `vp test` → `vp run -r build`
+   - `e2e`: chromium を入れて `pnpm test:e2e`（[`E2E.md`](./E2E.md)）
+2. `deploy-secrets`: `check` と `e2e` の両方が通ったときだけ走り、Actions secrets（`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`）が登録されているかを確かめる
 3. `deploy`: `vp run -r build` → 本番 D1 へのマイグレーション（`wrangler d1 migrations apply nanaichi --remote`）→ `wrangler deploy`
 
 secrets が未登録のあいだは `deploy` がスキップされ、CI は緑のままになる。
@@ -156,3 +158,4 @@ Actions の画面で main の最新の「CI」を「Re-run all jobs」すれば�
 ## 5. E2E テスト
 
 `pnpm test:e2e` で chromium の E2E テストを実行する。詳しくは [`E2E.md`](./E2E.md)。
+CI でも PR と main への push のたびに走り、落ちた main はデプロイしない（4章）。

@@ -81,4 +81,24 @@ describe("ログインの入口", () => {
 
     expect(res.status).toBe(200);
   });
+
+  test("portless が worktree ごとに割り振る *.localhost のホストは受け付ける", async () => {
+    const res = await app.request(
+      "https://fix-ui.nanaichi.localhost/api/auth/get-session",
+      undefined,
+      unauthenticatedEnv,
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  test("localhost で終わっていても .localhost の下でないホストは受け付けない", async () => {
+    const res = await app.request(
+      "https://nanaichi.localhost.evil.test/api/auth/get-session",
+      undefined,
+      unauthenticatedEnv,
+    );
+
+    expect(res.status).toBe(400);
+  });
 });
