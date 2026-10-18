@@ -1,15 +1,63 @@
 import type { SessionOperation } from "../domain/session-event.ts";
 import type { InPhase } from "../domain/phase-change.ts";
-import type { Ended, TimerState } from "../domain/timer-state.ts";
+import { setsUntilBreakOf, type RoundProgress } from "../domain/round-progress.ts";
+import {
+  phaseDurationMsOf,
+  SETS_PER_ROUND,
+  type Ended,
+  type Phase,
+  type TimerState,
+} from "../domain/timer-state.ts";
 
 /** 画面に出す文言。判断はせず、ドメインの値を言葉にするだけ（AGENTS.md §5） */
 
-/** 残り秒数をカウントダウンの表示（`m:ss`）にする */
-export const formatCountdown = (remainingSeconds: number): string => {
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+/**
+ * 残り秒数をカウントダウンの表示（`m:ss`）の分と秒にする。
+ * 等幅の数字の間で「:」だけ幅を詰めて描くため、分けて返す
+ */
+export const countdownPartsOf = (
+  remainingSeconds: number,
+): Readonly<{ minutes: string; seconds: string }> => ({
+  minutes: String(Math.floor(remainingSeconds / 60)),
+  seconds: String(remainingSeconds % 60).padStart(2, "0"),
+});
+
+const minutesOf = (phase: Phase): number => phaseDurationMsOf(phase) / 60_000;
+
+/** フェーズの時間が過ぎたら何に移るか（`次は ジャーナル 1分`） */
+export const upcomingLabelOf = (upcoming: Phase): string => {
+  switch (upcoming.kind) {
+    case "Focus":
+      return upcoming.setNumber === 1
+        ? `次は ${upcoming.round}ラウンド目の集中`
+        : `次は 集中（${upcoming.setNumber}セット目）`;
+    case "Journal":
+      return `次は ジャーナル ${minutesOf(upcoming)}分`;
+    case "Break":
+      return `次は 休憩 ${minutesOf(upcoming)}分`;
+  }
 };
+
+/** 休憩まであと何セットか。休憩中は出さない */
+export const untilBreakLabelOf = (progress: RoundProgress): string | undefined => {
+  const sets = setsUntilBreakOf(progress);
+  return sets === 0 ? undefined : `休憩まで あと${sets}セット`;
+};
+
+const FIRST_FOCUS = { kind: "Focus", round: 1, setNumber: 1 } as const satisfies Phase;
+const FIRST_JOURNAL = { kind: "Journal", round: 1, setNumber: 1 } as const satisfies Phase;
+const FIRST_BREAK = { kind: "Break", round: 1 } as const satisfies Phase;
+
+/** 開始前に出す、1セットの流れとラウンドの決まり */
+export const sessionRhythmOf = (): Readonly<{
+  focusSeconds: number;
+  set: string;
+  round: string;
+}> => ({
+  focusSeconds: phaseDurationMsOf(FIRST_FOCUS) / 1000,
+  set: `集中 ${minutesOf(FIRST_FOCUS)}分 → ジャーナル ${minutesOf(FIRST_JOURNAL)}分`,
+  round: `${SETS_PER_ROUND}セットごとに ${minutesOf(FIRST_BREAK)}分の休憩が入ります`,
+});
 
 export const phaseLabelOf = (state: TimerState): string => {
   switch (state.kind) {
@@ -72,3 +120,9 @@ export const phaseChangeMessageOf = (to: InPhase): Readonly<{ title: string; bod
       return { title: "休憩の時間です", body: `${to.round}ラウンド目が終わりました` };
   }
 };
+
+/** 中断のあとの待機で出す説明。待機は中断の直後にだけなる（GLOSSARY の「待機」） */
+export const idleMessageOf = (setNumber: number): Readonly<{ title: string; body: string }> => ({
+  title: `${setNumber}セット目を中断しました`,
+  body: `集中を再開始すると、${setNumber}セット目の集中をはじめからやり直します`,
+});

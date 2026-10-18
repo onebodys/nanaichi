@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAlertSettings, VOLUMES, type Volume } from "./alert-settings.ts";
+import { SettingsIcon } from "lucide-react";
 import { Button } from "./components/ui/button.tsx";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "./components/ui/popover.tsx";
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -34,7 +36,8 @@ const permissionNoteOf = (permission: NotificationPermissionState): string | und
 
 /**
  * 知らせ方の設定（GLOSSARY）。音を鳴らすか・音量・ブラウザ通知を出すかを端末ごとに選ぶ。
- * 普段は閉じておき、タイマーの邪魔をしない。
+ * 普段は閉じておき、ヘッダーの設定のボタンから開く（タイマーの邪魔をしない）。
+ * 設定画面ができたら、そちらに移す（Issue #34）。
  */
 export const AlertSettingsPanel = ({ phaseAlert }: Readonly<{ phaseAlert: PhaseAlert }>) => {
   const { settings, change } = useAlertSettings();
@@ -59,9 +62,15 @@ export const AlertSettingsPanel = ({ phaseAlert }: Readonly<{ phaseAlert: PhaseA
   const permissionNote = settings.notification ? permissionNoteOf(permission) : undefined;
 
   return (
-    <details className="rounded-md border px-4 py-2 text-sm">
-      <summary className="cursor-pointer text-muted-foreground">音と通知の設定</summary>
-      <div className="flex flex-col gap-3 py-3">
+    <Popover>
+      <PopoverTrigger
+        render={<Button variant="outline" size="icon-lg" className="rounded-[10px]" />}
+        aria-label="音と通知の設定"
+      >
+        <SettingsIcon className="size-[18px]" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 gap-3">
+        <PopoverTitle className="font-semibold">音と通知の設定</PopoverTitle>
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -101,7 +110,7 @@ export const AlertSettingsPanel = ({ phaseAlert }: Readonly<{ phaseAlert: PhaseA
         {permissionNote !== undefined && (
           <p className="pl-6 text-muted-foreground">{permissionNote}</p>
         )}
-      </div>
-    </details>
+      </PopoverContent>
+    </Popover>
   );
 };

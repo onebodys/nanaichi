@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vite-plus/test";
-import { completedSetsLabelOf, dateLabelOf, writtenDuringLabelOf } from "./journal-text.ts";
+import {
+  completedSetsLabelOf,
+  dateLabelOf,
+  writtenDuringBadgeOf,
+  writtenDuringLabelOf,
+} from "./journal-text.ts";
 
 describe("タイムラインの文言", () => {
   test("日付の区切りは月日と曜日で出す", () => {
@@ -22,5 +27,14 @@ describe("タイムラインの文言", () => {
     [{ kind: "Idle", round: 1, setNumber: 2 } as const, "1ラウンド目・2セット目・待機"],
   ])("書いたときの状態 %j は「%s」", (writtenDuring, label) => {
     expect(writtenDuringLabelOf(writtenDuring)).toBe(label);
+  });
+
+  test.each([
+    [{ kind: "Focus", round: 1, setNumber: 2 } as const, "1-2 集中"],
+    [{ kind: "Journal", round: 2, setNumber: 3 } as const, "2-3 ジャーナル"],
+    [{ kind: "Break", round: 1 } as const, "休憩"],
+    [{ kind: "Idle", round: 1, setNumber: 2 } as const, "1-2 待機"],
+  ])("バッジでは書いたときの状態 %j を「%s」と短く出す", (writtenDuring, badge) => {
+    expect(writtenDuringBadgeOf(writtenDuring)).toBe(badge);
   });
 });

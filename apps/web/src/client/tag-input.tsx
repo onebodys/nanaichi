@@ -33,17 +33,20 @@ const namesOf = (options: ReadonlyArray<TagOption>): ReadonlyArray<TagName> => [
  *
  * - `known`: 使っているタグ（最近使った順）
  * - `attached`: つけているタグ
+ * - `className`: タグを並べる欄の見た目を上書きする（入力欄のカードの中に置くときなど）
  */
 export const TagInput = ({
   known,
   attached,
   onChange,
   label = "タグ",
+  className,
 }: Readonly<{
   known: ReadonlyArray<TagName>;
   attached: ReadonlyArray<TagName>;
   onChange: (tags: ReadonlyArray<TagName>) => void;
   label?: string;
+  className?: string;
 }>) => {
   const [query, setQuery] = useState("");
   const anchor = useRef<HTMLDivElement | null>(null);
@@ -67,7 +70,7 @@ export const TagInput = ({
       // 入力したら最初の候補を選んだ状態にし、Enter でつけられるようにする
       autoHighlight
     >
-      <ComboboxChips ref={anchor}>
+      <ComboboxChips ref={anchor} className={className}>
         {attached.map((name) => (
           <ComboboxChip key={name} removeLabel={`#${name} を外す`}>
             #{name}
@@ -105,7 +108,7 @@ export const TagList = ({ tags }: Readonly<{ tags: ReadonlyArray<TagName> }>) =>
   tags.length === 0 ? null : (
     <ul aria-label="タグ" className="flex flex-wrap gap-1">
       {tags.map((name) => (
-        <li key={name} className="rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
+        <li key={name} className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           #{name}
         </li>
       ))}

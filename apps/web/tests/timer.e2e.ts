@@ -177,7 +177,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByText("音と通知の設定").tap();
+    await screen.getByRole("button", { name: "音と通知の設定" }).tap();
     await screen.getByRole("checkbox", { name: "フェーズの切り替わりで音を鳴らす" }).tap();
     await screen.getByRole("button", { name: "開始" }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
@@ -199,7 +199,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByText("音と通知の設定").tap();
+    await screen.getByRole("button", { name: "音と通知の設定" }).tap();
     await screen.getByRole("checkbox", { name: "フェーズの切り替わりでブラウザ通知を出す" }).tap();
     await screen.getByRole("button", { name: "開始" }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();

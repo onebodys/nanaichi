@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { JournalEntry, JournalEntryId } from "../domain/journal-entry.ts";
+import type { JournalEntry, JournalEntryId, WrittenDuring } from "../domain/journal-entry.ts";
 import type { TagName } from "../domain/tag.ts";
 import type { TimelineDay, TimelineDaySession } from "../domain/timeline.ts";
 import { Button } from "./components/ui/button.tsx";
@@ -7,8 +7,10 @@ import {
   completedSetsLabelOf,
   dateLabelOf,
   timeLabelOf,
+  writtenDuringBadgeOf,
   writtenDuringLabelOf,
 } from "./journal-text.ts";
+import { cn } from "./lib/utils.ts";
 import { linkify } from "./linkify.ts";
 import { isSubmitKey } from "./submit-key.ts";
 import { TagInput, TagList } from "./tag-input.tsx";
@@ -17,7 +19,7 @@ import type { TimelineState } from "./use-timeline.ts";
 
 /** 本文をプレーンテキストで出し、URL だけをリンクにする。改行はそのまま出す */
 const EntryBody = ({ text }: Readonly<{ text: string }>) => (
-  <p className="text-sm break-words whitespace-pre-wrap">
+  <p className="text-[15px] leading-[1.7] break-words whitespace-pre-wrap">
     {linkify(text).map((segment, i) =>
       segment.kind === "Link" ? (
         <a
@@ -34,6 +36,29 @@ const EntryBody = ({ text }: Readonly<{ text: string }>) => (
       ),
     )}
   </p>
+);
+
+/** バッジの色（index.css のフェーズの色）。Tailwind が拾えるよう、クラス名は省略せずに書く */
+const BADGE_TONES = {
+  Focus: "bg-focus-soft text-focus",
+  Journal: "bg-journal-soft text-journal",
+  Break: "bg-break-soft text-break",
+  Idle: "bg-muted text-muted-foreground",
+} as const satisfies Record<WrittenDuring["kind"], string>;
+
+/**
+ * 書いたときのタイマーの状態のバッジ。見た目は短く（`2-1 ジャーナル`）、読み上げには長い文言を使う
+ */
+const WrittenDuringBadge = ({ writtenDuring }: Readonly<{ writtenDuring: WrittenDuring }>) => (
+  <span
+    className={cn(
+      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+      BADGE_TONES[writtenDuring.kind],
+    )}
+  >
+    <span className="sr-only">{writtenDuringLabelOf(writtenDuring)}</span>
+    <span aria-hidden>{writtenDuringBadgeOf(writtenDuring)}</span>
+  </span>
 );
 
 /** 編集中・削除の確認中か */
@@ -101,11 +126,11 @@ const EntryItem = ({
   const body = entry.body.unwrap();
 
   return (
-    <li aria-label="ジャーナル記入" className="flex flex-col gap-1 py-2">
-      <p className="text-xs text-muted-foreground">
+    <li aria-label="ジャーナル記入" className="flex flex-col gap-1.5 py-3.5">
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <time dateTime={entry.writtenAt.toISOString()}>{timeLabelOf(entry.writtenAt)}</time>
-        <span> · {writtenDuringLabelOf(entry.writtenDuring)}</span>
-        {entry.updatedAt.getTime() !== entry.writtenAt.getTime() && <span> · 編集済み</span>}
+        <WrittenDuringBadge writtenDuring={entry.writtenDuring} />
+        {entry.updatedAt.getTime() !== entry.writtenAt.getTime() && <span>編集済み</span>}
       </p>
       {mode === "Editing" ? (
         <EntryEditor
@@ -123,11 +148,21 @@ const EntryItem = ({
         </>
       )}
       {mode === "Viewing" && (
-        <div className="flex gap-1">
-          <Button variant="ghost" size="xs" onClick={() => setMode("Editing")}>
+        <div className="-ml-2 flex gap-1">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground"
+            onClick={() => setMode("Editing")}
+          >
             編集
           </Button>
-          <Button variant="ghost" size="xs" onClick={() => setMode("ConfirmingDelete")}>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground"
+            onClick={() => setMode("ConfirmingDelete")}
+          >
             削除
           </Button>
         </div>
@@ -159,13 +194,13 @@ const DaySession = ({
   remove: TimelineState["remove"];
 }>) => (
   <section aria-label={`${timeLabelOf(daySession.startedAt)} からのセッション`}>
-    <h4 className="border-b pb-1 text-xs font-medium text-muted-foreground">
+    <h4 className="py-2 text-xs text-muted-foreground">
       {timeLabelOf(daySession.startedAt)} からのセッション
     </h4>
     {daySession.entries.length === 0 ? (
-      <p className="py-2 text-xs text-muted-foreground">記入はありません</p>
+      <p className="border-t py-3 text-xs text-muted-foreground">記入はありません</p>
     ) : (
-      <ul className="divide-y">
+      <ul className="divide-y border-t">
         {daySession.entries.map((entry) => (
           <EntryItem
             key={entry.id}
@@ -191,10 +226,10 @@ const Day = ({
   edit: TimelineState["edit"];
   remove: TimelineState["remove"];
 }>) => (
-  <section aria-label={dateLabelOf(day.date)} className="flex flex-col gap-3">
-    <h3 className="flex items-baseline justify-between gap-2 border-b-2 pb-1">
-      <span className="font-semibold">{dateLabelOf(day.date)}</span>
-      <span className="text-sm text-muted-foreground">
+  <section aria-label={dateLabelOf(day.date)} className="flex flex-col gap-2">
+    <h3 className="flex items-baseline justify-between gap-2">
+      <span className="font-bold">{dateLabelOf(day.date)}</span>
+      <span className="text-xs text-muted-foreground">
         {completedSetsLabelOf(day.completedSets)}
       </span>
     </h3>
@@ -254,7 +289,7 @@ export const TimelinePanel = ({
   const { view, loadingMore, edit, remove, loadMore, reload } = timeline;
 
   return (
-    <section aria-label="タイムライン" className="flex flex-col gap-6">
+    <section aria-label="タイムライン" className="flex flex-col gap-8">
       {view.kind === "Loading" && <p className="text-sm text-muted-foreground">読み込み中…</p>}
       {view.kind === "LoadFailed" && (
         <div className="flex flex-col items-center gap-3">
