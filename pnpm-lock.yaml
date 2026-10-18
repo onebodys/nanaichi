@@ -176,6 +176,12 @@ catalogs:
     '@e2e-dev/web':
       specifier: 0.15.1
       version: 0.15.1
+    '@fontsource/ibm-plex-mono':
+      specifier: 5.3.0
+      version: 5.3.0
+    '@fontsource/ibm-plex-sans-jp':
+      specifier: 5.3.1
+      version: 5.3.1
     '@praha/byethrow':
       specifier: 0.12.0
       version: 0.12.0
@@ -253,6 +259,12 @@ importers:
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@fontsource/ibm-plex-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@fontsource/ibm-plex-sans-jp':
+        specifier: 'catalog:'
+        version: 5.3.1
       '@praha/byethrow':
         specifier: 'catalog:'
         version: 0.12.0(typescript@7.0.2)
@@ -749,6 +761,12 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource/ibm-plex-mono@5.3.0':
+    resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
+
+  '@fontsource/ibm-plex-sans-jp@5.3.1':
+    resolution: {integrity: sha512-lFejXBGcWN/htaffKJryghb/zd2WKwFKyJWJRTcRP57/HUAGEdjNHI0UtIUN8pv4A5F9hPBxZ0dY8oILd88xIA==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3329,6 +3347,10 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource/ibm-plex-mono@5.3.0': {}
+
+  '@fontsource/ibm-plex-sans-jp@5.3.1': {}
 
   '@img/colour@1.1.0': {}
 

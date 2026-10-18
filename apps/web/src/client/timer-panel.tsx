@@ -25,10 +25,29 @@ const endedMessageOf = (state: Ended): string =>
     ? "記入も操作もないまま時間が過ぎたので、セッションを自動終了しました"
     : "セッションを終了しました";
 
+/** フェーズの色のピル（Issue #34 の A 案）。色はフェーズにだけ使い、待機は色をつけない */
+const phasePillClassOf = (state: Exclude<TimerState, Ended>): string => {
+  switch (state.kind) {
+    case "Focus":
+      return "bg-focus-soft text-focus";
+    case "Journal":
+      return "bg-journal-soft text-journal";
+    case "Break":
+      return "bg-break-soft text-break";
+    case "Idle":
+      return "bg-muted text-muted-foreground";
+  }
+};
+
 const InSession = ({ state }: Readonly<{ state: Exclude<TimerState, Ended> }>) => (
-  <div className="flex flex-col items-center gap-1">
+  <div className="flex flex-col items-center gap-2">
     <p className="text-sm text-muted-foreground">{positionOf(state)}</p>
-    <h2 className="text-2xl font-semibold">{phaseLabelOf(state)}</h2>
+    <h2
+      className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-base font-semibold ${phasePillClassOf(state)}`}
+    >
+      <span aria-hidden="true" className="size-2 rounded-full bg-current" />
+      {phaseLabelOf(state)}
+    </h2>
     {state.kind === "Idle" ? (
       <p className="py-4 text-sm text-muted-foreground">
         集中を再開始すると、{state.setNumber}セット目の集中をやり直します
@@ -38,7 +57,7 @@ const InSession = ({ state }: Readonly<{ state: Exclude<TimerState, Ended> }>) =
         <p
           role="timer"
           aria-label="残り時間"
-          className="text-7xl font-bold tracking-tight tabular-nums"
+          className="font-mono text-8xl font-light tracking-tighter tabular-nums"
         >
           {formatCountdown(state.remainingSeconds)}
         </p>
