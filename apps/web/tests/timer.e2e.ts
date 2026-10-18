@@ -180,8 +180,9 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "音と通知の設定" }).tap();
-    await screen.getByRole("checkbox", { name: "フェーズの切り替わりで音を鳴らす" }).tap();
+    await screen.getByRole("button", { name: "設定" }).tap();
+    await screen.getByRole("switch", { name: "音で知らせる" }).tap();
+    await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
     await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 
@@ -202,8 +203,9 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "音と通知の設定" }).tap();
-    await screen.getByRole("checkbox", { name: "フェーズの切り替わりでブラウザ通知を出す" }).tap();
+    await screen.getByRole("button", { name: "設定" }).tap();
+    await screen.getByRole("switch", { name: "ブラウザ通知" }).tap();
+    await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
     await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     expect(await browser.evaluate(() => Notification.permission)).toBe("default");
@@ -213,6 +215,33 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await expect.poll(async () => (await recordedIn(browser)).tones).toBeGreaterThan(0);
     expect((await recordedIn(browser)).notifications).toEqual([]);
 
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+  });
+
+  test("設定画面を開いたままでも、時間が過ぎるとフェーズが切り替わり、音と通知で知らせる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+
+    await screen.getByRole("button", { name: "設定" }).tap();
+    await expect(screen.getByRole("heading", { name: "設定", level: 1 })).toBeVisible();
+    await expect(screen.getByText(/^集中 [67]:\d\d$/)).toBeVisible();
+
+    await advanceClock(browser, 7);
+    // 設定画面のヘッダーに、裏で進んでいるタイマーが出る
+    await expect(screen.getByText(/^ジャーナル [01]:\d\d$/)).toBeVisible();
+    await expect
+      .poll(async () => (await recordedIn(browser)).notifications.map((n) => n.title))
+      .toEqual(["ジャーナルの時間です"]);
+    expect((await recordedIn(browser)).tones).toBeGreaterThan(0);
+
+    await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
+    await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(screen.getByText("セッションを終了しました")).toBeVisible();
   });

@@ -1,5 +1,6 @@
-import { AlertSettingsPanel } from "./alert-settings-panel.tsx";
-import { authClient } from "./auth-client.ts";
+import { SettingsIcon } from "lucide-react";
+import { authClient, signOut } from "./auth-client.ts";
+import { Button } from "./components/ui/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,13 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.tsx";
 import { todayFocusOf, type TodayFocus } from "./focus-time-text.ts";
-import type { PhaseAlert } from "./phase-alert.ts";
-
-const signOut = async () => {
-  await authClient.signOut();
-  // ログアウト後はセッションが無くなるので、ルートの beforeLoad がログイン画面へ送る
-  window.location.href = "/login";
-};
 
 /** アカウントのメニュー。名前の頭文字のボタンから開き、ログアウトできる */
 const AccountMenu = () => {
@@ -68,13 +62,13 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
 };
 
 /**
- * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、音と通知の設定とアカウントのメニュー。
+ * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、設定画面を開くボタンとアカウントのメニュー。
  * 「7·1」は集中7分とジャーナル1分のマーク。
  */
 export const AppHeader = ({
-  phaseAlert,
   today,
-}: Readonly<{ phaseAlert: PhaseAlert; today: TodayFocus }>) => (
+  openSettings,
+}: Readonly<{ today: TodayFocus; openSettings: () => void }>) => (
   <header className="shrink-0 border-b bg-card">
     {/* 広い画面では中身をタイマーとジャーナルの2ペインと同じ幅にそろえる（home-page.tsx） */}
     <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 lg:h-16 lg:px-8">
@@ -89,7 +83,15 @@ export const AppHeader = ({
       </div>
       <div className="flex items-center gap-2 lg:gap-3">
         <TodayFocusBadge today={today} />
-        <AlertSettingsPanel phaseAlert={phaseAlert} />
+        <Button
+          variant="outline"
+          size="icon-lg"
+          className="rounded-[10px]"
+          aria-label="設定"
+          onClick={openSettings}
+        >
+          <SettingsIcon className="size-[18px]" />
+        </Button>
         <AccountMenu />
       </div>
     </div>

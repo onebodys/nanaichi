@@ -42,22 +42,22 @@ const TONES = {
   Focus: {
     text: "text-focus",
     soft: "bg-focus-soft",
-    fill: "bg-focus",
-    stroke: "stroke-focus",
+    fill: "bg-focus-mark",
+    stroke: "stroke-focus-mark",
     solid: "bg-focus text-focus-foreground hover:bg-focus/85",
   },
   Journal: {
     text: "text-journal",
     soft: "bg-journal-soft",
-    fill: "bg-journal",
-    stroke: "stroke-journal",
+    fill: "bg-journal-mark",
+    stroke: "stroke-journal-mark",
     solid: "bg-journal text-journal-foreground hover:bg-journal/85",
   },
   Break: {
     text: "text-break",
     soft: "bg-break-soft",
-    fill: "bg-break",
-    stroke: "stroke-break",
+    fill: "bg-break-mark",
+    stroke: "stroke-break-mark",
     solid: "bg-break text-break-foreground hover:bg-break/85",
   },
   Idle: {

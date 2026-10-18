@@ -6,11 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nanaichi</title>
     <script>
-      // 最初の描画の前にダークを当て、白く光ってから暗くなるのを防ぐ。判断は src/client/theme.ts と同じ
-      document.documentElement.classList.toggle(
-        "dark",
-        window.matchMedia("(prefers-color-scheme: dark)").matches,
-      );
+      // 最初の描画の前に明るさを当て、白く光ってから暗くなるのを防ぐ。判断は src/client/theme.ts と同じ
+      // （端末に覚えた好みがライト・ダークならそれ、なければ端末の設定に合わせる）
+      (function () {
+        var preference = null;
+        try {
+          preference = localStorage.getItem("nanaichi:theme");
+        } catch (e) {}
+        var dark =
+          preference === "Dark" ||
+          (preference !== "Light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
     </script>
   </head>
   <body>
