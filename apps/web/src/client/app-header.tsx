@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu.tsx";
 import { todayFocusOf, type TodayFocus } from "./focus-time-text.ts";
+import { LogoMark } from "./logo-mark.tsx";
 
 /** アカウントのメニュー。名前の頭文字のボタンから開き、ログアウトできる */
 const AccountMenu = () => {
@@ -63,7 +64,6 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
 
 /**
  * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、スタッツと設定画面を開くボタン、アカウントのメニュー。
- * 「7·1」は集中7分とジャーナル1分のマーク。
  */
 export const AppHeader = ({
   today,
@@ -74,12 +74,7 @@ export const AppHeader = ({
     {/* 広い画面では中身をタイマーとジャーナルの2ペインと同じ幅にそろえる（home-page.tsx） */}
     <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 lg:h-16 lg:px-8">
       <div className="flex items-center gap-2.5">
-        <span
-          aria-hidden
-          className="flex size-7 items-center justify-center rounded-lg bg-primary font-mono text-xs font-medium text-primary-foreground"
-        >
-          7·1
-        </span>
+        <LogoMark className="size-7 rounded-lg text-xs" />
         <h1 className="text-lg font-bold tracking-tight">nanaichi</h1>
       </div>
       <div className="flex items-center gap-2 lg:gap-3">
