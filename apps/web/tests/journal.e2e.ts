@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // 時計の差し替えはページの中で動くので、ブラウザの型（DOM）を使う
 import { describe, test, type Browser } from "@e2e-dev/web";
-import { expect, type App } from "e2e";
+import { expect, type App, type Screen } from "e2e";
 
 /**
  * ジャーナル記入とタイムライン（Issue #6）。
@@ -37,6 +37,25 @@ const openWithoutSession = async (app: App, browser: Browser) => {
   });
   await browser.addInitScript(installClock);
   await app.open("/");
+};
+
+/**
+ * 今日の日付の区切りに完了セット数が出るまで、タイムラインの続きを読み込む。
+ * 1日に1ページ分（10件）より多くのセッションがあると、その日の完了セット数は続きを読み込むまで出ない
+ * （ADR 0011）。ローカルの記録は実行のあいだで残り、今日のセッションは実行のたびに増えるので、
+ * 何度走らせても数を確かめられるようにする。
+ */
+const loadUntilTodayIsCounted = async (screen: Screen) => {
+  // 日付の区切りの見出しは新しい順に並ぶので、最初のものが今日
+  const today = screen.getByRole("heading", { name: /完了セット/ }).first();
+  // 続きはボタンが画面に入ると自動でも読み込まれるので、読み込み中なら終わるのを待ってから見出しを読む
+  const loaded = () => expect(screen.getByRole("button", { name: "読み込み中…" })).toBeHidden();
+  await expect(today).toBeVisible();
+  await loaded();
+  while ((await today.textContent())?.endsWith("続きを読み込むと出ます") === true) {
+    await screen.getByRole("button", { name: "さらに読み込む" }).tap();
+    await loaded();
+  }
 };
 
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
@@ -111,6 +130,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await expect(screen.getByLabel("ジャーナル記入の本文")).toBeFocused();
+    await loadUntilTodayIsCounted(screen);
     await expect(screen.getByRole("heading", { name: /完了セット 1$/ })).toBeVisible();
 
     await screen.getByRole("button", { name: "終了" }).tap();
@@ -120,6 +140,8 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
+    // 開始がサーバーに受け付けられるまでは入力欄を使えない
+    await expect(input).toBeEnabled();
     await input.pressSequentially("書き間違い");
     await input.press("Enter");
     const entry = screen.getByRole("listitem", { name: "ジャーナル記入" }).first();
