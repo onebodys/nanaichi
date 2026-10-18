@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
@@ -11,6 +11,7 @@ import {
   type TimelineSession,
 } from "../domain/timeline.ts";
 import { createApiClient, type ApiError } from "./api.ts";
+import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
 
 const api = createApiClient();
 
@@ -109,15 +110,45 @@ export const useTimeline = (
     setLoading((state) => (state.kind === "Loaded" ? change(state) : state));
   }, []);
 
+  // 最新のページを読み込んでいる間に当てた変更。応答が届いたら、ページの上に当て直す（`mergeLatestPage`）
+  const changesWhileLoading = useRef<Array<Readonly<{ seq: number; change: TimelineChange }>>>([]);
+  const lastSeq = useRef(0);
+  const loadsInFlight = useRef(0);
+
+  /** 記入やセッションの変更を当てる。最新のページを読み込んでいる間なら、当て直すために覚えておく */
+  const apply = useCallback(
+    (change: TimelineChange) => {
+      if (loadsInFlight.current > 0) {
+        lastSeq.current += 1;
+        changesWhileLoading.current.push({ seq: lastSeq.current, change });
+      }
+      update((loaded) => ({ ...loaded, sessions: change(loaded.sessions) }));
+    },
+    [update],
+  );
+
   const loadLatest = useCallback(async () => {
+    const since = lastSeq.current;
+    loadsInFlight.current += 1;
     const result = await api.getTimeline();
+    loadsInFlight.current -= 1;
+    const changes = changesWhileLoading.current
+      .filter(({ seq }) => seq > since)
+      .map(({ change }) => change);
+    if (loadsInFlight.current === 0) {
+      changesWhileLoading.current = [];
+    }
     if (Result.isSuccess(result)) {
       const page = result.value;
       setLoading((state) =>
         state.kind === "Loaded"
           ? // 古いページを読み込み済みなら、その続きの位置（next）はそのまま使う
-            { ...state, sessions: Timeline.merge(state.sessions, page.sessions) }
-          : { kind: "Loaded", sessions: page.sessions, next: page.next },
+            { ...state, sessions: mergeLatestPage(state.sessions, page.sessions, changes) }
+          : {
+              kind: "Loaded",
+              sessions: mergeLatestPage([], page.sessions, changes),
+              next: page.next,
+            },
       );
       return;
     }
@@ -132,12 +163,9 @@ export const useTimeline = (
   // タイマーのスナップショットのほうが新しいので、受け取るたびに重ねる（開始・操作・終了）
   useEffect(() => {
     if (current !== undefined) {
-      update((loaded) => ({
-        ...loaded,
-        sessions: Timeline.withCurrentSession(loaded.sessions, current),
-      }));
+      apply((sessions) => Timeline.withCurrentSession(sessions, current));
     }
-  }, [current, update]);
+  }, [current, apply]);
 
   const fail = (error: ApiError) => {
     redirectToLoginIfSignedOut(error);
@@ -176,7 +204,7 @@ export const useTimeline = (
       }
       setFailedDraft(undefined);
       const entry = result.value;
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
       onWritten();
       return true;
     },
@@ -188,7 +216,7 @@ export const useTimeline = (
         return false;
       }
       const entry = result.value;
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
       return true;
     },
     remove: async (id) => {
@@ -198,7 +226,7 @@ export const useTimeline = (
         fail(result.error);
         return;
       }
-      update((loaded) => ({ ...loaded, sessions: Timeline.removeEntry(loaded.sessions, id) }));
+      apply((sessions) => Timeline.removeEntry(sessions, id));
     },
     loadMore: () => {
       if (loading.kind !== "Loaded" || loading.next.kind !== "More" || loadingMore) {
@@ -228,10 +256,10 @@ export const useTimeline = (
       void loadLatest();
     },
     receiveEntry: (entry) => {
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
     },
     receiveDeletion: (id) => {
-      update((loaded) => ({ ...loaded, sessions: Timeline.removeEntry(loaded.sessions, id) }));
+      apply((sessions) => Timeline.removeEntry(sessions, id));
     },
   };
 };
