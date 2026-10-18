@@ -74,11 +74,15 @@ const TestSignInForm = () => (
     className="flex w-full max-w-xs flex-col gap-2 rounded-lg border border-dashed border-neutral-300 p-3"
   >
     <label htmlFor="test-sign-in-email" className="text-xs text-neutral-500">
-      開発用ログインのメールアドレス（Google を通さない。許可リストに載せたもの）
+      開発用ログインのメールアドレス
     </label>
+    <p id="test-sign-in-email-hint" className="text-xs text-neutral-500">
+      Google を通さない。許可リストに載せたもの
+    </p>
     <div className="flex gap-2">
       <input
         id="test-sign-in-email"
+        aria-describedby="test-sign-in-email-hint"
         name="email"
         type="email"
         required
