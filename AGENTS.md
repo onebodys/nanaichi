@@ -59,6 +59,7 @@ apps/web/src/
 kamae の「状態ごとに型を分ける」を、このプロジェクトでは徹底する。
 
 - optional / nullable なプロパティで状態を表さない。状態ごとに型を定義し、判別可能な union にする（例: タイマーは `Idle | Focus | Journal | Break | Ended` のように分け、「休憩中はセット番号がない」を `setNumber?: number` ではなく型の違いで表す）。
+- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。網羅性は Oxlint の `typescript/switch-exhaustiveness-check` で検査する。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0014）。
 - 境界（API の入力、DB の行、WebSocket のメッセージ）で受け取った値はスキーマで検証し、その場で状態ごとの型に変換する。DB の行の nullable な列をドメインに持ち込まない。
 - 型アサーション（`as`）は使わない。`as const` と `as const satisfies Type` のみ可。
 
