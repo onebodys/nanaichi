@@ -1,10 +1,11 @@
 import * as v from "valibot";
+import { AdvanceModeChange } from "../domain/advance-mode.ts";
 import { SessionId, type Session } from "../domain/session.ts";
 import { SessionEventId, SessionOperationKind } from "../domain/session-event.ts";
 import type { EntryMark, FindStatsRecords } from "../domain/stats.ts";
 import { Tags } from "../domain/tag.ts";
 import { writtenDuringOf } from "./journal-sqlite.ts";
-import { epochMs, parseRow } from "./session-sqlite.ts";
+import { advanceModeChangesOf, epochMs, parseRow } from "./session-sqlite.ts";
 
 // ---------------------------------------------------------------------------
 // DB の行（境界）。スタッツはすべての記録を読むので、セッションごとに読まず表ごとにまとめて読む
@@ -43,6 +44,7 @@ const sessionOf = (
   id: SessionId,
   rows: ReadonlyArray<EventRow>,
   journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
 ): Session => {
   const [start, ...rest] = rows;
   if (start === undefined || start.kind !== "Start") {
@@ -60,6 +62,8 @@ const sessionOf = (
       }),
     ],
     journalEntryTimes,
+    // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らなくてよい（ADR 0016）
+    advanceModeChanges: AdvanceModeChange.relevantSince(advanceModeChanges, new Date(start.at)),
   };
 };
 
@@ -94,12 +98,14 @@ export const statsSqlite = (sql: SqlStorage): Readonly<{ findStatsRecords: FindS
         .toArray(),
     );
     const entriesBySession = groupBy(entryRows, (row) => row.session_id);
+    const advanceModeChanges = advanceModeChangesOf(sql);
 
     const sessions = [...groupBy(events, (row) => row.session_id)].map(([id, rows]) =>
       sessionOf(
         id,
         rows,
         (entriesBySession.get(id) ?? []).map((row) => new Date(row.written_at)),
+        advanceModeChanges,
       ),
     );
     const entries = entryRows

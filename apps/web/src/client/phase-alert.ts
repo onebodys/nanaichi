@@ -1,4 +1,4 @@
-import type { InPhase } from "../domain/phase-change.ts";
+import type { Phase } from "../domain/timer-state.ts";
 import { loadAlertSettings, toneFor, type AlertTone, type Volume } from "./alert-settings.ts";
 import { phaseChangeMessageOf } from "./timer-text.ts";
 
@@ -15,8 +15,9 @@ export type PhaseAlert = Readonly<{
   /** 音を鳴らせるようにする。ページを開き直したあと、最初に画面に触れたときに呼ぶ */
   unlockSound: () => void;
   /** 設定画面で音色と音量を確かめるために、そのフェーズに切り替わったときの音を鳴らす。人の操作の中で呼ぶ */
-  preview: (sound: Readonly<{ to: InPhase["kind"]; tone: AlertTone; volume: Volume }>) => void;
-  alert: (to: InPhase) => void;
+  preview: (sound: Readonly<{ to: Phase["kind"]; tone: AlertTone; volume: Volume }>) => void;
+  /** `to` のフェーズに切り替わった（手動の切り替わりでは、切り替え待ちになった）ことを知らせる */
+  alert: (to: Phase) => void;
   /** 今の音の状態。まだ画面に触れておらず音を鳴らせなければ `Locked`（知らせた記録に残す、alert-log.ts） */
   soundState: () => AudioContextState | "Locked";
 }>;
@@ -25,7 +26,7 @@ export type PhaseAlert = Readonly<{
 export type NotificationPermissionState = NotificationPermission | "unsupported";
 
 /** フェーズごとの音の高さ（Hz）の並び。どのフェーズに移ったかを音だけでも聞き分けられるようにする */
-const CHIMES: Readonly<Record<InPhase["kind"], ReadonlyArray<number>>> = {
+const CHIMES: Readonly<Record<Phase["kind"], ReadonlyArray<number>>> = {
   /** 上がる2音: 集中を始める */
   Focus: [784, 1175],
   /** 高い1音を2回: 書く時間 */
@@ -175,7 +176,7 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
     : Notification.permission;
 };
 
-const showNotification = (to: InPhase) => {
+const showNotification = (to: Phase) => {
   if (notificationPermission() !== "granted") {
     return;
   }

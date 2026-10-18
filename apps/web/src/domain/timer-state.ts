@@ -1,5 +1,6 @@
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { AdvanceMode, AdvanceModeChange } from "./advance-mode.ts";
 import { JsonDateSchema } from "./json-date.ts";
 import type { SessionEvents, SessionOperation } from "./session-event.ts";
 
@@ -57,6 +58,20 @@ type Break = Readonly<{
   clock: Clock;
 }>;
 
+/**
+ * 切り替え待ち（GLOSSARY）。フェーズの進め方が手動の切り替わりで、`finished` のフェーズの時間が過ぎ、
+ * 人が進めるまで次のフェーズを始めずに待っている。残り時間は 0:00 のまま止まる。
+ *
+ * - `finished`: 時間が過ぎて終わったフェーズ。進めると `nextPhase(finished)` が始まる
+ * - `since`: 終わった時刻（待ち始めた時刻）
+ */
+type AwaitingAdvance = Readonly<{
+  kind: "AwaitingAdvance";
+  finished: Phase;
+  completedSets: number;
+  since: Date;
+}>;
+
 export type Ended = Readonly<{
   kind: "Ended";
   endedAt: Date;
@@ -64,7 +79,7 @@ export type Ended = Readonly<{
   completedSets: number;
 }>;
 
-export type TimerState = Idle | Focus | Journal | Break | Ended;
+export type TimerState = Idle | Focus | Journal | Break | AwaitingAdvance | Ended;
 
 // ---------------------------------------------------------------------------
 // JSON にしたタイマーの状態（API の応答）を検証して TimerState に戻す（AGENTS.md §5）
@@ -88,6 +103,12 @@ const setPhaseJsonSchema = <K extends "Focus" | "Journal">(kind: K) =>
     clock: ClockJsonSchema,
   });
 
+const PhaseJsonSchema = v.variant("kind", [
+  v.object({ kind: v.literal("Focus"), round: positiveInt, setNumber: positiveInt }),
+  v.object({ kind: v.literal("Journal"), round: positiveInt, setNumber: positiveInt }),
+  v.object({ kind: v.literal("Break"), round: positiveInt }),
+]);
+
 export const TimerStateJsonSchema: v.GenericSchema<unknown, TimerState> = v.variant("kind", [
   v.object({
     kind: v.literal("Idle"),
@@ -103,6 +124,12 @@ export const TimerStateJsonSchema: v.GenericSchema<unknown, TimerState> = v.vari
     completedSets: nonNegativeInt,
     remainingSeconds: nonNegativeInt,
     clock: ClockJsonSchema,
+  }),
+  v.object({
+    kind: v.literal("AwaitingAdvance"),
+    finished: PhaseJsonSchema,
+    completedSets: nonNegativeInt,
+    since: JsonDateSchema,
   }),
   v.object({
     kind: v.literal("Ended"),
@@ -172,6 +199,13 @@ type Progress =
       elapsedMs: number;
       pausedAt: number;
     }>
+  /** `since` はフェーズの時間が過ぎて切り替え待ちになった時刻 */
+  | Readonly<{
+      kind: "Awaiting";
+      finished: Phase;
+      sets: ReadonlyArray<SetRecord>;
+      since: number;
+    }>
   | Readonly<{
       kind: "Ended";
       endedAt: number;
@@ -179,12 +213,17 @@ type Progress =
       sets: ReadonlyArray<SetRecord>;
     }>;
 
-type Derivation = Readonly<{ progress: Progress; lastActivityAt: number }>;
+/** `mode` はいま効いているフェーズの進め方（ADR 0016） */
+type Derivation = Readonly<{ progress: Progress; lastActivityAt: number; mode: AdvanceMode }>;
 
-/** 時刻の順に処理するもの。ジャーナル記入は状態を変えないが、自動終了までの時間を延ばす */
+/**
+ * 時刻の順に処理するもの。ジャーナル記入は状態を変えないが、自動終了までの時間を延ばす。
+ * フェーズの進め方の変更は、待っている切り替わりを自動にすれば次のフェーズを始め、操作として自動終了までの時間も延ばす
+ */
 type Activity =
   | Readonly<{ kind: "Operation"; operation: SessionOperation }>
-  | Readonly<{ kind: "JournalEntry"; at: Date }>;
+  | Readonly<{ kind: "JournalEntry"; at: Date }>
+  | Readonly<{ kind: "AdvanceModeChanged"; change: AdvanceModeChange }>;
 
 /** フェーズの長さ（ミリ秒） */
 export const phaseDurationMsOf = (phase: Phase): number => {
@@ -242,8 +281,11 @@ const setsAfterInterrupted = (progress: Progress, t: number): ReadonlyArray<SetR
 const completedSetCountOf = (sets: ReadonlyArray<SetRecord>): number =>
   sets.filter((set) => set.kind === "CompletedSet").length;
 
-/** 時刻 `t` までに終わったフェーズを、自動的に次のフェーズへ切り替える */
-const advanceTo = (progress: Progress, t: number): Progress => {
+/**
+ * 時刻 `t` までに終わったフェーズを、次のフェーズへ切り替える。
+ * 進め方 `mode` がその切り替わりを手動にしていれば、終わった時刻から切り替え待ちで止まる
+ */
+const advanceTo = (progress: Progress, t: number, mode: AdvanceMode): Progress => {
   if (progress.kind !== "Running") {
     return progress;
   }
@@ -251,22 +293,32 @@ const advanceTo = (progress: Progress, t: number): Progress => {
   if (endsAt > t) {
     return progress;
   }
-  return advanceTo(
-    {
-      kind: "Running",
-      phase: nextPhase(progress.phase),
-      sets: setsAfterPhaseEnded(progress.phase, progress.sets, endsAt),
-      phaseStartedAt: endsAt,
-    },
-    t,
-  );
+  const next = nextPhase(progress.phase);
+  const sets = setsAfterPhaseEnded(progress.phase, progress.sets, endsAt);
+  if (AdvanceMode.isManual(mode, progress.phase.kind, next.kind)) {
+    return { kind: "Awaiting", finished: progress.phase, sets, since: endsAt };
+  }
+  return advanceTo({ kind: "Running", phase: next, sets, phaseStartedAt: endsAt }, t, mode);
 };
+
+/** 切り替え待ちから、時刻 `t` に次のフェーズを始める */
+const startNextPhase = (
+  awaiting: Extract<Progress, Readonly<{ kind: "Awaiting" }>>,
+  t: number,
+): Progress => ({
+  kind: "Running",
+  phase: nextPhase(awaiting.finished),
+  sets: awaiting.sets,
+  phaseStartedAt: t,
+});
 
 const stateKindOf = (progress: Progress): TimerState["kind"] => {
   switch (progress.kind) {
     case "Idle":
     case "Ended":
       return progress.kind;
+    case "Awaiting":
+      return "AwaitingAdvance";
     case "Running":
     case "Paused":
       return progress.phase.kind;
@@ -346,11 +398,24 @@ const applyOperation = (
         ? accept(startFocus(progress.round, progress.setNumber, progress.sets, t))
         : reject();
     case "SkipBreak":
-      // 休憩スキップは休憩中のみ（一時停止中の休憩を含む）。次のラウンドの集中がすぐ始まる
-      return (progress.kind === "Running" || progress.kind === "Paused") &&
+      // 休憩スキップは休憩中（一時停止中の休憩を含む）と、休憩に入る前の切り替え待ちのみ。
+      // 次のラウンドの集中がすぐ始まる
+      if (
+        (progress.kind === "Running" || progress.kind === "Paused") &&
         progress.phase.kind === "Break"
-        ? accept(startFocus(progress.phase.round + 1, 1, progress.sets, t))
-        : reject();
+      ) {
+        return accept(startFocus(progress.phase.round + 1, 1, progress.sets, t));
+      }
+      if (progress.kind === "Awaiting") {
+        const next = nextPhase(progress.finished);
+        return next.kind === "Break"
+          ? accept(startFocus(next.round + 1, 1, progress.sets, t))
+          : reject();
+      }
+      return reject();
+    case "Advance":
+      // 進めるのは切り替え待ちのみ。押した時刻から次のフェーズが始まる
+      return progress.kind === "Awaiting" ? accept(startNextPhase(progress, t)) : reject();
     case "End":
       return progress.kind === "Ended" ? reject() : accept(end(progress, t, "End"));
   }
@@ -365,12 +430,22 @@ const autoEndIfInactiveUntil = (derivation: Derivation, t: number): Derivation =
     ? {
         ...derivation,
         progress: end(
-          advanceTo(derivation.progress, derivation.lastActivityAt),
+          advanceTo(derivation.progress, derivation.lastActivityAt, derivation.mode),
           derivation.lastActivityAt,
           "AutoEnd",
         ),
       }
     : derivation;
+
+/**
+ * 時刻 `t` に進め方を `mode` に変えたあとの状態。待っている切り替わりが自動になったら、
+ * その時刻から次のフェーズを始める（ADR 0016）
+ */
+const applyAdvanceMode = (progress: Progress, mode: AdvanceMode, t: number): Progress =>
+  progress.kind === "Awaiting" &&
+  !AdvanceMode.isManual(mode, progress.finished.kind, nextPhase(progress.finished).kind)
+    ? startNextPhase(progress, t)
+    : progress;
 
 const applyActivity = (
   derivation: Derivation,
@@ -390,9 +465,22 @@ const applyActivity = (
       const at = activity.operation.at.getTime();
       const current = autoEndIfInactiveUntil(derivation, at);
       return Result.pipe(
-        applyOperation(advanceTo(current.progress, at), activity.operation),
-        Result.map((progress): Derivation => ({ progress, lastActivityAt: at })),
+        applyOperation(advanceTo(current.progress, at, current.mode), activity.operation),
+        Result.map((progress): Derivation => ({ ...current, progress, lastActivityAt: at })),
       );
+    }
+    case "AdvanceModeChanged": {
+      const at = activity.change.at.getTime();
+      const current = autoEndIfInactiveUntil(derivation, at);
+      if (current.progress.kind === "Ended") {
+        return Result.succeed(current);
+      }
+      const { mode } = activity.change;
+      return Result.succeed({
+        progress: applyAdvanceMode(advanceTo(current.progress, at, current.mode), mode, at),
+        lastActivityAt: at,
+        mode,
+      });
     }
   }
 };
@@ -408,20 +496,38 @@ const ensureChronological = (
     : Result.fail({ kind: "EventOutOfOrder", at: outOfOrder.at });
 };
 
-const activitiesUntil = (
-  operations: ReadonlyArray<SessionOperation>,
-  journalEntryTimes: ReadonlyArray<Date>,
+/** セッションを始めた時刻 `startedAt` より後で、時刻 `now` までのもの。同じ時刻なら進め方の変更を先にする */
+const activitiesBetween = (
+  inputs: DerivationInputs,
+  startedAt: number,
   now: Date,
 ): ReadonlyArray<Activity> =>
   [
-    ...operations.map((operation): Activity => ({ kind: "Operation", operation })),
-    ...journalEntryTimes.map((at): Activity => ({ kind: "JournalEntry", at })),
+    ...inputs.advanceModeChanges
+      .filter((change) => change.at.getTime() > startedAt)
+      .map((change): Activity => ({ kind: "AdvanceModeChanged", change })),
+    ...inputs.operations.map((operation): Activity => ({ kind: "Operation", operation })),
+    ...inputs.journalEntryTimes.map((at): Activity => ({ kind: "JournalEntry", at })),
   ]
     .filter((activity) => atOf(activity) <= now.getTime())
     .toSorted((a, b) => atOf(a) - atOf(b));
 
-const atOf = (activity: Activity): number =>
-  activity.kind === "Operation" ? activity.operation.at.getTime() : activity.at.getTime();
+const atOf = (activity: Activity): number => {
+  switch (activity.kind) {
+    case "Operation":
+      return activity.operation.at.getTime();
+    case "JournalEntry":
+      return activity.at.getTime();
+    case "AdvanceModeChanged":
+      return activity.change.at.getTime();
+  }
+};
+
+type DerivationInputs = Readonly<{
+  operations: ReadonlyArray<SessionOperation>;
+  journalEntryTimes: ReadonlyArray<Date>;
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>;
+}>;
 
 // `new Date(ms)` は現在時刻を読まないので純粋（AGENTS.md の禁止は引数なしの `new Date()`）
 const toTimerState = (progress: Progress, now: number): TimerState => {
@@ -472,6 +578,13 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
         phaseDurationMsOf(progress.phase) - progress.elapsedMs,
         { kind: "Paused", pausedAt: new Date(progress.pausedAt) },
       );
+    case "Awaiting":
+      return {
+        kind: "AwaitingAdvance",
+        finished: progress.finished,
+        completedSets,
+        since: new Date(progress.since),
+      };
     case "Ended":
       return {
         kind: "Ended",
@@ -487,18 +600,21 @@ const progressAt = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
 ): Result.Result<Progress, DeriveTimerStateError> => {
   const [start, ...operations] = events;
   const startedAt = start.at.getTime();
   const initial: Derivation = {
     progress: startFocus(1, 1, [], startedAt),
     lastActivityAt: startedAt,
+    mode: AdvanceModeChange.modeAt(advanceModeChanges, start.at),
   };
+  const inputs: DerivationInputs = { operations, journalEntryTimes, advanceModeChanges };
 
   return Result.pipe(
     ensureChronological(events),
     Result.andThen(() =>
-      activitiesUntil(operations, journalEntryTimes, now).reduce<
+      activitiesBetween(inputs, startedAt, now).reduce<
         Result.Result<Derivation, DeriveTimerStateError>
       >(
         (derived, activity) =>
@@ -511,7 +627,8 @@ const progressAt = (
     ),
     Result.map((derivation) => {
       const t = now.getTime();
-      return advanceTo(autoEndIfInactiveUntil(derivation, t).progress, t);
+      const current = autoEndIfInactiveUntil(derivation, t);
+      return advanceTo(current.progress, t, current.mode);
     }),
   );
 };
@@ -523,6 +640,7 @@ const progressAt = (
  * `now` より後の操作イベントとジャーナル記入は、まだ起きていないものとして扱わない。
  *
  * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
+ * - `advanceModeChanges`: フェーズの進め方の変更履歴（時刻の順）。セッションを始めた時刻に効いていた変更を含める（ADR 0016）
  * - その状態ではできない操作が含まれていれば `OperationRejected` を返す。
  *   新しい操作を受け付けてよいかは、記録済みのイベントに足して計算し直せば判断できる
  */
@@ -530,9 +648,10 @@ export const deriveTimerState = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
 ): Result.Result<TimerState, DeriveTimerStateError> =>
   Result.pipe(
-    progressAt(events, now, journalEntryTimes),
+    progressAt(events, now, journalEntryTimes, advanceModeChanges),
     Result.map((progress) => toTimerState(progress, now.getTime())),
   );
 
@@ -546,9 +665,10 @@ export const deriveCompletedSetTimes = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
 ): Result.Result<ReadonlyArray<Date>, DeriveTimerStateError> =>
   Result.pipe(
-    progressAt(events, now, journalEntryTimes),
+    progressAt(events, now, journalEntryTimes, advanceModeChanges),
     Result.map((progress) =>
       progress.sets.filter((set) => set.kind === "CompletedSet").map((set) => new Date(set.at)),
     ),
@@ -562,9 +682,10 @@ export const deriveSetOutcomes = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
 ): Result.Result<ReadonlyArray<SetOutcome>, DeriveTimerStateError> =>
   Result.pipe(
-    progressAt(events, now, journalEntryTimes),
+    progressAt(events, now, journalEntryTimes, advanceModeChanges),
     Result.map((progress) =>
       progress.sets.map(({ at, ...set }): SetOutcome => ({ ...set, at: new Date(at) })),
     ),
@@ -572,14 +693,21 @@ export const deriveSetOutcomes = (
 
 /**
  * 記入も操作もないまま過ぎれば自動終了する時刻（最後の記入・操作から2ラウンド分の位置）。
+ * フェーズの進め方の変更も操作として数える（ADR 0016）。
  *
  * 自動終了そのものは `deriveTimerState` が時刻から計算する。サーバーはこの時刻に alarm を張り、
  * 記入や操作があるたびに張り直すことで、誰も見ていなくても自動終了を記録に残す。
  */
-export const autoEndDueAt = (events: SessionEvents, journalEntryTimes: ReadonlyArray<Date>): Date =>
+export const autoEndDueAt = (
+  events: SessionEvents,
+  journalEntryTimes: ReadonlyArray<Date>,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
+): Date =>
   new Date(
     Math.max(
       ...events.map((event) => event.at.getTime()),
       ...journalEntryTimes.map((at) => at.getTime()),
+      // 始める前の変更は自動終了の時刻を延ばさない（始めた時刻のほうが後）
+      ...advanceModeChanges.map((change) => change.at.getTime()),
     ) + AUTO_END_AFTER_MS,
   );

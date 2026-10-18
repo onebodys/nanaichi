@@ -3,6 +3,8 @@ import { roundProgressOf } from "../domain/round-progress.ts";
 import { timeLabelOf } from "./journal-text.ts";
 import {
   abortedSetsNoteOf,
+  advanceLabelOf,
+  awaitingLabelOf,
   countdownPartsOf,
   currentSessionLabelOf,
   endedMessageOf,
@@ -121,6 +123,25 @@ describe("セッションの積み上げとまとめの表示", () => {
     expect(endedMessageOf("End")).toBe("セッションを終了しました");
     expect(endedMessageOf("AutoEnd")).toBe(
       "記入も操作もないまま時間が過ぎたので、セッションを自動終了しました",
+    );
+  });
+});
+
+describe("切り替え待ち", () => {
+  test("進めるボタンは、何が始まるかで言う", () => {
+    expect(advanceLabelOf({ kind: "Journal", round: 1, setNumber: 1 })).toBe("ジャーナルを始める");
+    expect(advanceLabelOf({ kind: "Focus", round: 1, setNumber: 2 })).toBe("集中を始める");
+    expect(advanceLabelOf({ kind: "Break", round: 1 })).toBe("休憩に入る");
+  });
+
+  test("何が終わって、どれだけ待っているかを出す", () => {
+    const finished = { kind: "Focus", round: 1, setNumber: 1 } as const;
+
+    expect(awaitingLabelOf(finished, new Date(0), new Date(42_000))).toBe(
+      "集中が終わりました · 42秒前",
+    );
+    expect(awaitingLabelOf(finished, new Date(0), new Date(133_000))).toBe(
+      "集中が終わりました · 2分13秒前",
     );
   });
 });

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import type { AdvanceMode } from "../domain/advance-mode.ts";
 import {
   JournalEntry,
   type DeletedJournalEntry,
@@ -13,10 +14,15 @@ import type { TagList } from "../domain/tag.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
 import {
+  changeAdvanceMode,
+  type ChangeAdvanceModeError,
+} from "../workflows/change-advance-mode.ts";
+import {
   deleteJournalEntry,
   type DeleteJournalEntryError,
 } from "../workflows/delete-journal-entry.ts";
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
+import { getAdvanceMode } from "../workflows/get-advance-mode.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTags } from "../workflows/get-tags.ts";
@@ -156,6 +162,36 @@ export class UserDO extends DurableObject<Env> {
   /** `GET /api/stats?period=&timeZone=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
   async getStats(rawQuery: unknown): Promise<Result.Result<StatsReport, GetStatsError>> {
     return this.#run((now) => getStats({ ...this.#sessions, ...this.#stats })(rawQuery, now));
+  }
+
+  /** `GET /api/settings/advance-mode` */
+  async getAdvanceMode(): Promise<Result.Result<AdvanceMode, never>> {
+    return this.#run((now) => getAdvanceMode(this.#sessions)(now));
+  }
+
+  /**
+   * `PUT /api/settings/advance-mode`。`raw` はリクエストの本文で、検証はワークフローが行う。
+   * 変えたら、新しい進め方と、進行中のセッションがあればその新しいスナップショットを全接続へ送る（ADR 0016）
+   */
+  async changeAdvanceMode(
+    raw: unknown,
+  ): Promise<Result.Result<AdvanceMode, ChangeAdvanceModeError>> {
+    const result = await this.#run((now) => changeAdvanceMode(this.#sessions)(raw, now));
+    return Result.pipe(
+      result,
+      Result.inspect((changed) => {
+        if (changed.kind === "Unchanged") {
+          return;
+        }
+        this.#broadcast([
+          { kind: "AdvanceModeChanged", mode: changed.mode },
+          ...(changed.snapshot.kind === "Session"
+            ? [{ kind: "SessionChanged", snapshot: changed.snapshot } as const]
+            : []),
+        ]);
+      }),
+      Result.map(({ mode }) => mode),
+    );
   }
 
   /**

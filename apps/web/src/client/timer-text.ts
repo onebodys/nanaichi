@@ -1,5 +1,4 @@
 import type { SessionOperation } from "../domain/session-event.ts";
-import type { InPhase } from "../domain/phase-change.ts";
 import { setsUntilBreakOf, type RoundProgress } from "../domain/round-progress.ts";
 import { completedSetsAndFocusTimeOf } from "./focus-time-text.ts";
 import { timeLabelOf } from "./journal-text.ts";
@@ -61,6 +60,18 @@ export const sessionRhythmOf = (): Readonly<{
   round: `${SETS_PER_ROUND}セットごとに ${minutesOf(FIRST_BREAK)}分の休憩が入ります`,
 });
 
+/** フェーズの名前 */
+export const phaseNameOf = (phase: Phase): string => {
+  switch (phase.kind) {
+    case "Focus":
+      return "集中";
+    case "Journal":
+      return "ジャーナル";
+    case "Break":
+      return "休憩";
+  }
+};
+
 export const phaseLabelOf = (state: TimerState): string => {
   switch (state.kind) {
     case "Focus":
@@ -71,12 +82,22 @@ export const phaseLabelOf = (state: TimerState): string => {
       return "休憩";
     case "Idle":
       return "待機";
+    case "AwaitingAdvance":
+      return "切り替え待ち";
     case "Ended":
       return "終了";
   }
 };
 
-/** 何ラウンド目・何セット目か。休憩はどのセットにも属さないのでラウンドだけ */
+const positionOfPhase = (phase: Phase): string =>
+  phase.kind === "Break"
+    ? `${phase.round}ラウンド目`
+    : `${phase.round}ラウンド目・${phase.setNumber}セット目`;
+
+/**
+ * 何ラウンド目・何セット目か。休憩はどのセットにも属さないのでラウンドだけ。
+ * 切り替え待ちは、終わったフェーズの位置
+ */
 export const positionOf = (state: Exclude<TimerState, Ended>): string => {
   switch (state.kind) {
     case "Focus":
@@ -85,6 +106,8 @@ export const positionOf = (state: Exclude<TimerState, Ended>): string => {
       return `${state.round}ラウンド目・${state.setNumber}セット目`;
     case "Break":
       return `${state.round}ラウンド目`;
+    case "AwaitingAdvance":
+      return positionOfPhase(state.finished);
   }
 };
 
@@ -100,13 +123,38 @@ export const operationLabelOf = (kind: SessionOperation["kind"]): string => {
       return "集中を再開始";
     case "SkipBreak":
       return "休憩をスキップ";
+    case "Advance":
+      return "次へ進む";
     case "End":
       return "終了";
   }
 };
 
+/** 切り替え待ちから進める操作の文言。何が始まるかで言う（`ジャーナルを始める`） */
+export const advanceLabelOf = (next: Phase): string => {
+  switch (next.kind) {
+    case "Focus":
+      return "集中を始める";
+    case "Journal":
+      return "ジャーナルを始める";
+    case "Break":
+      return "休憩に入る";
+  }
+};
+
+/**
+ * 切り替え待ちで出す、何が終わったかと待っている時間（`集中が終わりました · 2分13秒前`）。1分未満は秒だけ
+ */
+export const awaitingLabelOf = (finished: Phase, since: Date, now: Date): string => {
+  const seconds = Math.max(0, Math.floor((now.getTime() - since.getTime()) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const ago =
+    minutes === 0 ? `${seconds}秒前` : `${minutes}分${String(seconds % 60).padStart(2, "0")}秒前`;
+  return `${phaseNameOf(finished)}が終わりました · ${ago}`;
+};
+
 /** フェーズの切り替わりを知らせる通知の文言 */
-export const phaseChangeMessageOf = (to: InPhase): Readonly<{ title: string; body: string }> => {
+export const phaseChangeMessageOf = (to: Phase): Readonly<{ title: string; body: string }> => {
   switch (to.kind) {
     case "Focus":
       return {

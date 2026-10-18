@@ -37,6 +37,7 @@ const sessionStartedAt = (minutes: number, operations: Session["events"][number]
       ...operations.flatMap((operation) => (operation.kind === "Start" ? [] : [operation])),
     ],
     journalEntryTimes: [],
+    advanceModeChanges: [],
   };
   return session;
 };

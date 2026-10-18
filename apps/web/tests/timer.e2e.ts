@@ -86,13 +86,27 @@ const recordedIn = (browser: Browser) => browser.evaluate<Recorded>("window.__re
 const advanceClock = (browser: Browser, minutes: number) =>
   browser.evaluate<null>(`(window.__advanceClock(${minutes * 60_000}), null)`);
 
+/** フェーズの進め方の既定（すべて自動） */
+const ALL_AUTO = {
+  FocusToJournal: "Auto",
+  JournalToFocus: "Auto",
+  JournalToBreak: "Auto",
+  BreakToFocus: "Auto",
+} as const;
+
 /**
  * 前の実行のセッションが残っていれば終了しておき（UserDO の状態は実行のあいだで残る、docs/E2E.md）、
- * 偽物を入れてからセッションなしの画面を開く。API はブラウザの cookie を付けてテストから呼ぶ。
+ * フェーズの進め方を既定のすべて自動に戻し、偽物を入れてからセッションなしの画面を開く。
+ * API はブラウザの cookie を付けてテストから呼ぶ。
  */
 const openWithoutSession = async (app: App, browser: Browser) => {
   const baseUrl = app.baseUrl ?? "http://localhost:5173";
   const cookie = (await browser.cookies()).map(({ name, value }) => `${name}=${value}`).join("; ");
+  await fetch(new URL("/api/settings/advance-mode", baseUrl), {
+    method: "PUT",
+    headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify(ALL_AUTO),
+  });
   const current: unknown = await (
     await fetch(new URL("/api/session/current", baseUrl), { headers: { cookie } })
   ).json();
@@ -244,6 +258,60 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+  });
+
+  test("集中 → ジャーナルを手動にすると、集中の時間が過ぎたら 0:00 で止まって知らせ、ジャーナルを始めるボタンを出す", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: "設定" }).tap();
+    const focusToJournal = screen.getByRole("group", { name: "集中 → ジャーナルの進め方" });
+    // 選択肢のラジオボタンは見た目の上ではラベルに覆われているので、ラベルの文字を押す
+    await focusToJournal.getByText("手動", { exact: true }).tap();
+    await expect(focusToJournal.getByRole("radio", { name: "手動" })).toBeChecked();
+
+    // アカウントの設定なので、開き直してもサーバーから読んだ値が手動のまま
+    await browser.reload();
+    await expect(
+      screen
+        .getByRole("group", { name: "集中 → ジャーナルの進め方" })
+        .getByRole("radio", { name: "手動" }),
+    ).toBeChecked();
+    await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
+
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+
+    await advanceClock(browser, 9);
+    await expect(screen.getByRole("heading", { name: "切り替え待ち" })).toBeVisible();
+    await expect(screen.getByLabel("残り時間")).toHaveText("0:00");
+    await expect(screen.getByText(/^集中が終わりました · 2分0\d秒前$/)).toBeVisible();
+    await expect(screen.getByRole("button", { name: "ジャーナルを始める" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: "一時停止" })).toHaveCount(0);
+    // 切り替え待ちになったときに、移る先のジャーナルとして知らせる
+    await expect
+      .poll(async () => (await recordedIn(browser)).notifications.map((n) => n.title))
+      .toEqual(["ジャーナルの時間です"]);
+    expect((await recordedIn(browser)).tones).toBeGreaterThan(0);
+
+    // ページの時計だけを進めているので、サーバーではまだ集中中。「ジャーナルを始める」を押した結果は
+    // 結合テスト（advance-mode-api.workers.test.ts）と、本当の時計で動かした確認で確かめる
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+
+    // 自動に戻しておく
+    await screen.getByRole("button", { name: "設定" }).tap();
+    await screen
+      .getByRole("group", { name: "集中 → ジャーナルの進め方" })
+      .getByText("自動", { exact: true })
+      .tap();
+    await expect(
+      screen
+        .getByRole("group", { name: "集中 → ジャーナルの進め方" })
+        .getByRole("radio", { name: "自動" }),
+    ).toBeChecked();
   });
 
   test("一時停止・再開・中断・集中の再開始・終了のボタンが状態に応じて出し分けられ、操作では通知しない", async ({

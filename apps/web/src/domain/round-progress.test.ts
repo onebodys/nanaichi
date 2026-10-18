@@ -102,4 +102,32 @@ describe("ラウンドの進み具合", () => {
     expect(progress.sets.map((segment) => segment.kind)).toEqual(["Done", "Pending", "Pending"]);
     expect(setsUntilBreakOf(progress)).toBe(2);
   });
+
+  test("集中のあとの切り替え待ちでは、そのセットを終えたとみなす", () => {
+    const awaiting = {
+      kind: "AwaitingAdvance",
+      finished: { kind: "Focus", round: 1, setNumber: 2 },
+      completedSets: 2,
+      since: new Date(0),
+    } as const satisfies TimerState;
+
+    expect(roundProgressOf(awaiting)).toEqual({
+      sets: [{ kind: "Done" }, { kind: "Done" }, { kind: "Pending" }],
+      break: { kind: "Pending" },
+    });
+  });
+
+  test("休憩のあとの切り替え待ちでは、休憩までこのラウンドをすべて終えたとみなす", () => {
+    const awaiting = {
+      kind: "AwaitingAdvance",
+      finished: { kind: "Break", round: 1 },
+      completedSets: 3,
+      since: new Date(0),
+    } as const satisfies TimerState;
+
+    expect(roundProgressOf(awaiting)).toEqual({
+      sets: [{ kind: "Done" }, { kind: "Done" }, { kind: "Done" }],
+      break: { kind: "Done" },
+    });
+  });
 });

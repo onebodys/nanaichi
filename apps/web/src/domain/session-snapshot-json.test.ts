@@ -25,6 +25,7 @@ const session: Session = {
     { kind: "Resume", id: eventId(2), at: at(3) },
   ],
   journalEntryTimes: [at(8)],
+  advanceModeChanges: [],
 };
 
 describe("API の応答のスナップショットを検証して戻す", () => {

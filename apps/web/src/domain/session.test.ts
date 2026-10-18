@@ -12,7 +12,7 @@ const sessionId = v.parse(SessionId.schema, "00000000-0000-4000-8000-00000000000
 const eventId = (n: number) =>
   v.parse(SessionEventId.schema, `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`);
 
-const started = Session.start(sessionId, eventId(0), at(0));
+const started = Session.start(sessionId, eventId(0), at(0), []);
 
 describe("セッションの開始", () => {
   test("開始すると開始の操作イベントだけを持ち、1ラウンド目の1セット目の集中になる", () => {

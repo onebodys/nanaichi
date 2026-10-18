@@ -45,6 +45,7 @@ export const JournalEntryBody = {
  * - 集中・ジャーナル: ラウンドとセットとフェーズに紐付く
  * - 休憩: どのセットにも属さないので、ラウンドとフェーズだけ
  * - 待機: どのフェーズにもないので、ラウンドと次にやり直すセットだけ
+ * - 切り替え待ち: 時間が過ぎて終わったフェーズとして紐付ける（専用の種類は持たない）
  */
 export type WrittenDuring =
   | Readonly<{ kind: "Focus"; round: number; setNumber: number }>
@@ -119,6 +120,9 @@ const writtenDuringOf = (state: TimerState): Result.Result<WrittenDuring, NoSess
       return Result.succeed({ kind: state.kind, round: state.round, setNumber: state.setNumber });
     case "Break":
       return Result.succeed({ kind: state.kind, round: state.round });
+    case "AwaitingAdvance":
+      // 切り替え待ちの間に書いたものは、時間が過ぎて終わったフェーズに紐付く（GLOSSARY）
+      return Result.succeed(state.finished);
     case "Ended":
       return Result.fail({ kind: "NoSessionInProgress" });
   }

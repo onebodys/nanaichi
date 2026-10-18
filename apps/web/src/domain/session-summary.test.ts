@@ -19,6 +19,7 @@ const sessionWith = (operations: Session["events"][number][]): Session => ({
     ...operations.flatMap((operation) => (operation.kind === "Start" ? [] : [operation])),
   ],
   journalEntryTimes: [],
+  advanceModeChanges: [],
 });
 
 const endedOf = (session: Session, now: Date): Ended => {

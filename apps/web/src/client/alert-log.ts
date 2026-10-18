@@ -35,7 +35,12 @@ const MAX_ENTRIES = 100;
  * 直前の状態が進んでいるフェーズなら、その終わりの時刻が切り替わりの時刻になる
  */
 export const latenessSeconds = (previous: TimerState, serverNow: Date): number | null => {
-  if (previous.kind === "Idle" || previous.kind === "Ended" || previous.clock.kind !== "Running") {
+  if (
+    previous.kind === "Idle" ||
+    previous.kind === "AwaitingAdvance" ||
+    previous.kind === "Ended" ||
+    previous.clock.kind !== "Running"
+  ) {
     return null;
   }
   return Math.round((serverNow.getTime() - previous.clock.endsAt.getTime()) / 100) / 10;

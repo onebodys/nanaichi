@@ -11,7 +11,7 @@ import {
 /**
  * ラウンドの中の1区切り（セットの集中、または休憩）の進み具合。
  *
- * - `Done`: 終えた。セットは集中を最後まで終えていれば、ジャーナル中でも終えたとみなす
+ * - `Done`: 終えた。セットは集中を最後まで終えていれば、ジャーナル中や切り替え待ちでも終えたとみなす
  * - `Current`: 進めているところ。`elapsedRatio` は経過した割合（0〜1）
  * - `Pending`: まだ。中断したセットは、やり直すまでまだとみなす
  */
@@ -50,6 +50,11 @@ const setSegmentOf = (state: Exclude<TimerState, Ended>, setNumber: number): Seg
       return setNumber < state.setNumber ? DONE : PENDING;
     case "Journal":
       return setNumber <= state.setNumber ? DONE : PENDING;
+    case "AwaitingAdvance":
+      // 終わったフェーズまでは終えている。休憩のあとの切り替え待ちなら、このラウンドはすべて終えた
+      return state.finished.kind === "Break" || setNumber <= state.finished.setNumber
+        ? DONE
+        : PENDING;
     case "Focus":
       if (setNumber < state.setNumber) return DONE;
       if (setNumber > state.setNumber) return PENDING;
@@ -57,13 +62,17 @@ const setSegmentOf = (state: Exclude<TimerState, Ended>, setNumber: number): Seg
   }
 };
 
+const breakSegmentOf = (state: Exclude<TimerState, Ended>): Segment => {
+  if (state.kind === "Break") {
+    return { kind: "Current", elapsedRatio: 1 - remainingRatioOf(state) };
+  }
+  return state.kind === "AwaitingAdvance" && state.finished.kind === "Break" ? DONE : PENDING;
+};
+
 /** いまのラウンドの進み具合。待機・一時停止中も、その時点までの進み具合を返す */
 export const roundProgressOf = (state: Exclude<TimerState, Ended>): RoundProgress => ({
   sets: Array.from({ length: SETS_PER_ROUND }, (_, i) => setSegmentOf(state, i + 1)),
-  break:
-    state.kind === "Break"
-      ? { kind: "Current", elapsedRatio: 1 - remainingRatioOf(state) }
-      : PENDING,
+  break: breakSegmentOf(state),
 });
 
 /** 休憩に入るまでに、あと何セット（進めているセットを含む）。休憩中は 0 */

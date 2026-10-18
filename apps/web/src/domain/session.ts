@@ -1,5 +1,6 @@
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { AdvanceModeChange, AdvanceModeChangeJsonSchema } from "./advance-mode.ts";
 import { JsonDateSchema } from "./json-date.ts";
 import {
   RecordedSessionEventsJsonSchema,
@@ -35,17 +36,20 @@ export const SessionId = {
  * 状態は終了でありうる。状態はいつも `Session.stateAt` で操作イベントと時刻から計算する（ADR 0003）。
  *
  * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
+ * - `advanceModeChanges`: このセッションの計算に要るフェーズの進め方の変更（時刻の順）。
+ *   始めた時刻に効いていた変更と、セッションの間の変更（ADR 0016）
  */
 export type Session = Readonly<{
   id: SessionId;
   events: RecordedSessionEvents;
   journalEntryTimes: ReadonlyArray<Date>;
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange>;
 }>;
 
 /**
  * ある時刻のセッションの様子。API の応答にそのまま使う。
  *
- * クライアントは `events` と `journalEntryTimes` から自分で状態を計算し直し、
+ * クライアントは `events` と `journalEntryTimes` と `advanceModeChanges` から自分で状態を計算し直し、
  * `serverTime` との差で端末の時計のずれを補正する（ADR 0003）。
  */
 export type SessionSnapshot =
@@ -57,6 +61,7 @@ export const SessionJsonSchema: v.GenericSchema<unknown, Session> = v.object({
   id: SessionIdSchema,
   events: RecordedSessionEventsJsonSchema,
   journalEntryTimes: v.array(JsonDateSchema),
+  advanceModeChanges: v.array(AdvanceModeChangeJsonSchema),
 });
 
 /**
@@ -91,11 +96,26 @@ export const SessionSnapshot = {
 } as const;
 
 export const Session = {
-  /** セッションを始める。1ラウンド目の1セット目の集中がすぐに始まる */
-  start: (id: SessionId, startEventId: SessionEventId, now: Date): Session => ({
+  /**
+   * セッションを始める。1ラウンド目の1セット目の集中がすぐに始まる。
+   * `advanceModeChanges` は進め方の変更履歴で、始めた時刻に効いている変更だけを持つ
+   */
+  start: (
+    id: SessionId,
+    startEventId: SessionEventId,
+    now: Date,
+    advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
+  ): Session => ({
     id,
     events: [{ kind: "Start", id: startEventId, at: now }],
     journalEntryTimes: [],
+    advanceModeChanges: AdvanceModeChange.relevantSince(advanceModeChanges, now),
+  }),
+
+  /** 進め方を変えたあとのセッション。状態は変えた時刻から変わりうる（ADR 0016） */
+  withAdvanceModeChange: (session: Session, change: AdvanceModeChange): Session => ({
+    ...session,
+    advanceModeChanges: [...session.advanceModeChanges, change],
   }),
 
   /**
@@ -105,7 +125,12 @@ export const Session = {
    * 記録が壊れているときだけ。想定内の失敗ではなく不変条件違反として例外にする。
    */
   stateAt: (session: Session, now: Date): TimerState => {
-    const derived = deriveTimerState(session.events, now, session.journalEntryTimes);
+    const derived = deriveTimerState(
+      session.events,
+      now,
+      session.journalEntryTimes,
+      session.advanceModeChanges,
+    );
     if (Result.isFailure(derived)) {
       throw new Error(`記録済みの操作イベントから状態を計算できない: ${derived.error.kind}`);
     }
@@ -122,7 +147,12 @@ export const Session = {
     operation: RecordedSessionEvent<SessionOperation>,
   ): Result.Result<Readonly<{ session: Session; state: TimerState }>, OperationRejected> => {
     const operated: Session = { ...session, events: [...session.events, operation] };
-    const derived = deriveTimerState(operated.events, operation.at, operated.journalEntryTimes);
+    const derived = deriveTimerState(
+      operated.events,
+      operation.at,
+      operated.journalEntryTimes,
+      operated.advanceModeChanges,
+    );
     if (Result.isSuccess(derived)) {
       return Result.succeed({ session: operated, state: derived.value });
     }
@@ -142,13 +172,23 @@ export const Session = {
   availableOperations: (session: Session, now: Date): ReadonlyArray<SessionOperation["kind"]> =>
     SessionOperationKind.schema.options.filter((kind) =>
       Result.isSuccess(
-        deriveTimerState([...session.events, { kind, at: now }], now, session.journalEntryTimes),
+        deriveTimerState(
+          [...session.events, { kind, at: now }],
+          now,
+          session.journalEntryTimes,
+          session.advanceModeChanges,
+        ),
       ),
     ),
 
   /** 時刻 `now` までに完了セットになったセットの、集中を終えた時刻。計算できないのは `stateAt` と同じく不変条件違反 */
   completedSetTimesAt: (session: Session, now: Date): ReadonlyArray<Date> => {
-    const derived = deriveCompletedSetTimes(session.events, now, session.journalEntryTimes);
+    const derived = deriveCompletedSetTimes(
+      session.events,
+      now,
+      session.journalEntryTimes,
+      session.advanceModeChanges,
+    );
     if (Result.isFailure(derived)) {
       throw new Error(`記録済みの操作イベントから完了セットを計算できない: ${derived.error.kind}`);
     }
@@ -157,7 +197,12 @@ export const Session = {
 
   /** 時刻 `now` までのセットの結末（完了セットと不成立セット）を古い順に。計算できないのは `stateAt` と同じく不変条件違反 */
   setOutcomesAt: (session: Session, now: Date): ReadonlyArray<SetOutcome> => {
-    const derived = deriveSetOutcomes(session.events, now, session.journalEntryTimes);
+    const derived = deriveSetOutcomes(
+      session.events,
+      now,
+      session.journalEntryTimes,
+      session.advanceModeChanges,
+    );
     if (Result.isFailure(derived)) {
       throw new Error(
         `記録済みの操作イベントからセットの結末を計算できない: ${derived.error.kind}`,
@@ -167,7 +212,8 @@ export const Session = {
   },
 
   /** 記入も操作もないまま過ぎれば自動終了する時刻 */
-  autoEndDueAt: (session: Session): Date => autoEndDueAt(session.events, session.journalEntryTimes),
+  autoEndDueAt: (session: Session): Date =>
+    autoEndDueAt(session.events, session.journalEntryTimes, session.advanceModeChanges),
 
   snapshot: (session: Session, now: Date): SessionSnapshot => ({
     kind: "Session",

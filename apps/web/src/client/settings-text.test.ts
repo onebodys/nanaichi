@@ -1,5 +1,19 @@
 import { describe, expect, test } from "vite-plus/test";
-import { backgroundTimerLabelOf, permissionNoteOf, toneTargetOf } from "./settings-text.ts";
+import {
+  backgroundTimerLabelOf,
+  permissionNoteOf,
+  toneTargetOf,
+  transitionLabelOf,
+} from "./settings-text.ts";
+
+describe("フェーズの進め方の行", () => {
+  test("どのフェーズからどのフェーズへの切り替わりかを矢印で書く", () => {
+    expect(transitionLabelOf("FocusToJournal").label).toBe("集中 → ジャーナル");
+    expect(transitionLabelOf("JournalToFocus").label).toBe("ジャーナル → 集中");
+    expect(transitionLabelOf("JournalToBreak").label).toBe("ジャーナル → 休憩");
+    expect(transitionLabelOf("BreakToFocus").label).toBe("休憩 → 集中");
+  });
+});
 
 describe("音色を選ぶ行", () => {
   test("行き先のフェーズで見出しを書く（ジャーナルの終わりは集中にも休憩にも行くため）", () => {
@@ -46,6 +60,17 @@ describe("設定画面を開いている間のタイマーの様子", () => {
         clock: { kind: "Paused", pausedAt: new Date(0) },
       }),
     ).toBe("ジャーナル 0:38（一時停止中）");
+  });
+
+  test("切り替え待ちでは、どのフェーズの前で待っているかを出す", () => {
+    expect(
+      backgroundTimerLabelOf({
+        kind: "AwaitingAdvance",
+        finished: { kind: "Focus", round: 1, setNumber: 1 },
+        completedSets: 1,
+        since: new Date(0),
+      }),
+    ).toBe("ジャーナルの前で待っています");
   });
 
   test("中断のあとの待機では、待機とだけ出す", () => {

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
+import { AdvanceMode, type AdvanceModeChange } from "./advance-mode.ts";
 import type { SessionEvents } from "./session-event.ts";
 import {
+  autoEndDueAt,
   deriveCompletedSetTimes,
   deriveSetOutcomes,
   deriveTimerState,
@@ -19,16 +21,21 @@ const derive = (
   events: SessionEvents,
   now: Date,
   journalEntryTimes: ReadonlyArray<Date> = [],
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange> = [],
 ): TimerState => {
-  const derived = deriveTimerState(events, now, journalEntryTimes);
+  const derived = deriveTimerState(events, now, journalEntryTimes, advanceModeChanges);
   if (Result.isFailure(derived)) {
     throw new Error(`状態を計算できなかった: ${derived.error.kind}`);
   }
   return derived.value;
 };
 
-const reject = (events: SessionEvents, now: Date) => {
-  const derived = deriveTimerState(events, now, []);
+const reject = (
+  events: SessionEvents,
+  now: Date,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange> = [],
+) => {
+  const derived = deriveTimerState(events, now, [], advanceModeChanges);
   if (Result.isSuccess(derived)) {
     throw new Error(`受け付けてはいけない操作を受け付けた: ${derived.value.kind}`);
   }
@@ -456,7 +463,7 @@ describe("完了セットになった時刻", () => {
     now: Date,
     journalEntryTimes: ReadonlyArray<Date> = [],
   ) => {
-    const derived = deriveCompletedSetTimes(events, now, journalEntryTimes);
+    const derived = deriveCompletedSetTimes(events, now, journalEntryTimes, []);
     if (Result.isFailure(derived)) {
       throw new Error(`完了セットを計算できなかった: ${derived.error.kind}`);
     }
@@ -504,7 +511,7 @@ describe("セットの結末", () => {
     now: Date,
     journalEntryTimes: ReadonlyArray<Date> = [],
   ) => {
-    const derived = deriveSetOutcomes(events, now, journalEntryTimes);
+    const derived = deriveSetOutcomes(events, now, journalEntryTimes, []);
     if (Result.isFailure(derived)) {
       throw new Error(`セットの結末を計算できなかった: ${derived.error.kind}`);
     }
@@ -588,5 +595,175 @@ describe("セットの結末", () => {
     expect(setOutcomes(events, at(40)).filter((set) => set.kind === "CompletedSet")).toHaveLength(
       derive(events, at(40)).completedSets,
     );
+  });
+});
+
+describe("フェーズの進め方が手動の切り替わり", () => {
+  /** 開始より前（`at(-1)`）に、`manual` の切り替わりだけを手動にしておく */
+  const manualFrom = (
+    manual: ReadonlyArray<keyof AdvanceMode>,
+    changedAt: Date = at(-1),
+  ): AdvanceModeChange => ({
+    at: changedAt,
+    mode: {
+      ...AdvanceMode.default,
+      ...Object.fromEntries(manual.map((transition) => [transition, "Manual"])),
+    },
+  });
+  const focusToJournal = [manualFrom(["FocusToJournal"])];
+
+  test("集中 → ジャーナルが手動なら、集中の時間が過ぎると 0:00 の切り替え待ちで止まる", () => {
+    expect(derive(start, at(10), [], focusToJournal)).toEqual({
+      kind: "AwaitingAdvance",
+      finished: { kind: "Focus", round: 1, setNumber: 1 },
+      completedSets: 1,
+      since: at(7),
+    });
+  });
+
+  test("切り替え待ちで進めると、押した時刻から次のフェーズが始まる", () => {
+    const advanced = [...start, { kind: "Advance", at: at(9) }] as const satisfies SessionEvents;
+
+    expect(derive(advanced, at(9, 30), [], focusToJournal)).toMatchObject({
+      kind: "Journal",
+      round: 1,
+      setNumber: 1,
+      remainingSeconds: 30,
+    });
+    // ジャーナルの後は自動なので、次のセットの集中に進む
+    expect(derive(advanced, at(11), [], focusToJournal)).toMatchObject({
+      kind: "Focus",
+      setNumber: 2,
+      remainingSeconds: 6 * 60,
+    });
+  });
+
+  test("待っている時間は完了セットの集中に数えず、後のセットはその分だけ後ろにずれる", () => {
+    const advanced = [...start, { kind: "Advance", at: at(9) }] as const satisfies SessionEvents;
+    const derived = deriveCompletedSetTimes(advanced, at(20), [], focusToJournal);
+
+    // 1セット目は 7分に終え、2分待ってからジャーナル（9〜10分）、2セット目の集中は 10〜17分
+    expect(derived).toEqual(Result.succeed([at(7), at(17)]));
+  });
+
+  test("ジャーナル → 集中だけを手動にすると、集中 → ジャーナルは自動のまま進む", () => {
+    const changes = [manualFrom(["JournalToFocus"])];
+
+    expect(derive(start, at(7, 30), [], changes)).toMatchObject({ kind: "Journal" });
+    expect(derive(start, at(12), [], changes)).toEqual({
+      kind: "AwaitingAdvance",
+      finished: { kind: "Journal", round: 1, setNumber: 1 },
+      completedSets: 1,
+      since: at(8),
+    });
+  });
+
+  test("ジャーナル → 休憩が手動なら、休憩に入る前の切り替え待ちから休憩をスキップして次のラウンドに進める", () => {
+    const changes = [manualFrom(["JournalToBreak"])];
+    const skipped = [...start, { kind: "SkipBreak", at: at(30) }] as const satisfies SessionEvents;
+
+    expect(derive(start, at(26), [], changes)).toMatchObject({
+      kind: "AwaitingAdvance",
+      finished: { kind: "Journal", round: 1, setNumber: 3 },
+      since: at(24),
+    });
+    expect(derive(skipped, at(30), [], changes)).toMatchObject({
+      kind: "Focus",
+      round: 2,
+      setNumber: 1,
+    });
+  });
+
+  test("休憩 → 集中が手動なら、休憩が終わると次のラウンドの前で待つ", () => {
+    const changes = [manualFrom(["BreakToFocus"])];
+
+    expect(derive(start, at(40), [], changes)).toMatchObject({
+      kind: "AwaitingAdvance",
+      finished: { kind: "Break", round: 1 },
+      completedSets: 3,
+      since: at(29),
+    });
+  });
+
+  test("切り替え待ちでは一時停止・中断・集中の再開始はできない", () => {
+    for (const kind of ["Pause", "Abort", "RestartFocus"] as const) {
+      expect(
+        reject(
+          [...start, { kind, at: at(8) }] as const satisfies SessionEvents,
+          at(8),
+          focusToJournal,
+        ),
+      ).toMatchObject({ kind: "OperationRejected", operation: kind, during: "AwaitingAdvance" });
+    }
+  });
+
+  test("休憩に入る前でない切り替え待ちでは、休憩をスキップできない", () => {
+    expect(
+      reject(
+        [...start, { kind: "SkipBreak", at: at(8) }] as const satisfies SessionEvents,
+        at(8),
+        focusToJournal,
+      ),
+    ).toMatchObject({ kind: "OperationRejected", operation: "SkipBreak" });
+  });
+
+  test("進めるのは切り替え待ちでしかできない", () => {
+    expect(
+      reject([...start, { kind: "Advance", at: at(3) }] as const satisfies SessionEvents, at(3)),
+    ).toMatchObject({ kind: "OperationRejected", operation: "Advance", during: "Focus" });
+  });
+
+  test("集中のあとの切り替え待ちで終了しても、そのセットは完了セットのまま", () => {
+    const ended = [...start, { kind: "End", at: at(9) }] as const satisfies SessionEvents;
+
+    expect(deriveSetOutcomes(ended, at(9), [], focusToJournal)).toEqual(
+      Result.succeed([{ kind: "CompletedSet", round: 1, setNumber: 1, at: at(7) }]),
+    );
+  });
+
+  test("セッションの途中で手動に変えると、そのとき進めているフェーズの終わりから効く", () => {
+    const changes = [manualFrom(["FocusToJournal"], at(3))];
+
+    expect(derive(start, at(2), [], changes)).toMatchObject({ kind: "Focus" });
+    expect(derive(start, at(8), [], changes)).toMatchObject({
+      kind: "AwaitingAdvance",
+      since: at(7),
+    });
+  });
+
+  test("待っている切り替わりを自動に変えると、変えた時刻から次のフェーズが始まる", () => {
+    const changes = [...focusToJournal, { at: at(9), mode: AdvanceMode.default }];
+
+    expect(derive(start, at(9, 15), [], changes)).toMatchObject({
+      kind: "Journal",
+      setNumber: 1,
+      remainingSeconds: 45,
+    });
+  });
+
+  test("始める前に変えた進め方でセッションを計算し、その後の変更はその時刻から効く", () => {
+    // 開始より前に2回変えている。効くのは開始の時点で最後のもの
+    const changes = [
+      manualFrom(["FocusToJournal"], at(-5)),
+      { at: at(-2), mode: AdvanceMode.default },
+    ];
+
+    expect(derive(start, at(7, 30), [], changes)).toMatchObject({ kind: "Journal" });
+  });
+
+  test("切り替え待ちのまま記入も操作もなく2ラウンド分過ぎると、最後の操作の時刻で自動終了する", () => {
+    expect(derive(start, at(58), [], focusToJournal)).toEqual({
+      kind: "Ended",
+      endedAt: at(0),
+      endedBy: "AutoEnd",
+      completedSets: 0,
+    });
+  });
+
+  test("セッション中に進め方を変えると、操作として自動終了までの時間が延びる", () => {
+    const changes = [manualFrom(["FocusToJournal"], at(30))];
+
+    expect(derive(start, at(60), [], changes)).not.toMatchObject({ kind: "Ended" });
+    expect(autoEndDueAt(start, [], changes)).toEqual(at(30 + 58));
   });
 });

@@ -43,6 +43,7 @@ const sessionWithSets = (startedAt: Date, sets: number): Session => ({
     operation("End", plusMinutes(startedAt, (sets - 1) * 8 + 7.5)),
   ],
   journalEntryTimes: [],
+  advanceModeChanges: [],
 });
 
 /** `startedAt` に始め、集中の途中で中断してから終了したセッション（不成立セットが1つ） */
@@ -54,6 +55,7 @@ const abortedSession = (startedAt: Date): Session => ({
     operation("End", plusMinutes(startedAt, 4)),
   ],
   journalEntryTimes: [],
+  advanceModeChanges: [],
 });
 
 const entry = (
@@ -121,6 +123,7 @@ describe("期間の中の記録", () => {
         { kind: "Start", id: v.parse(SessionEventId.schema, uuid()), at: tokyo(10, 14, 11, 40) },
       ],
       journalEntryTimes: [],
+      advanceModeChanges: [],
     };
 
     // 11:40 に始め、12:00 の時点では 11:47 と 11:55 に集中を終えている

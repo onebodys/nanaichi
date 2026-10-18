@@ -1,5 +1,6 @@
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import type { LoadAdvanceModeChanges } from "../domain/advance-mode.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
 import { SessionEventId } from "../domain/session-event.ts";
 import {
@@ -28,6 +29,7 @@ export type StartSessionDeps = OpenSessionDeps &
   Readonly<{
     findSessionByEventId: FindSessionByEventId;
     saveStartedSession: SaveStartedSession;
+    loadAdvanceModeChanges: LoadAdvanceModeChanges;
   }>;
 
 const parseInput = schemaResult(StartSessionInputSchema);
@@ -43,7 +45,7 @@ const ensureNoSessionInProgress = (
  * セッションを開始する（GLOSSARY の「開始」）。
  *
  * 入力の検証 → 同じ開始が記録済みなら再送として扱う → 現在のセッションがないことの確認
- * → 開始 → 記録。自動終了の時刻を過ぎたセッションは、確認の前に閉じる（`loadOpenSession`）。
+ * → 開始（そのときのフェーズの進め方で計算する） → 記録。自動終了の時刻を過ぎたセッションは、確認の前に閉じる（`loadOpenSession`）。
  *
  * 時刻と新しいセッションの ID は呼び出し側が渡す（ドメインとワークフローは時計と乱数を読まない）。
  */
@@ -57,7 +59,7 @@ export const startSession =
     const start = (input: StartSessionInput): Result.Result<SessionSnapshot, StartSessionError> =>
       Result.pipe(
         ensureNoSessionInProgress(loadOpenSession(deps)(now)),
-        Result.map(() => Session.start(newSessionId, input.id, now)),
+        Result.map(() => Session.start(newSessionId, input.id, now, deps.loadAdvanceModeChanges())),
         Result.andThrough((session) => Result.succeed(deps.saveStartedSession(session))),
         Result.map((session) => Session.snapshot(session, now)),
       );

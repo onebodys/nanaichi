@@ -9,6 +9,7 @@ import {
   withTone,
   type AlertTone,
 } from "./alert-settings.ts";
+import { AdvanceMode } from "../domain/advance-mode.ts";
 import { authClient, signOut } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import {
@@ -25,17 +26,20 @@ import {
   type PhaseAlert,
 } from "./phase-alert.ts";
 import {
+  advanceChoiceLabelOf,
   permissionNoteOf,
   themeLabelOf,
   TONE_TARGETS,
   toneLabelOf,
   toneTargetOf,
+  transitionLabelOf,
   volumeLabelOf,
 } from "./settings-text.ts";
 import { OverlayScreen } from "./overlay-screen.tsx";
 import { Segmented } from "./segmented.tsx";
 import { modifierLabelOf, SubmitKeySchema, submitKeyLabelOf } from "./submit-key.ts";
 import { THEME_PREFERENCES, useThemePreference } from "./theme.ts";
+import type { AdvanceModeState } from "./use-advance-mode.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
 import type { TimerView } from "./use-session-timer.ts";
 
@@ -82,6 +86,52 @@ const Row = ({
     {children}
   </div>
 );
+
+const ADVANCE_CHOICES = ["Auto", "Manual"] as const;
+
+/**
+ * フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。
+ * アカウントの設定なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
+ */
+const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeState }>) => {
+  const { view, errorMessage, change } = advanceMode;
+  return (
+    <Section id="settings-advance" title="フェーズの進め方" perDevice={false}>
+      <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
+        手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、ボタンを押すまで待ちます。
+        どの端末でも同じ設定になります。
+      </p>
+      {view.kind === "Loaded" ? (
+        AdvanceMode.transitions.map((transition) => {
+          const { label, description } = transitionLabelOf(transition);
+          return (
+            <Row key={transition} label={label} description={description}>
+              <Segmented
+                name={`advance-${transition}`}
+                legend={`${label}の進め方`}
+                options={ADVANCE_CHOICES.map((choice) => ({
+                  value: choice,
+                  label: advanceChoiceLabelOf(choice),
+                }))}
+                value={view.mode[transition]}
+                onChange={(choice) => change({ ...view.mode, [transition]: choice })}
+              />
+            </Row>
+          );
+        })
+      ) : (
+        <p className="px-5 py-4 text-sm text-muted-foreground">
+          {view.kind === "Loading" ? "読み込み中…" : "読み込めませんでした"}
+        </p>
+      )}
+      {errorMessage !== undefined && (
+        <p role="alert" className="px-5 py-3 text-sm text-destructive">
+          {errorMessage}
+        </p>
+      )}
+    </Section>
+  );
+};
 
 /** 知らせ方の設定（GLOSSARY）。音で知らせるか・音量・フェーズごとの音色・ブラウザ通知 */
 const AlertSection = ({ phaseAlert }: Readonly<{ phaseAlert: PhaseAlert }>) => {
@@ -232,6 +282,7 @@ const AccountSection = () => {
 };
 
 const SECTIONS = [
+  { id: "settings-advance", title: "フェーズの進め方" },
   { id: "settings-alert", title: "知らせ方" },
   { id: "settings-look", title: "表示" },
   { id: "settings-write", title: "記入" },
@@ -243,9 +294,15 @@ const SECTIONS = [
  */
 export const SettingsScreen = ({
   phaseAlert,
+  advanceMode,
   timer,
   close,
-}: Readonly<{ phaseAlert: PhaseAlert; timer: TimerView; close: () => void }>) => (
+}: Readonly<{
+  phaseAlert: PhaseAlert;
+  advanceMode: AdvanceModeState;
+  timer: TimerView;
+  close: () => void;
+}>) => (
   <OverlayScreen labelledBy="settings-title" timer={timer} close={close}>
     <div className="mx-auto flex max-w-[960px] gap-10 px-4 py-8 lg:px-8 lg:py-10">
       <nav
@@ -269,6 +326,7 @@ export const SettingsScreen = ({
         <h1 id="settings-title" className="text-[22px] font-bold">
           設定
         </h1>
+        <AdvanceSection advanceMode={advanceMode} />
         <AlertSection phaseAlert={phaseAlert} />
         <LookSection />
         <WriteSection />

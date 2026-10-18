@@ -1,11 +1,43 @@
+import type { AdvanceChoice, PhaseTransition } from "../domain/advance-mode.ts";
 import type { InPhase } from "../domain/phase-change.ts";
 import type { AlertTone, Volume } from "./alert-settings.ts";
 import type { NotificationPermissionState } from "./phase-alert.ts";
 import type { ThemePreference } from "./theme.ts";
-import type { Ended, TimerState } from "../domain/timer-state.ts";
-import { countdownPartsOf, phaseLabelOf } from "./timer-text.ts";
+import { nextPhase, type Ended, type TimerState } from "../domain/timer-state.ts";
+import { countdownPartsOf, phaseLabelOf, phaseNameOf } from "./timer-text.ts";
 
 /** 設定画面の文言。判断はせず、設定の値を言葉にするだけ（AGENTS.md §5） */
+
+/** フェーズの進め方の行の見出しと補足（GLOSSARY の「フェーズの進め方」） */
+export const transitionLabelOf = (
+  transition: PhaseTransition,
+): Readonly<{ label: string; description: string }> => {
+  switch (transition) {
+    case "FocusToJournal":
+      return { label: "集中 → ジャーナル", description: "集中の7分が終わったとき" };
+    case "JournalToFocus":
+      return {
+        label: "ジャーナル → 集中",
+        description: "次のセットの集中に進むとき",
+      };
+    case "JournalToBreak":
+      return {
+        label: "ジャーナル → 休憩",
+        description: "3セット目のジャーナルのあと",
+      };
+    case "BreakToFocus":
+      return { label: "休憩 → 集中", description: "次のラウンドの集中に進むとき" };
+  }
+};
+
+export const advanceChoiceLabelOf = (choice: AdvanceChoice): string => {
+  switch (choice) {
+    case "Auto":
+      return "自動";
+    case "Manual":
+      return "手動";
+  }
+};
 
 export const volumeLabelOf = (volume: Volume): string => {
   switch (volume) {
@@ -85,6 +117,9 @@ export const permissionNoteOf = (permission: NotificationPermissionState): strin
 export const backgroundTimerLabelOf = (state: Exclude<TimerState, Ended>): string => {
   if (state.kind === "Idle") {
     return phaseLabelOf(state);
+  }
+  if (state.kind === "AwaitingAdvance") {
+    return `${phaseNameOf(nextPhase(state.finished))}の前で待っています`;
   }
   const { minutes, seconds } = countdownPartsOf(state.remainingSeconds);
   const paused = state.clock.kind === "Paused" ? "（一時停止中）" : "";
