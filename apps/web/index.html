@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- PWA としてホーム画面に追加できるようにする（Issue #8）。アイコンは public/ に置いている -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="nanaichi" />
+    <!-- ブラウザの枠やステータスバーの色。ヘッダーの色に合わせ、明るさを切り替えたら src/client/theme.ts で塗り直す -->
+    <meta name="theme-color" content="#ffffff" />
     <title>nanaichi</title>
     <script>
       // 最初の描画の前に明るさを当て、白く光ってから暗くなるのを防ぐ。判断は src/client/theme.ts と同じ

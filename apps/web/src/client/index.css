@@ -151,3 +151,15 @@
     cursor: pointer;
   }
 }
+
+/*
+ * iPhone の Safari は、文字が 16px より小さい入力欄にフォーカスすると画面を拡大し、戻さない（Issue #8）。
+ * 指で操作する端末では入力欄の文字を 16px 以上にする。Tailwind のクラス（text-sm など）より優先させるため、
+ * cascade layer の外に書く
+ */
+@media (pointer: coarse) {
+  input,
+  textarea {
+    font-size: 16px;
+  }
+}

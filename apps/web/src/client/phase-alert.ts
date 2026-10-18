@@ -1,6 +1,6 @@
 import type { Phase } from "../domain/timer-state.ts";
 import { loadAlertSettings, toneFor, type AlertTone, type Volume } from "./alert-settings.ts";
-import { phaseChangeMessageOf } from "./timer-text.ts";
+import { showPhaseChangeNotification } from "./phase-notification.ts";
 
 /**
  * フェーズの切り替わりを音とブラウザ通知で知らせる（docs/PRODUCT.md「タイマー」）。Web Push は使わない。
@@ -176,19 +176,6 @@ export const requestNotificationPermission = async (): Promise<NotificationPermi
     : Notification.permission;
 };
 
-const showNotification = (to: Phase) => {
-  if (notificationPermission() !== "granted") {
-    return;
-  }
-  const { title, body } = phaseChangeMessageOf(to);
-  try {
-    // 同じ tag の通知は置き換わるので、切り替わりの通知が溜まらない
-    new Notification(title, { body, tag: "nanaichi-phase-change" });
-  } catch {
-    // Android の Chrome などは Service Worker なしの通知を例外にする。音では知らせられるので続ける
-  }
-};
-
 export const createPhaseAlert = (): PhaseAlert => {
   let audio: AudioContext | undefined;
 
@@ -218,8 +205,8 @@ export const createPhaseAlert = (): PhaseAlert => {
       if (settings.sound && audio !== undefined) {
         playChime(audio, CHIMES[to.kind], toneFor(settings, to.kind), settings.volume);
       }
-      if (settings.notification) {
-        showNotification(to);
+      if (settings.notification && notificationPermission() === "granted") {
+        void showPhaseChangeNotification(to);
       }
     },
     soundState: () => audio?.state ?? "Locked",
