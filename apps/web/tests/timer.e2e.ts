@@ -18,6 +18,8 @@ const installFakes = () => {
   }
   const recorded: Recorded = { notifications: [], tones: 0, wakeLocks: [] };
   Object.assign(window, { __recorded: recorded });
+  // 知らせ方の設定は端末に残るので、前のテストで変えたものを持ち越さない
+  localStorage.removeItem("nanaichi:alert-settings");
 
   // ページの時計: 画面が端末の時刻を読む `Date.now()` を `shift` だけ進める。
   // `Date` そのものを差し替えるとログインの判定まで巻き込むので、`now` だけにする
@@ -42,7 +44,7 @@ const installFakes = () => {
   }
   Object.assign(window, { Notification: FakeNotification });
 
-  // 鳴らした音の数を数える（画面は音ごとに Oscillator を1つ作る）
+  // 音を鳴らしたかを数える（画面は音を合成するたびに Oscillator を作る）
   class CountingAudioContext extends AudioContext {
     override createOscillator() {
       recorded.tones += 1;
@@ -164,6 +166,49 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await expect
       .poll(async () => (await recorded()).notifications.map((n) => n.title))
       .toEqual(["ジャーナルの時間です", "集中の時間です", "休憩の時間です"]);
+
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+  });
+
+  test("音を鳴らさない設定にすると、フェーズが切り替わっても音は鳴らさず通知だけ出す", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByText("音と通知の設定").tap();
+    await screen.getByRole("checkbox", { name: "フェーズの切り替わりで音を鳴らす" }).tap();
+    await screen.getByRole("button", { name: "開始" }).tap();
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+
+    await advanceClock(browser, 7);
+    await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
+    await expect
+      .poll(async () => (await recordedIn(browser)).notifications.map((n) => n.title))
+      .toEqual(["ジャーナルの時間です"]);
+    expect((await recordedIn(browser)).tones).toBe(0);
+
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+  });
+
+  test("ブラウザ通知を出さない設定にすると、開始しても通知の許可を求めず、切り替わりは音だけで知らせる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByText("音と通知の設定").tap();
+    await screen.getByRole("checkbox", { name: "フェーズの切り替わりでブラウザ通知を出す" }).tap();
+    await screen.getByRole("button", { name: "開始" }).tap();
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+    expect(await browser.evaluate(() => Notification.permission)).toBe("default");
+
+    await advanceClock(browser, 7);
+    await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
+    await expect.poll(async () => (await recordedIn(browser)).tones).toBeGreaterThan(0);
+    expect((await recordedIn(browser)).notifications).toEqual([]);
 
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(screen.getByText("セッションを終了しました")).toBeVisible();
