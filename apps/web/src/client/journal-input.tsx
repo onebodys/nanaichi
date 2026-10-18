@@ -19,6 +19,11 @@ import { useSubmitKey } from "./use-submit-key.ts";
 
 const modifierLabel = modifierLabelOf(navigator.userAgent);
 
+const submitKeyItems = SubmitKeySchema.options.map((option) => ({
+  value: option,
+  label: submitKeyLabelOf(option, modifierLabel),
+}));
+
 /**
  * ジャーナル記入の入力欄（docs/PRODUCT.md「画面」の中央）。
  *
@@ -87,6 +92,8 @@ export const JournalInput = ({
       <div className="flex items-center justify-end gap-2">
         <Select
           value={submitKey}
+          // Base UI の SelectValue は items がないと値そのもの（"modEnter" など）を表示するので、ラベルを渡す
+          items={submitKeyItems}
           onValueChange={(value) => {
             const parsed = v.safeParse(SubmitKeySchema, value);
             if (parsed.success) setSubmitKey(parsed.output);
@@ -96,9 +103,9 @@ export const JournalInput = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SubmitKeySchema.options.map((option) => (
-              <SelectItem key={option} value={option} className="text-xs">
-                {submitKeyLabelOf(option, modifierLabel)}
+            {submitKeyItems.map((item) => (
+              <SelectItem key={item.value} value={item.value} className="text-xs">
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>

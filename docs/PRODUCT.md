@@ -79,7 +79,7 @@ Obsidian と手元のポモドーロタイマーをやめて、**nanaichi だけ
 - データ: D1（認証・将来の課金）+ ユーザーごとの Durable Object（タイマー状態・セッション・ジャーナル記入）（ADR 0002）
 - タイマー状態は時刻とイベントから計算する（ADR 0003）
 - Vite+（`vp`）の pnpm monorepo。lint は Oxlint、フォーマットは Oxfmt。最初は `apps/web` のみ（ADR 0006）
-- UI は Tailwind CSS v4 + shadcn/ui
+- UI は Tailwind CSS v4 + shadcn/ui（土台は Base UI。`components.json` の style は `base-vega`）
 - ドッグフーディング中の URL は `*.workers.dev`
 - 本番環境のみ。main への push で GitHub Actions から `wrangler deploy`
 
