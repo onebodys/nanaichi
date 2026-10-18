@@ -14,6 +14,10 @@ pnpm test:e2e    # リポジトリのどこからでもよい
 - 開発サーバーにはダミーの認証設定を環境変数で渡すので、`.dev.vars` がなくても動く。Google には繋がない。
 - chromium がなければ初回に自動でダウンロードされる。CI では先に `pnpm --filter web exec e2e-web install chromium --with-deps` を実行する。
 - 結果は `apps/web/.e2e/`（git 管理外）に出る。失敗したテストは `.e2e/results/<テスト>/trace.md` に手順と失敗時の画面が残り、開発サーバーのログは `.e2e/logs/app.log`。
+- CI（`.github/workflows/ci.yml` の `e2e` ジョブ）でも PR と main への push のたびに走る。CI のローカル D1 は毎回空から始まる。
+  落ちたときは、実行結果の画面の「Artifacts」から `e2e-results`（`apps/web/.e2e/` 一式）をダウンロードすれば、
+  失敗したテストの `results/<テスト>/trace.md` と開発サーバーのログ `logs/app.log` を見られる。
+  E2E が落ちた main ではデプロイしない。
 - 1ファイルだけ: `pnpm --filter web exec e2e run tests/smoke.e2e.ts`。ブラウザを表示するなら `--headed`。
 
 ## テストを書く
