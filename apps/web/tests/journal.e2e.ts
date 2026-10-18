@@ -45,6 +45,25 @@ const chooseSubmitKey = async (screen: Screen, label: RegExp) => {
   await screen.getByRole("option", { name: label }).tap();
 };
 
+/**
+ * 今日の日付の区切りに完了セット数が出るまで、タイムラインの続きを読み込む。
+ * 1日に1ページ分（10件）より多くのセッションがあると、その日の完了セット数は続きを読み込むまで出ない
+ * （ADR 0011）。ローカルの記録は実行のあいだで残り、今日のセッションは実行のたびに増えるので、
+ * 何度走らせても数を確かめられるようにする。
+ */
+const loadUntilTodayIsCounted = async (screen: Screen) => {
+  // 日付の区切りの見出しは新しい順に並ぶので、最初のものが今日
+  const today = screen.getByRole("heading", { name: /完了セット/ }).first();
+  // 続きはボタンが画面に入ると自動でも読み込まれるので、読み込み中なら終わるのを待ってから見出しを読む
+  const loaded = () => expect(screen.getByRole("button", { name: "読み込み中…" })).toBeHidden();
+  await expect(today).toBeVisible();
+  await loaded();
+  while ((await today.textContent())?.endsWith("続きを読み込むと出ます") === true) {
+    await screen.getByRole("button", { name: "さらに読み込む" }).tap();
+    await loaded();
+  }
+};
+
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
 describe("ジャーナル記入とタイムライン", { serial: true, session: "journalWriter" }, () => {
   test("セッションの外では入力欄を使えず、開始すると書けるようになる", async ({
@@ -151,6 +170,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await expect(screen.getByLabel("ジャーナル記入の本文")).toBeFocused();
+    await loadUntilTodayIsCounted(screen);
     await expect(screen.getByRole("heading", { name: /完了セット 1$/ })).toBeVisible();
 
     await screen.getByRole("button", { name: "終了" }).tap();
@@ -160,6 +180,8 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
+    // 開始がサーバーに受け付けられるまでは入力欄を使えない
+    await expect(input).toBeEnabled();
     await input.pressSequentially("書き間違い");
     // Ctrl+Enter はどちらの送信キーでも送る
     await input.press("Control+Enter");

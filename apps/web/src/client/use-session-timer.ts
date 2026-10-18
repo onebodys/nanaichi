@@ -7,7 +7,7 @@ import { SessionEventId, type SessionOperation } from "../domain/session-event.t
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import { createApiClient, type ApiError } from "./api.ts";
-import { createPhaseAlert } from "./phase-alert.ts";
+import type { PhaseAlert } from "./phase-alert.ts";
 
 /** カウントダウンを描き直す間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで */
 const TICK_MS = 250;
@@ -115,11 +115,13 @@ const redirectToLoginIfSignedOut = (error: ApiError) => {
  * タイマー画面の状態と操作。
  *
  * - 現在のセッションを読み込み、`TICK_MS` ごとに端末の時刻で状態を計算し直す
- * - 時間が過ぎてフェーズが切り替わったら、音とブラウザ通知で知らせる
+ * - 時間が過ぎてフェーズが切り替わったら、`phaseAlert` で音とブラウザ通知で知らせる
  * - 操作はボタンから受け取り、API に送って返ってきたスナップショットに置き換える
  * - 他のタブ・端末での変更は、同期メッセージで届いたスナップショットに置き換える（`receive`）
  */
-export const useSessionTimer = (): Readonly<{
+export const useSessionTimer = (
+  phaseAlert: PhaseAlert,
+): Readonly<{
   view: TimerView;
   /** 最後に受け取ったスナップショットのセッション（終了したばかりのものを含む）。タイムラインに重ねる */
   session: Session | undefined;
@@ -144,7 +146,6 @@ export const useSessionTimer = (): Readonly<{
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const [phaseAlert] = useState(createPhaseAlert);
 
   const load = useCallback(async () => {
     const result = await receive(api.getCurrentSession);
