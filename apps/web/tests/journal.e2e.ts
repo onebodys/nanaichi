@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // 時計の差し替えはページの中で動くので、ブラウザの型（DOM）を使う
 import { describe, test, type Browser } from "@e2e-dev/web";
-import { expect, type App } from "e2e";
+import { expect, type App, type Screen } from "e2e";
 
 /**
  * ジャーナル記入とタイムライン（Issue #6）。
@@ -39,6 +39,12 @@ const openWithoutSession = async (app: App, browser: Browser) => {
   await app.open("/");
 };
 
+/** 送信キーを選ぶ。shadcn/ui の Select はネイティブの select ではないので、開いて選択肢を押す */
+const chooseSubmitKey = async (screen: Screen, label: RegExp) => {
+  await screen.getByRole("combobox", { name: "送信キー" }).tap();
+  await screen.getByRole("option", { name: label }).tap();
+};
+
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
 describe("ジャーナル記入とタイムライン", { serial: true, session: "journalWriter" }, () => {
   test("セッションの外では入力欄を使えず、開始すると書けるようになる", async ({
@@ -68,7 +74,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     const input = screen.getByLabel("ジャーナル記入の本文");
     await expect(input).toBeEnabled();
     // 前のテストで選び直していても、既定に戻してから確かめる
-    await screen.getByLabel("送信キー").selectOption({ value: "ModifierEnter" });
+    await chooseSubmitKey(screen, /\+Enter で送信$/);
 
     await input.pressSequentially("設計を書いた");
     await input.press("Enter");
@@ -108,7 +114,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     await expect(input).toBeEnabled();
-    await screen.getByLabel("送信キー").selectOption({ value: "Enter" });
+    await chooseSubmitKey(screen, /^Enter で送信$/);
 
     await input.pressSequentially("1行目");
     await input.press("Shift+Enter");
@@ -123,10 +129,10 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await expect(entries.first()).toContainText("1行目");
 
     await browser.reload();
-    await expect(screen.getByLabel("送信キー")).toHaveValue("Enter");
+    await expect(screen.getByRole("combobox", { name: "送信キー" })).toHaveText("Enter で送信");
 
     // 既定に戻しておく
-    await screen.getByLabel("送信キー").selectOption({ value: "ModifierEnter" });
+    await chooseSubmitKey(screen, /\+Enter で送信$/);
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 

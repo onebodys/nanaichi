@@ -2,6 +2,13 @@ import { useState, type Ref } from "react";
 import * as v from "valibot";
 import { Button } from "./components/ui/button.tsx";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select.tsx";
+import {
   isSubmitKey,
   modifierLabelOf,
   SubmitKeySchema,
@@ -78,21 +85,24 @@ export const JournalInput = ({
         }}
       />
       <div className="flex items-center justify-end gap-2">
-        <select
-          aria-label="送信キー"
-          className="h-8 rounded-md border bg-background px-2 text-xs text-muted-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        <Select
           value={submitKey}
-          onChange={(event) => {
-            const parsed = v.safeParse(SubmitKeySchema, event.target.value);
+          onValueChange={(value) => {
+            const parsed = v.safeParse(SubmitKeySchema, value);
             if (parsed.success) setSubmitKey(parsed.output);
           }}
         >
-          {SubmitKeySchema.options.map((option) => (
-            <option key={option} value={option}>
-              {submitKeyLabelOf(option, modifierLabel)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label="送信キー" size="sm" className="text-xs text-muted-foreground">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SubmitKeySchema.options.map((option) => (
+              <SelectItem key={option} value={option} className="text-xs">
+                {submitKeyLabelOf(option, modifierLabel)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button type="submit" size="sm" disabled={!canSend}>
           送信
         </Button>

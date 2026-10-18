@@ -19,6 +19,7 @@
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "hono": "catalog:",
+    "lucide-react": "catalog:",
     "radix-ui": "catalog:",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
