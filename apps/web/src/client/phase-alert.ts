@@ -1,5 +1,5 @@
 import type { InPhase } from "../domain/phase-change.ts";
-import { loadAlertSettings, type Volume } from "./alert-settings.ts";
+import { loadAlertSettings, toneFor, type AlertTone, type Volume } from "./alert-settings.ts";
 import { phaseChangeMessageOf } from "./timer-text.ts";
 
 /**
@@ -14,8 +14,8 @@ export type PhaseAlert = Readonly<{
   prepare: () => void;
   /** 音を鳴らせるようにする。ページを開き直したあと、最初に画面に触れたときに呼ぶ */
   unlockSound: () => void;
-  /** 設定画面で音量を確かめるために鳴らす。人の操作の中で呼ぶ */
-  preview: (volume: Volume) => void;
+  /** 設定画面で音色と音量を確かめるために、そのフェーズに切り替わったときの音を鳴らす。人の操作の中で呼ぶ */
+  preview: (sound: Readonly<{ to: InPhase["kind"]; tone: AlertTone; volume: Volume }>) => void;
   alert: (to: InPhase) => void;
   /** 今の音の状態。まだ画面に触れておらず音を鳴らせなければ `Locked`（知らせた記録に残す、alert-log.ts） */
   soundState: () => AudioContextState | "Locked";
@@ -34,21 +34,68 @@ const CHIMES: Readonly<Record<InPhase["kind"], ReadonlyArray<number>>> = {
   Break: [1175, 880, 659],
 };
 
+/** 1音を作る倍音の1つ（基音に対する周波数の比と大きさ） */
+type Overtone = Readonly<{ ratio: number; level: number }>;
+
 /**
- * 1音を作る倍音（基音に対する周波数の比と大きさ）。純音（sine 1つ）はノートパソコンのスピーカーでは
- * 小さく聞こえて気づきにくいので、鐘のように倍音を重ねて耳につく音にする
+ * 音色ごとの1音の作り方。`decaySeconds` は基音が消えるまでの秒数で、高い倍音ほど早く消える。
+ * 純音（sine 1つ）はノートパソコンのスピーカーでは小さく聞こえて気づきにくいので、どの音色も倍音を重ねる
  */
-const PARTIALS = [
-  { ratio: 1, level: 1 },
-  { ratio: 2, level: 0.5 },
-  { ratio: 3, level: 0.3 },
-  { ratio: 4.2, level: 0.15 },
-] as const;
+type ToneShape = Readonly<{
+  wave: OscillatorType;
+  partials: ReadonlyArray<Overtone>;
+  attackSeconds: number;
+  decaySeconds: number;
+}>;
+
+const TONE_SHAPES: Readonly<Record<AlertTone, ToneShape>> = {
+  /** 鐘のように倍音を重ね、余韻を長くする。以前からの音 */
+  Bell: {
+    wave: "sine",
+    partials: [
+      { ratio: 1, level: 1 },
+      { ratio: 2, level: 0.5 },
+      { ratio: 3, level: 0.3 },
+      { ratio: 4.2, level: 0.15 },
+    ],
+    attackSeconds: 0.005,
+    decaySeconds: 1.1,
+  },
+  /** 木琴: 基音の4倍・10倍近くに倍音があり、すぐに消える */
+  Marimba: {
+    wave: "sine",
+    partials: [
+      { ratio: 1, level: 1 },
+      { ratio: 3.9, level: 0.35 },
+      { ratio: 9.2, level: 0.1 },
+    ],
+    attackSeconds: 0.003,
+    decaySeconds: 0.45,
+  },
+  /** 電子音: 三角波で輪郭をはっきりさせ、短く切る */
+  Electronic: {
+    wave: "triangle",
+    partials: [
+      { ratio: 1, level: 0.9 },
+      { ratio: 2, level: 0.2 },
+    ],
+    attackSeconds: 0.004,
+    decaySeconds: 0.3,
+  },
+  /** やわらか: 立ち上がりをゆるくし、倍音を控えて長く鳴らす */
+  Soft: {
+    wave: "sine",
+    partials: [
+      { ratio: 1, level: 1 },
+      { ratio: 2, level: 0.15 },
+    ],
+    attackSeconds: 0.06,
+    decaySeconds: 1.6,
+  },
+};
 
 /** 音を鳴らし始めてから次の音までの秒数。前の音の余韻に重ねる */
 const NOTE_SPACING_SECONDS = 0.22;
-/** 1音が鳴り始めてから消えるまでの秒数 */
-const DECAY_SECONDS = 1.1;
 /** 画面から離れていても気づけるよう、同じ並びを繰り返す回数と、その間の秒数 */
 const REPEATS = 2;
 const REPEAT_GAP_SECONDS = 0.5;
@@ -59,22 +106,23 @@ const REPEAT_GAP_SECONDS = 0.5;
  */
 const VOLUME_GAIN: Readonly<Record<Volume, number>> = { Low: 0.5, Medium: 1, High: 1.5 };
 
-/** 1音を鳴らす。倍音ごとに Oscillator を作り、立ち上がりを短く・余韻を長くする */
+/** 1音を鳴らす。倍音ごとに Oscillator を作り、音色の立ち上がりと余韻で鳴らす */
 const scheduleNote = (
   audio: BaseAudioContext,
   output: AudioNode,
+  shape: ToneShape,
   frequency: number,
   startsAt: number,
 ) => {
-  for (const { ratio, level } of PARTIALS) {
+  for (const { ratio, level } of shape.partials) {
     const oscillator = audio.createOscillator();
     const gain = audio.createGain();
-    oscillator.type = "sine";
+    oscillator.type = shape.wave;
     oscillator.frequency.value = frequency * ratio;
     // 立ち上がりをつけて、ぷつっという音を出さない。高い倍音ほど早く消えると鐘らしく聞こえる
-    const endsAt = startsAt + DECAY_SECONDS / ratio ** 0.5;
+    const endsAt = startsAt + shape.decaySeconds / ratio ** 0.5;
     gain.gain.setValueAtTime(0.0001, startsAt);
-    gain.gain.exponentialRampToValueAtTime(level, startsAt + 0.005);
+    gain.gain.exponentialRampToValueAtTime(level, startsAt + shape.attackSeconds);
     gain.gain.exponentialRampToValueAtTime(0.0001, endsAt);
     oscillator.connect(gain).connect(output);
     oscillator.start(startsAt);
@@ -86,7 +134,13 @@ const scheduleNote = (
  * 音源のファイルは持たず、Web Audio で音を合成して鳴らす（ライセンスと配信の大きさを気にしなくてよい）。
  * 重ねた音をコンプレッサーで揃えてから音量をかけ、大きくしても音割れさせない
  */
-const playChime = (audio: AudioContext, frequencies: ReadonlyArray<number>, volume: Volume) => {
+const playChime = (
+  audio: AudioContext,
+  frequencies: ReadonlyArray<number>,
+  tone: AlertTone,
+  volume: Volume,
+) => {
+  const shape = TONE_SHAPES[tone];
   const compressor = audio.createDynamicsCompressor();
   compressor.threshold.value = -24;
   compressor.knee.value = 12;
@@ -101,7 +155,7 @@ const playChime = (audio: AudioContext, frequencies: ReadonlyArray<number>, volu
   for (let repeat = 0; repeat < REPEATS; repeat++) {
     frequencies.forEach((frequency, i) => {
       const startsAt = audio.currentTime + repeat * patternSeconds + i * NOTE_SPACING_SECONDS;
-      scheduleNote(audio, compressor, frequency, startsAt);
+      scheduleNote(audio, compressor, shape, frequency, startsAt);
     });
   }
 };
@@ -155,15 +209,15 @@ export const createPhaseAlert = (): PhaseAlert => {
     unlockSound: () => {
       unlockSound();
     },
-    preview: (volume) => {
-      playChime(unlockSound(), CHIMES.Focus, volume);
+    preview: ({ to, tone, volume }) => {
+      playChime(unlockSound(), CHIMES[to], tone, volume);
     },
     alert: (to) => {
-      const { sound, volume, notification } = loadAlertSettings();
-      if (sound && audio !== undefined) {
-        playChime(audio, CHIMES[to.kind], volume);
+      const settings = loadAlertSettings();
+      if (settings.sound && audio !== undefined) {
+        playChime(audio, CHIMES[to.kind], toneFor(settings, to.kind), settings.volume);
       }
-      if (notification) {
+      if (settings.notification) {
         showNotification(to);
       }
     },

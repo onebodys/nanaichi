@@ -1,33 +1,84 @@
 import { useState } from "react";
 import * as v from "valibot";
+import type { InPhase } from "../domain/phase-change.ts";
 
 /**
  * 知らせ方の設定（GLOSSARY）。端末（ブラウザ）ごとに localStorage に持ち、サーバーには送らない。
  *
- * 3つは互いに独立した好み。音を消している間も音量は持っておき、鳴らすに戻したときにその音量で鳴らす。
+ * どれも互いに独立した好み。音を消している間も音量と音色は持っておき、鳴らすに戻したときにそのまま鳴らす。
  */
 export type Volume = "Low" | "Medium" | "High";
+
+/**
+ * 音色（GLOSSARY）。フェーズの切り替わりで鳴らす音の種類。どれも Web Audio で合成する（phase-alert.ts）。
+ *
+ * - `Bell`: 鐘。倍音を重ねた、余韻の長い音。以前からの音
+ * - `Marimba`: 木琴。短く、木を叩いたような音
+ * - `Electronic`: 電子音。はっきりした短い音
+ * - `Soft`: やわらか。立ち上がりがゆるく、倍音の少ない音
+ */
+export type AlertTone = "Bell" | "Marimba" | "Electronic" | "Soft";
+
+export const ALERT_TONES = [
+  "Bell",
+  "Marimba",
+  "Electronic",
+  "Soft",
+] as const satisfies ReadonlyArray<AlertTone>;
+
+/** 音色を選ぶ単位。切り替わった先のフェーズ（ジャーナルの終わりは集中にも休憩にも行くので、行き先で分ける） */
+type PhaseKind = InPhase["kind"];
 
 export type AlertSettings = Readonly<{
   sound: boolean;
   volume: Volume;
+  /** 切り替わった先のフェーズごとの音色 */
+  tones: Readonly<Record<PhaseKind, AlertTone>>;
   /** ブラウザ通知を出すか。ブラウザが許可していなければ、出すにしていても出ない */
   notification: boolean;
 }>;
 
 export const VOLUMES = ["Low", "Medium", "High"] as const satisfies ReadonlyArray<Volume>;
 
+/** 音色を選んだことのない端末の音色。以前からの鳴り方（どのフェーズも鐘）のまま */
+const DEFAULT_TONES = {
+  Focus: "Bell",
+  Journal: "Bell",
+  Break: "Bell",
+} as const satisfies AlertSettings["tones"];
+
 /** 初めて開いた端末の設定。気づけることを優先して、音は大きく、通知も出す */
 export const DEFAULT_ALERT_SETTINGS = {
   sound: true,
   volume: "High",
+  tones: DEFAULT_TONES,
   notification: true,
 } as const satisfies AlertSettings;
+
+const AlertToneSchema = v.picklist(ALERT_TONES);
 
 const AlertSettingsJsonSchema: v.GenericSchema<unknown, AlertSettings> = v.object({
   sound: v.boolean(),
   volume: v.picklist(VOLUMES),
+  // 音色を選べるようになる前に保存した設定には無いので、無ければ以前の鳴り方にする
+  tones: v.optional(
+    v.object({ Focus: AlertToneSchema, Journal: AlertToneSchema, Break: AlertToneSchema }),
+    DEFAULT_TONES,
+  ),
   notification: v.boolean(),
+});
+
+/** 切り替わった先のフェーズで鳴らす音色 */
+export const toneFor = (settings: AlertSettings, to: PhaseKind): AlertTone => settings.tones[to];
+
+/** 切り替わった先のフェーズの音色だけを選び直した設定 */
+export const withTone = (
+  settings: AlertSettings,
+  to: PhaseKind,
+  tone: AlertTone,
+): AlertSettings => ({
+  ...settings,
+  tones: { ...settings.tones, [to]: tone },
 });
 
 const STORAGE_KEY = "nanaichi:alert-settings";

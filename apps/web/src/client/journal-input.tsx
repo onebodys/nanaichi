@@ -85,7 +85,8 @@ export const JournalInput = ({
       className={cn(
         "flex flex-col gap-2.5 rounded-[14px] border bg-card px-4 py-3.5 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring",
         !inSession && "border-dashed",
-        inJournalPhase && "border-journal ring-4 ring-journal/15 focus-within:border-journal",
+        inJournalPhase &&
+          "border-journal-mark ring-4 ring-journal-mark/15 focus-within:border-journal-mark",
       )}
     >
       <TagInput

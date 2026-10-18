@@ -48,8 +48,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  /* フェーズの色（GLOSSARY の Focus / Journal / Break）。文字・線は `text-focus`、淡い背景は `bg-focus-soft`、
-     塗りの上の文字は `text-focus-foreground` */
+  /* フェーズの色（GLOSSARY の Focus / Journal / Break）。文字は `text-focus`、淡い背景は `bg-focus-soft`、
+     塗りの上の文字は `text-focus-foreground`。円や進み具合のバーなど文字でない印は `stroke-focus-mark` / `bg-focus-mark`
+     （文字ほどのコントラストは要らないので、モックの明るい色を使える） */
   --color-focus: var(--focus);
   --color-focus-soft: var(--focus-soft);
   --color-focus-foreground: var(--focus-foreground);
@@ -59,6 +60,9 @@
   --color-break: var(--break);
   --color-break-soft: var(--break-soft);
   --color-break-foreground: var(--break-foreground);
+  --color-focus-mark: var(--focus-mark);
+  --color-journal-mark: var(--journal-mark);
+  --color-break-mark: var(--break-mark);
 }
 
 /* 文字の色は背景・淡い背景のどちらの上でもコントラスト 4.5:1 以上になる値にしている */
@@ -92,6 +96,9 @@
   --break: #246b47;
   --break-soft: #e4f2ea;
   --break-foreground: #ffffff;
+  --focus-mark: #2f5bd3;
+  --journal-mark: #b76e00;
+  --break-mark: #2f855a;
 }
 
 .dark {
@@ -123,6 +130,9 @@
   --break: #7fd1a3;
   --break-soft: #16271d;
   --break-foreground: #111214;
+  --focus-mark: #8fb0ff;
+  --journal-mark: #f2b35a;
+  --break-mark: #7fd1a3;
 }
 
 @layer base {
