@@ -103,7 +103,7 @@ const parseSessionIdRow = parseRow(SessionIdRowSchema, "sessions");
 const parseSessionSpanRow = parseRow(SessionSpanRowSchema, "sessions");
 const parseAdvanceModeChangeRows = parseRow(AdvanceModeChangeRowsSchema, "advance_mode_changes");
 
-/** フェーズの進め方の変更履歴を時刻の順に読む（ADR 0015）。同じミリ秒の変更は記録した順 */
+/** フェーズの進め方の変更履歴を時刻の順に読む（ADR 0016）。同じミリ秒の変更は記録した順 */
 export const advanceModeChangesOf = (sql: SqlStorage): ReadonlyArray<AdvanceModeChange> =>
   parseAdvanceModeChangeRows(
     sql

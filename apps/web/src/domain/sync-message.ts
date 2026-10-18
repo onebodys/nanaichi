@@ -16,7 +16,7 @@ import { SessionSnapshotJsonSchema, type SessionSnapshot } from "./session.ts";
  * - `SessionChanged`: セッションが変わった（開始・操作・記入で自動終了の時刻が延びた）。新しいスナップショット
  * - `JournalEntrySaved`: 記入を書いた・編集した
  * - `JournalEntryDeleted`: 記入を削除した
- * - `AdvanceModeChanged`: フェーズの進め方を変えた（ADR 0015）。進行中のセッションがあれば、
+ * - `AdvanceModeChanged`: フェーズの進め方を変えた（ADR 0016）。進行中のセッションがあれば、
  *   あわせて `SessionChanged` も送る
  */
 export type SyncMessage =

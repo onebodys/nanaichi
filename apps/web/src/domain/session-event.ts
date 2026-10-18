@@ -13,7 +13,7 @@ type Resume = Readonly<{ kind: "Resume"; at: Date }>;
 type Abort = Readonly<{ kind: "Abort"; at: Date }>;
 type RestartFocus = Readonly<{ kind: "RestartFocus"; at: Date }>;
 type SkipBreak = Readonly<{ kind: "SkipBreak"; at: Date }>;
-/** 切り替え待ちから次のフェーズを始める（ADR 0015） */
+/** 切り替え待ちから次のフェーズを始める（ADR 0016） */
 type Advance = Readonly<{ kind: "Advance"; at: Date }>;
 type End = Readonly<{ kind: "End"; at: Date }>;
 

@@ -2,7 +2,7 @@ import * as v from "valibot";
 import { JsonDateSchema } from "./json-date.ts";
 
 /**
- * フェーズの進め方（GLOSSARY の「フェーズの進め方」、ADR 0015）。
+ * フェーズの進め方（GLOSSARY の「フェーズの進め方」、ADR 0016）。
  *
  * 4つの切り替わりごとに、時間が過ぎたら自動で次のフェーズに移るか（`Auto`）、
  * 切り替え待ちで止まって人が進めるまで待つか（`Manual`）を選ぶ。アカウントごとに1つ持つ。
@@ -81,7 +81,7 @@ export const AdvanceModeChange = {
     changes.findLast((change) => change.at.getTime() <= t.getTime())?.mode ?? ALL_AUTO,
 
   /**
-   * 時刻 `startedAt` に始めたセッションの計算に要る変更（ADR 0015）。
+   * 時刻 `startedAt` に始めたセッションの計算に要る変更（ADR 0016）。
    * 始めた時刻に効いていた変更（始める前の最後の変更）と、それより後の変更。
    * セッションを閉じたあとの変更は計算に影響しない（終了したあとは状態が変わらない）が、
    * 応答を小さくするため、閉じたセッションでは呼び出し側が閉じた時刻までに絞る。

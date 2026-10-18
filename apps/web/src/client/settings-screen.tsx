@@ -90,7 +90,7 @@ const Row = ({
 const ADVANCE_CHOICES = ["Auto", "Manual"] as const;
 
 /**
- * フェーズの進め方（GLOSSARY、ADR 0015）。4つの切り替わりごとに自動か手動か。
+ * フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。
  * アカウントの設定なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
  */
 const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeState }>) => {

@@ -148,7 +148,7 @@ export const createApiClient = (
    * `timeZone` は端末のタイムゾーンで、日付と時間帯はこれで区切る
    */
   getStats: (period: StatsPeriod, timeZone: string) => Result.ResultAsync<StatsReport, ApiError>;
-  /** `GET /api/settings/advance-mode`: いまのフェーズの進め方（ADR 0015） */
+  /** `GET /api/settings/advance-mode`: いまのフェーズの進め方（ADR 0016） */
   getAdvanceMode: () => Result.ResultAsync<AdvanceMode, ApiError>;
   /** `PUT /api/settings/advance-mode`: フェーズの進め方を変える。変えたあとの進め方が返る */
   changeAdvanceMode: (mode: AdvanceMode) => Result.ResultAsync<AdvanceMode, ApiError>;

@@ -32,7 +32,7 @@ export type AdvanceModeChangeResult =
 const parseInput = schemaResult(AdvanceMode.schema);
 
 /**
- * フェーズの進め方を変える（GLOSSARY の「フェーズの進め方」、ADR 0015）。
+ * フェーズの進め方を変える（GLOSSARY の「フェーズの進め方」、ADR 0016）。
  *
  * 入力の検証 → いまの進め方の読み込み → 同じなら何もしない → 変更の記録
  * → 変えたあとの現在のセッションの読み込み。セッションの途中でも、変えた時刻から効く。

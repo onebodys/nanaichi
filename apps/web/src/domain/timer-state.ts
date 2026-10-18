@@ -213,7 +213,7 @@ type Progress =
       sets: ReadonlyArray<SetRecord>;
     }>;
 
-/** `mode` はいま効いているフェーズの進め方（ADR 0015） */
+/** `mode` はいま効いているフェーズの進め方（ADR 0016） */
 type Derivation = Readonly<{ progress: Progress; lastActivityAt: number; mode: AdvanceMode }>;
 
 /**
@@ -439,7 +439,7 @@ const autoEndIfInactiveUntil = (derivation: Derivation, t: number): Derivation =
 
 /**
  * 時刻 `t` に進め方を `mode` に変えたあとの状態。待っている切り替わりが自動になったら、
- * その時刻から次のフェーズを始める（ADR 0015）
+ * その時刻から次のフェーズを始める（ADR 0016）
  */
 const applyAdvanceMode = (progress: Progress, mode: AdvanceMode, t: number): Progress =>
   progress.kind === "Awaiting" &&
@@ -640,7 +640,7 @@ const progressAt = (
  * `now` より後の操作イベントとジャーナル記入は、まだ起きていないものとして扱わない。
  *
  * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
- * - `advanceModeChanges`: フェーズの進め方の変更履歴（時刻の順）。セッションを始めた時刻に効いていた変更を含める（ADR 0015）
+ * - `advanceModeChanges`: フェーズの進め方の変更履歴（時刻の順）。セッションを始めた時刻に効いていた変更を含める（ADR 0016）
  * - その状態ではできない操作が含まれていれば `OperationRejected` を返す。
  *   新しい操作を受け付けてよいかは、記録済みのイベントに足して計算し直せば判断できる
  */
@@ -693,7 +693,7 @@ export const deriveSetOutcomes = (
 
 /**
  * 記入も操作もないまま過ぎれば自動終了する時刻（最後の記入・操作から2ラウンド分の位置）。
- * フェーズの進め方の変更も操作として数える（ADR 0015）。
+ * フェーズの進め方の変更も操作として数える（ADR 0016）。
  *
  * 自動終了そのものは `deriveTimerState` が時刻から計算する。サーバーはこの時刻に alarm を張り、
  * 記入や操作があるたびに張り直すことで、誰も見ていなくても自動終了を記録に残す。

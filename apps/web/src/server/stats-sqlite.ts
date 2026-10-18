@@ -62,7 +62,7 @@ const sessionOf = (
       }),
     ],
     journalEntryTimes,
-    // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らなくてよい（ADR 0015）
+    // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らなくてよい（ADR 0016）
     advanceModeChanges: AdvanceModeChange.relevantSince(advanceModeChanges, new Date(start.at)),
   };
 };

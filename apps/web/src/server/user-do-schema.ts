@@ -73,7 +73,7 @@ const MIGRATIONS: ReadonlyArray<string> = [
   CREATE INDEX journal_entry_tags_by_name ON journal_entry_tags (name);
   `,
   `
-  -- 操作イベントに「進める」を足す（ADR 0015）。SQLite は CHECK 制約を変えられないので作り直す。
+  -- 操作イベントに「進める」を足す（ADR 0016）。SQLite は CHECK 制約を変えられないので作り直す。
   -- 同じミリ秒の操作は rowid の順に並べるので、rowid も写す
   CREATE TABLE session_events_next (
     id TEXT PRIMARY KEY,
@@ -89,7 +89,7 @@ const MIGRATIONS: ReadonlyArray<string> = [
   ALTER TABLE session_events_next RENAME TO session_events;
   CREATE INDEX session_events_by_session ON session_events (session_id, at);
 
-  -- フェーズの進め方の変更履歴（ADR 0015）。いまの進め方は最後の行で、行がなければすべて自動。
+  -- フェーズの進め方の変更履歴（ADR 0016）。いまの進め方は最後の行で、行がなければすべて自動。
   -- 過去のセッションの計算に要るので消さない
   CREATE TABLE advance_mode_changes (
     changed_at INTEGER NOT NULL,

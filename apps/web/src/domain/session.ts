@@ -37,7 +37,7 @@ export const SessionId = {
  *
  * - `journalEntryTimes`: このセッションのジャーナル記入の時刻。自動終了の判断にだけ使う
  * - `advanceModeChanges`: このセッションの計算に要るフェーズの進め方の変更（時刻の順）。
- *   始めた時刻に効いていた変更と、セッションの間の変更（ADR 0015）
+ *   始めた時刻に効いていた変更と、セッションの間の変更（ADR 0016）
  */
 export type Session = Readonly<{
   id: SessionId;
@@ -112,7 +112,7 @@ export const Session = {
     advanceModeChanges: AdvanceModeChange.relevantSince(advanceModeChanges, now),
   }),
 
-  /** 進め方を変えたあとのセッション。状態は変えた時刻から変わりうる（ADR 0015） */
+  /** 進め方を変えたあとのセッション。状態は変えた時刻から変わりうる（ADR 0016） */
   withAdvanceModeChange: (session: Session, change: AdvanceModeChange): Session => ({
     ...session,
     advanceModeChanges: [...session.advanceModeChanges, change],

@@ -171,7 +171,7 @@ export class UserDO extends DurableObject<Env> {
 
   /**
    * `PUT /api/settings/advance-mode`。`raw` はリクエストの本文で、検証はワークフローが行う。
-   * 変えたら、新しい進め方と、進行中のセッションがあればその新しいスナップショットを全接続へ送る（ADR 0015）
+   * 変えたら、新しい進め方と、進行中のセッションがあればその新しいスナップショットを全接続へ送る（ADR 0016）
    */
   async changeAdvanceMode(
     raw: unknown,

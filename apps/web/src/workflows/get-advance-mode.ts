@@ -8,7 +8,7 @@ import {
 export type GetAdvanceModeDeps = Readonly<{ loadAdvanceModeChanges: LoadAdvanceModeChanges }>;
 
 /**
- * いまのフェーズの進め方を返す（`GET /api/settings/advance-mode`、ADR 0015）。
+ * いまのフェーズの進め方を返す（`GET /api/settings/advance-mode`、ADR 0016）。
  * 変えたことがなければ既定（すべて自動）。想定内の失敗はない。
  */
 export const getAdvanceMode =
