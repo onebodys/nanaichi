@@ -58,7 +58,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await expect(input).toBeDisabled();
   });
 
-  test("Enter で送信し、Shift+Enter で改行する。送信すると空になり、続けて書けて、新しい記入が上に並ぶ", async ({
+  test("既定の送信キーでは Enter で改行し Ctrl+Enter で送信する。送信すると空になり、続けて書けて、新しい記入が上に並ぶ", async ({
     app,
     browser,
     screen,
@@ -67,16 +67,19 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     await expect(input).toBeEnabled();
+    // 前のテストで選び直していても、既定に戻してから確かめる
+    await screen.getByLabel("送信キー").selectOption({ value: "ModifierEnter" });
 
     await input.pressSequentially("設計を書いた");
-    await input.press("Shift+Enter");
+    await input.press("Enter");
     await input.pressSequentially("参考 https://example.com/e2e");
     await expect(input).toHaveValue("設計を書いた\n参考 https://example.com/e2e");
-    await input.press("Enter");
+    // 修飾キーは ⌘ と Ctrl のどちらでも送るので、端末によらず Ctrl で確かめる
+    await input.press("Control+Enter");
     await expect(input).toHaveValue("");
 
     await input.pressSequentially("続けて2件目");
-    await input.press("Enter");
+    await input.press("Control+Enter");
     await expect(input).toHaveValue("");
 
     // ローカルの記録は実行のあいだで残るので、前の実行のセッションの記入を数えないよう、いちばん新しいセッションに絞る
@@ -93,6 +96,37 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
       entries.nth(1).getByRole("link", { name: "https://example.com/e2e" }),
     ).toHaveAttribute("href", "https://example.com/e2e");
 
+    await screen.getByRole("button", { name: "終了" }).tap();
+  });
+
+  test("送信キーを Enter で送信に切り替えると Enter で送信し Shift+Enter で改行し、開き直しても覚えている", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: "開始" }).tap();
+    const input = screen.getByLabel("ジャーナル記入の本文");
+    await expect(input).toBeEnabled();
+    await screen.getByLabel("送信キー").selectOption({ value: "Enter" });
+
+    await input.pressSequentially("1行目");
+    await input.press("Shift+Enter");
+    await input.pressSequentially("2行目");
+    await expect(input).toHaveValue("1行目\n2行目");
+    await input.press("Enter");
+    await expect(input).toHaveValue("");
+    const entries = screen
+      .getByRole("region", { name: /からのセッション$/ })
+      .first()
+      .getByRole("listitem", { name: "ジャーナル記入" });
+    await expect(entries.first()).toContainText("1行目");
+
+    await browser.reload();
+    await expect(screen.getByLabel("送信キー")).toHaveValue("Enter");
+
+    // 既定に戻しておく
+    await screen.getByLabel("送信キー").selectOption({ value: "ModifierEnter" });
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 
@@ -121,14 +155,15 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     await input.pressSequentially("書き間違い");
-    await input.press("Enter");
+    // Ctrl+Enter はどちらの送信キーでも送る
+    await input.press("Control+Enter");
     const entry = screen.getByRole("listitem", { name: "ジャーナル記入" }).first();
     await expect(entry).toContainText("書き間違い");
 
     await entry.getByRole("button", { name: "編集" }).tap();
     const editor = screen.getByLabel("記入を編集");
     await editor.fill("書き直した");
-    await editor.press("Enter");
+    await editor.press("Control+Enter");
     await expect(entry).toContainText("書き直した");
     await expect(entry).toContainText("編集済み");
 

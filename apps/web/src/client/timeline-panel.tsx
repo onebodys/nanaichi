@@ -10,6 +10,7 @@ import {
 } from "./journal-text.ts";
 import { linkify } from "./linkify.ts";
 import { isSubmitKey } from "./submit-key.ts";
+import { useSubmitKey } from "./use-submit-key.ts";
 import type { TimelineState } from "./use-timeline.ts";
 
 /** 本文をプレーンテキストで出し、URL だけをリンクにする。改行はそのまま出す */
@@ -42,6 +43,7 @@ const EntryEditor = ({
   cancel,
 }: Readonly<{ initial: string; save: (body: string) => void; cancel: () => void }>) => {
   const [draft, setDraft] = useState(initial);
+  const [submitKey] = useSubmitKey();
   const canSave = draft.trim().length > 0;
   return (
     <div className="flex flex-col gap-2">
@@ -53,7 +55,7 @@ const EntryEditor = ({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (isSubmitKey(event)) {
+          if (isSubmitKey(submitKey, event)) {
             event.preventDefault();
             if (canSave) save(draft);
           }
