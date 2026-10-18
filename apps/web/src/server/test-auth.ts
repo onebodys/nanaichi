@@ -76,6 +76,29 @@ const toSetCookie = (cookie: TestCookie): string =>
     ...(cookie.sameSite === undefined ? [] : [`SameSite=${cookie.sameSite}`]),
   ].join("; ");
 
+type TestAuthContext = Awaited<ReturnType<typeof testAuthInstance>["$context"]>;
+
+/**
+ * メールアドレスのユーザーを探し、いなければ作る。E2E は空の D1 から同じユーザーで同時にログインするので
+ * （tests/sign-in.setup.e2e.ts）、作るときに先を越されてメールアドレスの UNIQUE 制約で失敗しうる。
+ * そのときは先に作られたユーザーを使う（Issue #28）。
+ */
+const findOrCreateUser = async (context: TestAuthContext, email: string) => {
+  const found = await context.internalAdapter.findUserByEmail(email);
+  if (found !== null) {
+    return found.user;
+  }
+  try {
+    return await context.test.saveUser(context.test.createUser({ email }));
+  } catch (error) {
+    const createdMeanwhile = await context.internalAdapter.findUserByEmail(email);
+    if (createdMeanwhile === null) {
+      throw error;
+    }
+    return createdMeanwhile.user;
+  }
+};
+
 /**
  * インスタンスはログインするときに作る。Better Auth は作った時点で非同期に DB の初期化を始めるため、
  * 先に作っておくと、ログインしないまま D1 を止めたテストで初期化が失敗する。
@@ -83,10 +106,8 @@ const toSetCookie = (cookie: TestCookie): string =>
 export const createTestAuth = (config: TestAuthConfig): TestAuth => ({
   signInAs: async (email) => {
     const context = await testAuthInstance(config).$context;
-    const helpers = context.test;
-    const found = await context.internalAdapter.findUserByEmail(email);
-    const user = found?.user ?? (await helpers.saveUser(helpers.createUser({ email })));
-    const login = await helpers.login({ userId: user.id });
+    const user = await findOrCreateUser(context, email);
+    const login = await context.test.login({ userId: user.id });
     return {
       userId: user.id,
       headers: login.headers,

@@ -45,6 +45,21 @@ describe("テスト用のログインが有効なとき（ローカルの開発�
     expect(await idOf()).toBe(await idOf());
   });
 
+  test("まだいないユーザーで同時に2回ログインしても、どちらもログインでき同じユーザーになる", async () => {
+    // E2E は空の D1 から複数のログイン済みの状態を同時に用意するので、ユーザーの作成がぶつかる（Issue #28）
+    harness = await startAuthHarness("me@example.com", { TEST_SIGN_IN: "enabled" });
+
+    const idOf = async () => {
+      const res = await harness.request(signInPath("me@example.com"));
+      expect(res.status).toBe(302);
+      const me = await harness.request("/api/me", { headers: cookieFrom(res) });
+      return (await me.json<{ user: { id: string } }>()).user.id;
+    };
+
+    const [first, second] = await Promise.all([idOf(), idOf()]);
+    expect(first).toBe(second);
+  });
+
   test("許可リストに載っていないメールアドレスではログインさせず 403 を返す", async () => {
     harness = await startAuthHarness("me@example.com", { TEST_SIGN_IN: "enabled" });
 
