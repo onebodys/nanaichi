@@ -97,7 +97,7 @@ const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeStat
   const { view, errorMessage, change } = advanceMode;
   return (
     <Section id="settings-advance" title="フェーズの進め方" perDevice={false}>
-      <p className="px-5 pt-4 text-xs leading-relaxed text-muted-foreground">
+      <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
         手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、ボタンを押すまで待ちます。
         どの端末でも同じ設定になります。
       </p>

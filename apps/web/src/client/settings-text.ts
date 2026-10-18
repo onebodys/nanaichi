@@ -18,15 +18,15 @@ export const transitionLabelOf = (
     case "JournalToFocus":
       return {
         label: "ジャーナル → 集中",
-        description: "ジャーナルが終わり、次のセットに進むとき",
+        description: "次のセットの集中に進むとき",
       };
     case "JournalToBreak":
       return {
         label: "ジャーナル → 休憩",
-        description: "ラウンドの最後のジャーナルが終わったとき",
+        description: "3セット目のジャーナルのあと",
       };
     case "BreakToFocus":
-      return { label: "休憩 → 集中", description: "休憩が終わり、次のラウンドに進むとき" };
+      return { label: "休憩 → 集中", description: "次のラウンドの集中に進むとき" };
   }
 };
 
