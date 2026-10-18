@@ -8,6 +8,7 @@ import {
 } from "../domain/journal-entry.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
+import type { TagList } from "../domain/tag.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../workflows/delete-journal-entry.ts";
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
+import { getTags } from "../workflows/get-tags.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
 import { operateSession, type OperateSessionError } from "../workflows/operate-session.ts";
 import { startSession, type StartSessionError } from "../workflows/start-session.ts";
@@ -139,6 +141,11 @@ export class UserDO extends DurableObject<Env> {
         Result.map(Timeline.toJson),
       ),
     );
+  }
+
+  /** `GET /api/tags`。入力の候補に出す、使っているタグ */
+  async getTags(): Promise<Result.Result<TagList, never>> {
+    return this.#run(() => getTags(this.#journal)());
   }
 
   /**

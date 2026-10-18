@@ -224,19 +224,25 @@ describe("ジャーナル記入の同期", () => {
     });
   });
 
-  test("記入を編集すると、書き直した記入が届く", async () => {
+  test("記入を編集すると、書き直した記入がタグとともに届く", async () => {
     await start();
     const id = crypto.randomUUID();
     await write("設計を書いた", id);
     const phone = await connect();
     passTo(minutes(4));
 
-    await request(`/api/journal-entries/${id}`, withBody("PATCH", { body: "設計を書き直した" }));
+    await request(
+      `/api/journal-entries/${id}`,
+      withBody("PATCH", {
+        body: "設計を書き直した",
+        tags: ["設計"],
+      }),
+    );
 
     await waitFor(phone.received, 1);
     expect(JSON.parse(phone.received[0] ?? "null")).toMatchObject({
       kind: "JournalEntrySaved",
-      entry: { id, body: "設計を書き直した", updatedAt: iso(minutes(4)) },
+      entry: { id, body: "設計を書き直した", tags: ["設計"], updatedAt: iso(minutes(4)) },
     });
   });
 

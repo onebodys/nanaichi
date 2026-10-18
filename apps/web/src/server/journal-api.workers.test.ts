@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { Result } from "@praha/byethrow";
 import { DeletedJournalEntryJsonSchema, JournalEntryJsonSchema } from "../domain/journal-entry.ts";
 import { schemaResult } from "../domain/schema-result.ts";
+import { TagListJsonSchema } from "../domain/tag.ts";
 import { TimelinePageJsonSchema } from "../domain/timeline.ts";
 import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
 
@@ -40,10 +41,13 @@ const withBody = (method: string, body: unknown): RequestInit => ({
 const start = () => request("/api/session", withBody("POST", { id: crypto.randomUUID() }));
 const operate = (kind: string) =>
   request("/api/session/commands", withBody("POST", { id: crypto.randomUUID(), kind }));
-const write = (body: unknown, id: string = crypto.randomUUID()) =>
-  request("/api/journal-entries", withBody("POST", { id, body }));
-const edit = (id: string, body: unknown) =>
-  request(`/api/journal-entries/${id}`, withBody("PATCH", { body }));
+/** `tags` を省くと、タグの項目を送らない（タグに対応する前の画面と同じ） */
+const write = (body: unknown, id: string = crypto.randomUUID(), tags?: unknown) =>
+  request("/api/journal-entries", withBody("POST", { id, body, tags }));
+const edit = (id: string, body: unknown, tags: unknown = []) =>
+  request(`/api/journal-entries/${id}`, withBody("PATCH", { body, tags }));
+const tags = () => request("/api/tags", { headers });
+const tagsJson = async () => (await tags()).json<{ tags: Array<string> }>();
 const remove = (id: string) => request(`/api/journal-entries/${id}`, { method: "DELETE", headers });
 const timeline = (before?: string) =>
   request(
@@ -66,6 +70,7 @@ describe("ログインしていないとき", () => {
     ["PATCH", `/api/journal-entries/${crypto.randomUUID()}`],
     ["DELETE", `/api/journal-entries/${crypto.randomUUID()}`],
     ["GET", "/api/timeline"],
+    ["GET", "/api/tags"],
   ])("%s %s は 401 を返す", async (method, path) => {
     const res = await request(path, { method });
 
@@ -265,7 +270,7 @@ describe("ジャーナル記入の編集", () => {
     const res = await request(`/api/journal-entries/${id}`, {
       method: "PATCH",
       headers: { cookie: other.headers.get("cookie") ?? "", "content-type": "application/json" },
-      body: JSON.stringify({ body: "書き換え" }),
+      body: JSON.stringify({ body: "書き換え", tags: [] }),
     });
 
     expect(res.status).toBe(404);
@@ -329,6 +334,169 @@ describe("ジャーナル記入の削除", () => {
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "JOURNAL_ENTRY_NOT_FOUND" });
+  });
+});
+
+describe("タグ", () => {
+  test("記入にタグを複数つけると、表記ゆれを寄せた名前がつけた順に記録される", async () => {
+    await start();
+
+    const res = await write("本を読んだ", undefined, ["#読書", "Book", "読書"]);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ body: "本を読んだ", tags: ["読書", "book"] });
+    expect((await timelineJson()).sessions[0]?.entries).toMatchObject([{ tags: ["読書", "book"] }]);
+  });
+
+  test("タグの項目を省いて書くと、タグのない記入になる", async () => {
+    await start();
+
+    const res = await write("タグなし");
+
+    expect(await res.json()).toMatchObject({ tags: [] });
+  });
+
+  test("空白を含むタグは 400 を返し、どの項目が不正かだけを示す", async () => {
+    await start();
+
+    const res = await write("メモ", undefined, ["読書 メモ"]);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "INVALID_REQUEST", paths: ["tags.0"] });
+  });
+
+  test("同じタグを続けて書いた記入につけられる", async () => {
+    await start();
+    await write("1セット目", undefined, ["読書"]);
+    passTo(minutes(8));
+    await write("2セット目", undefined, ["読書"]);
+    passTo(minutes(16));
+    await write("3セット目", undefined, ["読書"]);
+
+    expect((await timelineJson()).sessions[0]?.entries).toMatchObject([
+      { tags: ["読書"] },
+      { tags: ["読書"] },
+      { tags: ["読書"] },
+    ]);
+  });
+
+  test("編集でタグをつけ直せ、セッションを終了したあとでもできる", async () => {
+    await start();
+    const id = crypto.randomUUID();
+    await write("メモ", id, ["読書"]);
+    await operate("End");
+
+    const res = await edit(id, "メモ", ["設計", "レビュー"]);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ tags: ["設計", "レビュー"] });
+    expect((await timelineJson()).sessions[0]?.entries).toMatchObject([
+      { tags: ["設計", "レビュー"] },
+    ]);
+  });
+
+  test("編集でタグの項目を省くと 400 を返し、タグは変わらない", async () => {
+    await start();
+    const id = crypto.randomUUID();
+    await write("メモ", id, ["読書"]);
+
+    const res = await request(`/api/journal-entries/${id}`, withBody("PATCH", { body: "直す" }));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "INVALID_REQUEST", paths: ["tags"] });
+    expect((await timelineJson()).sessions[0]?.entries).toMatchObject([{ tags: ["読書"] }]);
+  });
+
+  test("使っているタグを、最近書いた記入についている順に返す", async () => {
+    await start();
+    await write("1", undefined, ["設計"]);
+    passTo(minutes(1));
+    await write("2", undefined, ["読書", "本"]);
+    passTo(minutes(2));
+    await write("3", undefined, ["設計"]);
+
+    expect(await tagsJson()).toEqual({ tags: ["設計", "本", "読書"] });
+  });
+
+  test("削除した記入や編集で外したタグは、どの記入にもついていなければ一覧に出ない", async () => {
+    await start();
+    const removed = crypto.randomUUID();
+    const edited = crypto.randomUUID();
+    await write("消す", removed, ["消すタグ"]);
+    await write("直す", edited, ["外すタグ", "残すタグ"]);
+
+    await remove(removed);
+    await edit(edited, "直す", ["残すタグ"]);
+
+    expect(await tagsJson()).toEqual({ tags: ["残すタグ"] });
+  });
+
+  describe("使えるタグは20種類まで", () => {
+    const useTwentyTags = async () => {
+      await start();
+      const names = Array.from({ length: 20 }, (_, i) => `tag${i + 1}`);
+      const id = crypto.randomUUID();
+      await write("20種類", id, names);
+      return { id, names };
+    };
+
+    test("21種類目のタグをつけて書くと 409 を返し、記録しない", async () => {
+      await useTwentyTags();
+
+      const res = await write("21種類目", undefined, ["読書"]);
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "TAG_LIMIT_EXCEEDED", limit: 20 });
+      expect((await timelineJson()).sessions[0]?.entries).toHaveLength(1);
+    });
+
+    test("使っている20種類のタグなら、続けて書く記入にもつけられる", async () => {
+      await useTwentyTags();
+
+      const res = await write("同じタグ", undefined, ["tag1", "tag20"]);
+
+      expect(res.status).toBe(200);
+    });
+
+    test("21種類目のタグをつけて編集すると 409 を返し、記入は変わらない", async () => {
+      await useTwentyTags();
+      const id = crypto.randomUUID();
+      await write("あとで直す", id, ["tag1"]);
+
+      const res = await edit(id, "直した", ["tag1", "読書"]);
+
+      expect(res.status).toBe(409);
+      expect((await timelineJson()).sessions[0]?.entries).toContainEqual(
+        expect.objectContaining({ id, body: "あとで直す", tags: ["tag1"] }),
+      );
+    });
+
+    test("その記入にしかついていないタグを外して付け替えるなら、編集できる", async () => {
+      const { id, names } = await useTwentyTags();
+
+      const res = await edit(id, "付け替えた", [...names.slice(0, 19), "読書"]);
+
+      expect(res.status).toBe(200);
+    });
+
+    test("記入を削除してタグが使われなくなれば、その枠で新しいタグをつけられる", async () => {
+      const { id } = await useTwentyTags();
+      await remove(id);
+
+      const res = await write("新しいタグ", undefined, ["読書"]);
+
+      expect(res.status).toBe(200);
+    });
+  });
+
+  test("他のユーザーのタグは見えず、上限にも数えない", async () => {
+    await start();
+    await write("自分のメモ", undefined, ["読書"]);
+    const other = await signInAs("someone@example.com");
+
+    const res = await request("/api/tags", { headers: other.headers });
+
+    expect(await res.json()).toEqual({ tags: [] });
   });
 });
 
@@ -417,6 +585,15 @@ describe("応答はクライアントが検証するスキーマ（domain/）に
     const parsed = schemaResult(JournalEntryJsonSchema)(await (await write("メモ")).json());
 
     expect(Result.isSuccess(parsed) && parsed.value.body.unwrap()).toBe("メモ");
+  });
+
+  test("タグの一覧の応答は、タグの一覧のスキーマに合う", async () => {
+    await start();
+    await write("メモ", undefined, ["＃Ｒｅａｄｉｎｇ"]);
+
+    const parsed = schemaResult(TagListJsonSchema)(await (await tags()).json());
+
+    expect(parsed).toEqual(Result.succeed({ tags: ["reading"] }));
   });
 
   test("削除の応答は、削除済みの記入のスキーマに合う", async () => {

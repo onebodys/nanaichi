@@ -57,6 +57,21 @@ const MIGRATIONS: ReadonlyArray<string> = [
   -- タイムラインはセッションを開始時刻の新しい順にページを送る（ADR 0011）
   CREATE INDEX sessions_by_started_at ON sessions (started_at);
   `,
+  `
+  -- 記入についたタグ（ADR 0013）。タグの表は作らず、記入についた名前として持つ。
+  -- 名前は正規化してから記録する。記入を論理削除しても行は残し、読むときに除く
+  CREATE TABLE journal_entry_tags (
+    entry_id TEXT NOT NULL REFERENCES journal_entries (id),
+    -- つけた順
+    position INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    PRIMARY KEY (entry_id, position),
+    UNIQUE (entry_id, name)
+  );
+
+  -- 候補・上限の判断と、今後の集計（タグで記入を探す）のため
+  CREATE INDEX journal_entry_tags_by_name ON journal_entry_tags (name);
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

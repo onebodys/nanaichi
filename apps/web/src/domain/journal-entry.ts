@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { JsonDateSchema } from "./json-date.ts";
 import { Sensitive } from "./sensitive.ts";
 import { SessionId } from "./session.ts";
+import { Tags, type TagName } from "./tag.ts";
 import type { TimerState } from "./timer-state.ts";
 
 /**
@@ -54,6 +55,7 @@ export type WrittenDuring =
 /**
  * ジャーナル記入（GLOSSARY の「ジャーナル記入」）。
  *
+ * - `tags`: つけたタグ（GLOSSARY の「タグ」）。つけた順で、つけていなければ空
  * - `writtenAt`: 書いた時刻。編集しても変わらない
  * - `updatedAt`: 最後に書いた・編集した時刻
  */
@@ -61,6 +63,7 @@ export type JournalEntry = Readonly<{
   id: JournalEntryId;
   sessionId: SessionId;
   body: JournalEntryBody;
+  tags: ReadonlyArray<TagName>;
   writtenAt: Date;
   updatedAt: Date;
   writtenDuring: WrittenDuring;
@@ -97,6 +100,7 @@ export const JournalEntryJsonSchema: v.GenericSchema<unknown, JournalEntry> = v.
   id: JournalEntryIdSchema,
   sessionId: SessionId.schema,
   body: JournalEntryBodySchema,
+  tags: Tags.schema,
   writtenAt: JsonDateSchema,
   updatedAt: JsonDateSchema,
   writtenDuring: WrittenDuringJsonSchema,
@@ -130,6 +134,7 @@ export const JournalEntry = {
     input: Readonly<{
       id: JournalEntryId;
       body: JournalEntryBody;
+      tags: ReadonlyArray<TagName>;
       sessionId: SessionId;
       state: TimerState;
       now: Date;
@@ -141,16 +146,22 @@ export const JournalEntry = {
         id: input.id,
         sessionId: input.sessionId,
         body: input.body,
+        tags: input.tags,
         writtenAt: input.now,
         updatedAt: input.now,
         writtenDuring,
       })),
     ),
 
-  /** 本文を書き直す。書いた時刻と紐付きは変えない（ADR 0010） */
-  edit: (entry: JournalEntry, body: JournalEntryBody, now: Date): JournalEntry => ({
+  /** 本文とタグを書き直す。書いた時刻と紐付きは変えない（ADR 0010） */
+  edit: (
+    entry: JournalEntry,
+    change: Readonly<{ body: JournalEntryBody; tags: ReadonlyArray<TagName> }>,
+    now: Date,
+  ): JournalEntry => ({
     ...entry,
-    body,
+    body: change.body,
+    tags: change.tags,
     updatedAt: now,
   }),
 
@@ -168,8 +179,14 @@ export type FindJournalEntry = (id: JournalEntryId) => StoredJournalEntry | unde
 /** 書いたばかりの記入を記録する */
 export type SaveJournalEntry = (entry: JournalEntry) => void;
 
-/** 編集した記入の本文と更新時刻を記録する */
+/** 編集した記入の本文・タグと更新時刻を記録する */
 export type SaveEditedJournalEntry = (entry: JournalEntry) => void;
 
 /** 記入を論理削除する */
 export type DeleteJournalEntry = (deleted: DeletedJournalEntry) => void;
+
+/**
+ * `id` 以外の削除していない記入についているタグ。記入にタグをつけたときに、使っているタグの種類が
+ * 上限を超えないかを確かめるのに使う（`Tag.ensureWithinLimit`）。書き直す記入自身のタグは数えない
+ */
+export type ListTagsOfOtherEntries = (id: JournalEntryId) => ReadonlyArray<TagName>;

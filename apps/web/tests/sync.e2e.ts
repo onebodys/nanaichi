@@ -23,7 +23,8 @@ const asOtherDevice = async (app: App, browser: Browser) => {
       send("POST", "/api/session/commands", { id: crypto.randomUUID(), kind }),
     start: () => send("POST", "/api/session", { id: crypto.randomUUID() }),
     write: (id: string, body: string) => send("POST", "/api/journal-entries", { id, body }),
-    edit: (id: string, body: string) => send("PATCH", `/api/journal-entries/${id}`, { body }),
+    edit: (id: string, body: string) =>
+      send("PATCH", `/api/journal-entries/${id}`, { body, tags: [] }),
     remove: (id: string) => send("DELETE", `/api/journal-entries/${id}`),
   };
 };

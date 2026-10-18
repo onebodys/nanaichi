@@ -20,6 +20,7 @@ const written = Result.unwrap(
   JournalEntry.write({
     id: v.parse(JournalEntryId.schema, "00000000-0000-4000-8000-000000000002"),
     body: v.parse(JournalEntryBody.schema, "設計を書いた"),
+    tags: [],
     sessionId: started.id,
     state: Session.stateAt(started, at(3)),
     now: at(3),

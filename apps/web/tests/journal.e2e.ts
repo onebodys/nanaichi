@@ -201,4 +201,44 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "削除する" }).tap();
     await expect(screen.getByText("書き直した")).toHaveCount(0);
   });
+
+  test("タグの欄でつけたタグは送信しても外れず続けて書く記入にもつき、セッションを終えると外れる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: "開始" }).tap();
+    const input = screen.getByLabel("ジャーナル記入の本文");
+    await expect(input).toBeEnabled();
+    const tagInput = screen.getByRole("combobox", { name: "タグ" });
+
+    // 新しいタグは入力して Enter で作れる。前の実行で使ったタグなら候補から選ばれる
+    await tagInput.tap();
+    await tagInput.pressSequentially("#E2E読書");
+    await tagInput.press("Enter");
+    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toBeVisible();
+
+    await input.pressSequentially("1章を読んだ");
+    await input.press("Control+Enter");
+    await expect(input).toHaveValue("");
+    await input.pressSequentially("2章を読んだ");
+    await input.press("Control+Enter");
+    await expect(input).toHaveValue("");
+
+    const entries = screen
+      .getByRole("region", { name: /からのセッション$/ })
+      .first()
+      .getByRole("listitem", { name: "ジャーナル記入" });
+    await expect(entries).toHaveCount(2);
+    await expect(entries.first().getByRole("list", { name: "タグ" })).toHaveText("#e2e読書");
+    await expect(entries.nth(1).getByRole("list", { name: "タグ" })).toHaveText("#e2e読書");
+
+    // 開き直しても、同じセッションのあいだはつけたまま
+    await browser.reload();
+    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toBeVisible();
+
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toHaveCount(0);
+  });
 });

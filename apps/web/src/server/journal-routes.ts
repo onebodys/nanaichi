@@ -3,7 +3,7 @@ import { bodyOf, respond, userDOOf } from "./api-response.ts";
 import type { AppEnv } from "./hono-context.ts";
 
 /**
- * ジャーナル記入とタイムラインの API。`requireSession` の後ろにつなぐ（app.ts）。
+ * ジャーナル記入・タグ・タイムラインの API。`requireSession` の後ろにつなぐ（app.ts）。
  *
  * 判断と記録はユーザーの UserDO が行い、ここは本文の受け渡しと HTTP への変換だけをする。
  * 書いた時刻はサーバー（UserDO）が受け付けた時刻で記録する（ADR 0010）。
@@ -18,6 +18,7 @@ export const journalRoutes = new Hono<AppEnv>()
   .delete("/journal-entries/:id", async (c) =>
     respond(c, await userDOOf(c).deleteJournalEntry(c.req.param("id"))),
   )
+  .get("/tags", async (c) => respond(c, await userDOOf(c).getTags()))
   // `c.req.query()` はプロトタイプのないオブジェクトで DO の RPC で送れないので、使う値だけを取り出す
   .get("/timeline", async (c) =>
     respond(c, await userDOOf(c).getTimeline({ before: c.req.query("before") })),

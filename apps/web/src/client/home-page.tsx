@@ -8,6 +8,7 @@ import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
 import { useSync } from "./use-sync.ts";
+import { useTags } from "./use-tags.ts";
 import { useTimeline } from "./use-timeline.ts";
 
 /** ジャーナルのフェーズにいれば、そのセットを見分ける値。フェーズに入ったことを見分けるのに使う */
@@ -21,8 +22,12 @@ export const HomePage = () => {
   // タイマー（フェーズの切り替わりで知らせる）と設定（試しに鳴らす）で同じ音の準備を使う
   const [phaseAlert] = useState(createPhaseAlert);
   const timer = useSessionTimer(phaseAlert);
-  const timeline = useTimeline(timer.session, timer.serverNow, timer.refresh);
-  useSync(timer, timeline);
+  const tags = useTags();
+  const timeline = useTimeline(timer.session, timer.serverNow, () => {
+    timer.refresh();
+    tags.refresh();
+  });
+  useSync(timer, timeline, tags);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）
@@ -63,7 +68,8 @@ export const HomePage = () => {
 
       <div className="flex flex-col gap-2">
         <JournalInput
-          inSession={timer.view.kind === "InSession"}
+          sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
+          knownTags={tags.known}
           write={timeline.write}
           textareaRef={textareaRef}
         />
@@ -74,7 +80,7 @@ export const HomePage = () => {
         )}
       </div>
 
-      <TimelinePanel timeline={timeline} />
+      <TimelinePanel timeline={timeline} knownTags={tags.known} />
     </main>
   );
 };

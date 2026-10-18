@@ -10,6 +10,7 @@ import {
 import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
 import { Session, SessionId } from "./session.ts";
+import { TagName } from "./tag.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number, seconds = 0) =>
@@ -28,6 +29,7 @@ const writeAt = (now: Date, session: Session = started) =>
   JournalEntry.write({
     id: entryId,
     body: body("メモ"),
+    tags: [],
     sessionId: session.id,
     state: Session.stateAt(session, now),
     now,
@@ -84,14 +86,19 @@ describe("ジャーナル記入の紐付き", () => {
 });
 
 describe("ジャーナル記入の編集", () => {
-  test("本文と更新時刻だけが変わり、書いた時刻と紐付きは変わらない", () => {
+  test("本文・タグと更新時刻だけが変わり、書いた時刻と紐付きは変わらない", () => {
     const written = writeAt(at(3));
     if (Result.isFailure(written)) throw new Error("書けなかった");
 
-    const edited = JournalEntry.edit(written.value, body("直した"), at(30));
+    const edited = JournalEntry.edit(
+      written.value,
+      { body: body("直した"), tags: [v.parse(TagName.schema, "読書")] },
+      at(30),
+    );
 
     expect(edited.body.unwrap()).toBe("直した");
     expect(edited).toMatchObject({
+      tags: ["読書"],
       writtenAt: at(3),
       updatedAt: at(30),
       writtenDuring: { kind: "Focus", round: 1, setNumber: 1 },

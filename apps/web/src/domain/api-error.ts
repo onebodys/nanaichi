@@ -19,6 +19,8 @@ const API_ERROR_CODES = [
   "OPERATION_REJECTED",
   /** 記録済みの操作イベントと同じ ID で別の操作（409、ADR 0007） */
   "EVENT_ID_CONFLICT",
+  /** 使えるタグの種類の上限を超える（409、ADR 0013） */
+  "TAG_LIMIT_EXCEEDED",
   /** ジャーナル記入が記録されていないか、削除されている（404、ADR 0010） */
   "JOURNAL_ENTRY_NOT_FOUND",
   /** `GET /api/ws` に WebSocket の Upgrade がない（426、ADR 0012） */
