@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { SessionEventId } from "../domain/session-event.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "../domain/journal-entry.ts";
 import { Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
+import { TagName } from "../domain/tag.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { createApiClient } from "./api.ts";
 
@@ -162,10 +163,13 @@ describe("セッションへの操作", () => {
 
 const entryId = v.parse(JournalEntryId.schema, "00000000-0000-4000-8000-0000000000e1");
 
+const readingTag = v.parse(TagName.schema, "読書");
+
 const written = (() => {
   const result = JournalEntry.write({
     id: entryId,
     body: v.parse(JournalEntryBody.schema, "メモ"),
+    tags: [readingTag],
     sessionId: started.id,
     state: Session.stateAt(started, at(3)),
     now: at(3),
@@ -179,15 +183,15 @@ const unwrapped = (result: Result.Result<JournalEntry, unknown>) =>
   Result.isSuccess(result) ? JournalEntry.toJson(result.value) : result;
 
 describe("ジャーナル記入", () => {
-  test("記入の ID と本文を本文に入れて POST /api/journal-entries を呼び、書いた記入を返す", async () => {
+  test("記入の ID と本文とタグを本文に入れて POST /api/journal-entries を呼び、書いた記入を返す", async () => {
     const { client, paths, requests } = respondWith(200, JournalEntry.toJson(written));
 
-    const result = await client.writeJournalEntry(entryId, "メモ");
+    const result = await client.writeJournalEntry(entryId, "メモ", [readingTag]);
 
     expect(paths).toEqual(["/api/journal-entries"]);
     expect(requests[0]).toMatchObject({
       method: "POST",
-      body: JSON.stringify({ id: entryId, body: "メモ" }),
+      body: JSON.stringify({ id: entryId, body: "メモ", tags: ["読書"] }),
     });
     expect(unwrapped(result)).toEqual(JournalEntry.toJson(written));
   });
@@ -195,21 +199,33 @@ describe("ジャーナル記入", () => {
   test("セッションの外で書くと、NO_SESSION_IN_PROGRESS の ApiRejected を返す", async () => {
     const { client } = respondWith(409, { error: "NO_SESSION_IN_PROGRESS" });
 
-    expect(await client.writeJournalEntry(entryId, "メモ")).toEqual(
+    expect(await client.writeJournalEntry(entryId, "メモ", [])).toEqual(
       Result.fail({ kind: "ApiRejected", status: 409, code: "NO_SESSION_IN_PROGRESS" }),
     );
   });
 
+  test("使えるタグの種類の上限を超えると、TAG_LIMIT_EXCEEDED の ApiRejected を返す", async () => {
+    const { client } = respondWith(409, { error: "TAG_LIMIT_EXCEEDED", limit: 20 });
+
+    expect(await client.writeJournalEntry(entryId, "メモ", [readingTag])).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 409, code: "TAG_LIMIT_EXCEEDED" }),
+    );
+  });
+
   test("編集は PATCH /api/journal-entries/:id を呼び、書き直した記入を返す", async () => {
-    const edited = JournalEntry.edit(written, v.parse(JournalEntryBody.schema, "直した"), at(9));
+    const edited = JournalEntry.edit(
+      written,
+      { body: v.parse(JournalEntryBody.schema, "直した"), tags: [] },
+      at(9),
+    );
     const { client, paths, requests } = respondWith(200, JournalEntry.toJson(edited));
 
-    const result = await client.editJournalEntry(entryId, "直した");
+    const result = await client.editJournalEntry(entryId, "直した", []);
 
     expect(paths).toEqual([`/api/journal-entries/${entryId}`]);
     expect(requests[0]).toMatchObject({
       method: "PATCH",
-      body: JSON.stringify({ body: "直した" }),
+      body: JSON.stringify({ body: "直した", tags: [] }),
     });
     expect(unwrapped(result)).toEqual(JournalEntry.toJson(edited));
   });
@@ -266,6 +282,25 @@ describe("タイムライン", () => {
     const { client } = respondWith(200, { sessions: [] });
 
     expect(await client.getTimeline()).toEqual(
+      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+    );
+  });
+});
+
+describe("タグ", () => {
+  test("GET /api/tags を呼び、使っているタグを最近使った順のまま返す", async () => {
+    const { client, paths } = respondWith(200, { tags: ["読書", "設計"] });
+
+    const result = await client.getTags();
+
+    expect(paths).toEqual(["/api/tags"]);
+    expect(result).toEqual(Result.succeed({ tags: ["読書", "設計"] }));
+  });
+
+  test("応答のタグが名前の規則に合わなければ UnexpectedResponse を返す", async () => {
+    const { client } = respondWith(200, { tags: ["空白 を含む"] });
+
+    expect(await client.getTags()).toEqual(
       Result.fail({ kind: "UnexpectedResponse", status: 200 }),
     );
   });

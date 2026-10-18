@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
 import type { Session } from "../domain/session.ts";
+import { TAG_KINDS_MAX, type TagName } from "../domain/tag.ts";
 import {
   Timeline,
   type TimelineCursor,
@@ -10,6 +11,7 @@ import {
   type TimelineSession,
 } from "../domain/timeline.ts";
 import { createApiClient, type ApiError } from "./api.ts";
+import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
 
 const api = createApiClient();
 
@@ -33,8 +35,13 @@ export type TimelineView =
   | Readonly<{ kind: "LoadFailed" }>
   | Readonly<{ kind: "Loaded"; days: ReadonlyArray<TimelineDay>; hasMore: boolean }>;
 
-/** 送信に失敗した記入。同じ本文を送り直すときは同じ ID を使い、二重に書かないようにする（ADR 0010） */
-type FailedDraft = Readonly<{ id: JournalEntryId; body: string }>;
+/** 送信に失敗した記入。同じ本文とタグを送り直すときは同じ ID を使い、二重に書かないようにする（ADR 0010） */
+type FailedDraft = Readonly<{ id: JournalEntryId; body: string; tags: ReadonlyArray<TagName> }>;
+
+const isSameDraft = (draft: FailedDraft, body: string, tags: ReadonlyArray<TagName>): boolean =>
+  draft.body === body &&
+  draft.tags.length === tags.length &&
+  draft.tags.every((tag, i) => tag === tags[i]);
 
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
 const messageOf = (error: ApiError): string => {
@@ -43,6 +50,9 @@ const messageOf = (error: ApiError): string => {
   }
   if (error.kind === "ApiRejected" && error.code === "NO_SESSION_IN_PROGRESS") {
     return "セッションの外では書けません。";
+  }
+  if (error.kind === "ApiRejected" && error.code === "TAG_LIMIT_EXCEEDED") {
+    return `タグは${TAG_KINDS_MAX}種類までです。使っていないタグを外してください。`;
   }
   if (error.kind === "ApiRejected" && error.code === "JOURNAL_ENTRY_NOT_FOUND") {
     return "この記入は削除されています。";
@@ -66,7 +76,7 @@ const redirectToLoginIfSignedOut = (error: ApiError) => {
  *
  * - `current`: タイマーが最後に受け取ったセッション
  * - `serverNow`: 時計のずれで補正したサーバーの今の時刻
- * - `onWritten`: 記入を書いたあとに呼ぶ（自動終了の時刻が延びるので、タイマーが読み込み直す）
+ * - `onWritten`: 記入を書いたあとに呼ぶ（自動終了の時刻が延びるので、タイマーが読み込み直す。タグの候補も変わる）
  */
 export const useTimeline = (
   current: Session | undefined,
@@ -77,9 +87,9 @@ export const useTimeline = (
   loadingMore: boolean;
   errorMessage: string | undefined;
   /** 記入を書く。成功したら true（入力欄を空にする） */
-  write: (body: string) => Promise<boolean>;
-  /** 記入を書き直す。成功したら true（編集を閉じる） */
-  edit: (id: JournalEntryId, body: string) => Promise<boolean>;
+  write: (body: string, tags: ReadonlyArray<TagName>) => Promise<boolean>;
+  /** 記入の本文とタグを書き直す。成功したら true（編集を閉じる） */
+  edit: (id: JournalEntryId, body: string, tags: ReadonlyArray<TagName>) => Promise<boolean>;
   remove: (id: JournalEntryId) => Promise<void>;
   loadMore: () => void;
   reload: () => void;
@@ -100,15 +110,45 @@ export const useTimeline = (
     setLoading((state) => (state.kind === "Loaded" ? change(state) : state));
   }, []);
 
+  // 最新のページを読み込んでいる間に当てた変更。応答が届いたら、ページの上に当て直す（`mergeLatestPage`）
+  const changesWhileLoading = useRef<Array<Readonly<{ seq: number; change: TimelineChange }>>>([]);
+  const lastSeq = useRef(0);
+  const loadsInFlight = useRef(0);
+
+  /** 記入やセッションの変更を当てる。最新のページを読み込んでいる間なら、当て直すために覚えておく */
+  const apply = useCallback(
+    (change: TimelineChange) => {
+      if (loadsInFlight.current > 0) {
+        lastSeq.current += 1;
+        changesWhileLoading.current.push({ seq: lastSeq.current, change });
+      }
+      update((loaded) => ({ ...loaded, sessions: change(loaded.sessions) }));
+    },
+    [update],
+  );
+
   const loadLatest = useCallback(async () => {
+    const since = lastSeq.current;
+    loadsInFlight.current += 1;
     const result = await api.getTimeline();
+    loadsInFlight.current -= 1;
+    const changes = changesWhileLoading.current
+      .filter(({ seq }) => seq > since)
+      .map(({ change }) => change);
+    if (loadsInFlight.current === 0) {
+      changesWhileLoading.current = [];
+    }
     if (Result.isSuccess(result)) {
       const page = result.value;
       setLoading((state) =>
         state.kind === "Loaded"
           ? // 古いページを読み込み済みなら、その続きの位置（next）はそのまま使う
-            { ...state, sessions: Timeline.merge(state.sessions, page.sessions) }
-          : { kind: "Loaded", sessions: page.sessions, next: page.next },
+            { ...state, sessions: mergeLatestPage(state.sessions, page.sessions, changes) }
+          : {
+              kind: "Loaded",
+              sessions: mergeLatestPage([], page.sessions, changes),
+              next: page.next,
+            },
       );
       return;
     }
@@ -123,12 +163,9 @@ export const useTimeline = (
   // タイマーのスナップショットのほうが新しいので、受け取るたびに重ねる（開始・操作・終了）
   useEffect(() => {
     if (current !== undefined) {
-      update((loaded) => ({
-        ...loaded,
-        sessions: Timeline.withCurrentSession(loaded.sessions, current),
-      }));
+      apply((sessions) => Timeline.withCurrentSession(sessions, current));
     }
-  }, [current, update]);
+  }, [current, apply]);
 
   const fail = (error: ApiError) => {
     redirectToLoginIfSignedOut(error);
@@ -153,31 +190,33 @@ export const useTimeline = (
     view,
     loadingMore,
     errorMessage,
-    write: async (body) => {
+    write: async (body, tags) => {
       setErrorMessage(undefined);
       const id =
-        failedDraft !== undefined && failedDraft.body === body ? failedDraft.id : newEntryId();
-      const result = await api.writeJournalEntry(id, body);
+        failedDraft !== undefined && isSameDraft(failedDraft, body, tags)
+          ? failedDraft.id
+          : newEntryId();
+      const result = await api.writeJournalEntry(id, body, tags);
       if (Result.isFailure(result)) {
-        setFailedDraft({ id, body });
+        setFailedDraft({ id, body, tags });
         fail(result.error);
         return false;
       }
       setFailedDraft(undefined);
       const entry = result.value;
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
       onWritten();
       return true;
     },
-    edit: async (id, body) => {
+    edit: async (id, body, tags) => {
       setErrorMessage(undefined);
-      const result = await api.editJournalEntry(id, body);
+      const result = await api.editJournalEntry(id, body, tags);
       if (Result.isFailure(result)) {
         fail(result.error);
         return false;
       }
       const entry = result.value;
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
       return true;
     },
     remove: async (id) => {
@@ -187,7 +226,7 @@ export const useTimeline = (
         fail(result.error);
         return;
       }
-      update((loaded) => ({ ...loaded, sessions: Timeline.removeEntry(loaded.sessions, id) }));
+      apply((sessions) => Timeline.removeEntry(sessions, id));
     },
     loadMore: () => {
       if (loading.kind !== "Loaded" || loading.next.kind !== "More" || loadingMore) {
@@ -217,10 +256,10 @@ export const useTimeline = (
       void loadLatest();
     },
     receiveEntry: (entry) => {
-      update((loaded) => ({ ...loaded, sessions: Timeline.putEntry(loaded.sessions, entry) }));
+      apply((sessions) => Timeline.putEntry(sessions, entry));
     },
     receiveDeletion: (id) => {
-      update((loaded) => ({ ...loaded, sessions: Timeline.removeEntry(loaded.sessions, id) }));
+      apply((sessions) => Timeline.removeEntry(sessions, id));
     },
   };
 };

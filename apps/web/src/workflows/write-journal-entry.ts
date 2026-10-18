@@ -5,11 +5,13 @@ import {
   JournalEntryBody,
   JournalEntryId,
   type FindJournalEntry,
+  type ListTagsOfOtherEntries,
   type NoSessionInProgress,
   type SaveJournalEntry,
 } from "../domain/journal-entry.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
 import { Session } from "../domain/session.ts";
+import { Tag, Tags, type TagLimitExceeded } from "../domain/tag.ts";
 import { loadOpenSession, type OpenSessionDeps } from "./auto-end-session.ts";
 import { journalEntryNotFound, type JournalEntryNotFound } from "./journal-entry-not-found.ts";
 
@@ -18,18 +20,25 @@ import { journalEntryNotFound, type JournalEntryNotFound } from "./journal-entry
  *
  * - `id`: ジャーナル記入の ID（クライアントが発行する、ADR 0010）
  * - `body`: 本文。前後の空白を落として空なら書けない
+ * - `tags`: つけるタグ（ADR 0013）。タグに対応する前の画面からも書けるよう、省けばタグなし
  */
 const WriteJournalEntryInputSchema = v.object({
   id: JournalEntryId.schema,
   body: JournalEntryBody.schema,
+  tags: v.optional(Tags.schema, []),
 });
 type WriteJournalEntryInput = v.InferOutput<typeof WriteJournalEntryInputSchema>;
 
-export type WriteJournalEntryError = ValidationError | NoSessionInProgress | JournalEntryNotFound;
+export type WriteJournalEntryError =
+  | ValidationError
+  | NoSessionInProgress
+  | TagLimitExceeded
+  | JournalEntryNotFound;
 
 export type WriteJournalEntryDeps = OpenSessionDeps &
   Readonly<{
     findJournalEntry: FindJournalEntry;
+    listTagsOfOtherEntries: ListTagsOfOtherEntries;
     saveJournalEntry: SaveJournalEntry;
   }>;
 
@@ -44,7 +53,8 @@ const ensureSessionInProgress = (
  * ジャーナル記入を書く（GLOSSARY の「ジャーナル記入」）。
  *
  * 入力の検証 → 同じ ID の記入が記録済みなら再送として扱う → 現在のセッションの読み込み
- * → 書いた時点のタイマーの状態に紐付けて書く → 記録。セッションの外では書けない。
+ * → 使っているタグの種類が上限を超えないかの確認 → 書いた時点のタイマーの状態に紐付けて書く → 記録。
+ * セッションの外では書けない。
  * 自動終了の時刻を過ぎたセッションは、読み込むときに閉じる（`loadOpenSession`）ので書けない。
  */
 export const writeJournalEntry =
@@ -52,11 +62,16 @@ export const writeJournalEntry =
   (raw: unknown, now: Date): Result.Result<JournalEntry, WriteJournalEntryError> => {
     const write = (input: WriteJournalEntryInput) =>
       Result.pipe(
-        ensureSessionInProgress(loadOpenSession(deps)(now)),
-        Result.andThen((session) =>
+        Result.do(),
+        Result.bind("session", () => ensureSessionInProgress(loadOpenSession(deps)(now))),
+        Result.bind("tags", () =>
+          Tag.ensureWithinLimit(deps.listTagsOfOtherEntries(input.id), input.tags),
+        ),
+        Result.andThen(({ session, tags }) =>
           JournalEntry.write({
             id: input.id,
             body: input.body,
+            tags,
             sessionId: session.id,
             state: Session.stateAt(session, now),
             now,

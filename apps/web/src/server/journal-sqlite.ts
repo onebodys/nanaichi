@@ -5,12 +5,14 @@ import {
   type DeleteJournalEntry,
   type FindJournalEntry,
   type JournalEntry,
+  type ListTagsOfOtherEntries,
   type SaveEditedJournalEntry,
   type SaveJournalEntry,
   type StoredJournalEntry,
   type WrittenDuring,
 } from "../domain/journal-entry.ts";
 import { SessionId } from "../domain/session.ts";
+import { TagName, Tags, type ListTagsInUse } from "../domain/tag.ts";
 import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
 import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
 
@@ -20,8 +22,14 @@ import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
 
 const positiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
 
-const JOURNAL_ENTRY_COLUMNS =
-  "id, session_id, body, written_at, updated_at, round, set_number, phase, deleted_at";
+/**
+ * 記入の列。タグは別の表にあるので、つけた順に並べた JSON の配列にして1行に含める
+ * （`journal_entries` を FROM に置いた SELECT で使う）
+ */
+const JOURNAL_ENTRY_COLUMNS = `id, session_id, body, written_at, updated_at, round, set_number, phase, deleted_at,
+  (SELECT json_group_array(name) FROM
+     (SELECT name FROM journal_entry_tags WHERE entry_id = journal_entries.id ORDER BY position)
+  ) AS tags`;
 
 /**
  * 紐付きの列（`round` / `set_number` / `phase`）を、書いた時点のタイマーの状態の型に戻す。
@@ -46,6 +54,7 @@ const JournalEntryRowSchema = v.pipe(
     id: JournalEntryId.schema,
     session_id: SessionId.schema,
     body: JournalEntryBody.schema,
+    tags: v.pipe(v.string(), v.parseJson(), Tags.schema),
     written_at: epochMs,
     updated_at: epochMs,
     round: positiveInt,
@@ -69,6 +78,7 @@ const JournalEntryRowSchema = v.pipe(
         id: row.id,
         sessionId: row.session_id,
         body: row.body,
+        tags: row.tags,
         writtenAt: new Date(row.written_at),
         updatedAt: new Date(row.updated_at),
         writtenDuring,
@@ -81,6 +91,12 @@ const parseJournalEntryRow = parseRow(JournalEntryRowSchema, "journal_entries");
 
 const SessionIdRowsSchema = v.array(v.object({ id: SessionId.schema }));
 const parseSessionIdRows = parseRow(SessionIdRowsSchema, "sessions");
+
+const TagNameRowsSchema = v.pipe(
+  v.array(v.object({ name: TagName.schema })),
+  v.transform((rows) => rows.map(({ name }) => name)),
+);
+const parseTagNameRows = parseRow(TagNameRowsSchema, "journal_entry_tags");
 
 /** 紐付きを列に書く形にする */
 const columnsOf = (writtenDuring: WrittenDuring) => {
@@ -101,6 +117,8 @@ const columnsOf = (writtenDuring: WrittenDuring) => {
 
 export type JournalSqlite = Readonly<{
   findJournalEntry: FindJournalEntry;
+  listTagsOfOtherEntries: ListTagsOfOtherEntries;
+  listTagsInUse: ListTagsInUse;
   saveJournalEntry: SaveJournalEntry;
   saveEditedJournalEntry: SaveEditedJournalEntry;
   deleteJournalEntry: DeleteJournalEntry;
@@ -121,6 +139,19 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
       .toArray()
       .map(parseJournalEntryRow)
       .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : []));
+
+  /** 記入のタグを、つけた順に書き直す */
+  const saveTags = (entry: JournalEntry): void => {
+    sql.exec("DELETE FROM journal_entry_tags WHERE entry_id = ?", entry.id);
+    entry.tags.forEach((name, position) => {
+      sql.exec(
+        "INSERT INTO journal_entry_tags (entry_id, position, name) VALUES (?, ?, ?)",
+        entry.id,
+        position,
+        name,
+      );
+    });
+  };
 
   return {
     findJournalEntry: (id) => {
@@ -145,6 +176,7 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
         phase,
         entry.updatedAt.getTime(),
       );
+      saveTags(entry);
     },
 
     saveEditedJournalEntry: (entry) => {
@@ -154,7 +186,32 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
         entry.updatedAt.getTime(),
         entry.id,
       );
+      saveTags(entry);
     },
+
+    listTagsOfOtherEntries: (id) =>
+      parseTagNameRows(
+        sql
+          .exec(
+            `SELECT DISTINCT t.name FROM journal_entry_tags t
+             JOIN journal_entries e ON e.id = t.entry_id
+             WHERE e.deleted_at IS NULL AND e.id != ?`,
+            id,
+          )
+          .toArray(),
+      ),
+
+    listTagsInUse: () =>
+      parseTagNameRows(
+        sql
+          .exec(
+            `SELECT t.name FROM journal_entry_tags t
+             JOIN journal_entries e ON e.id = t.entry_id
+             WHERE e.deleted_at IS NULL
+             GROUP BY t.name ORDER BY MAX(e.written_at) DESC, t.name`,
+          )
+          .toArray(),
+      ),
 
     deleteJournalEntry: (deleted) => {
       sql.exec(

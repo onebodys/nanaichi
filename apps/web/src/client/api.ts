@@ -11,6 +11,7 @@ import {
   type JournalEntryId,
 } from "../domain/journal-entry.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "../domain/session.ts";
+import { TagListJsonSchema, type TagList, type TagName } from "../domain/tag.ts";
 import { TimelinePageJsonSchema, type TimelinePage } from "../domain/timeline.ts";
 
 /**
@@ -126,16 +127,20 @@ export const createApiClient = (
   writeJournalEntry: (
     id: JournalEntryId,
     body: string,
+    tags: ReadonlyArray<TagName>,
   ) => Result.ResultAsync<JournalEntry, ApiError>;
-  /** `PATCH /api/journal-entries/:id`: 記入の本文を書き直す */
+  /** `PATCH /api/journal-entries/:id`: 記入の本文とタグを書き直す */
   editJournalEntry: (
     id: JournalEntryId,
     body: string,
+    tags: ReadonlyArray<TagName>,
   ) => Result.ResultAsync<JournalEntry, ApiError>;
   /** `DELETE /api/journal-entries/:id`: 記入を削除する */
   deleteJournalEntry: (id: JournalEntryId) => Result.ResultAsync<DeletedJournalEntry, ApiError>;
   /** `GET /api/timeline?before=`: タイムラインの1ページ。`before` を省けば最新のページ */
   getTimeline: (before?: Date) => Result.ResultAsync<TimelinePage, ApiError>;
+  /** `GET /api/tags`: 入力の候補に出す、使っているタグ（最近使った順） */
+  getTags: () => Result.ResultAsync<TagList, ApiError>;
 }> => {
   const request = requestApi(fetchApi);
   return {
@@ -143,10 +148,14 @@ export const createApiClient = (
     startSession: (id) => request("/api/session", SessionSnapshotJsonSchema, postJson({ id })),
     operateSession: (id, kind) =>
       request("/api/session/commands", SessionSnapshotJsonSchema, postJson({ id, kind })),
-    writeJournalEntry: (id, body) =>
-      request("/api/journal-entries", JournalEntryJsonSchema, postJson({ id, body })),
-    editJournalEntry: (id, body) =>
-      request(`/api/journal-entries/${id}`, JournalEntryJsonSchema, sendJson("PATCH", { body })),
+    writeJournalEntry: (id, body, tags) =>
+      request("/api/journal-entries", JournalEntryJsonSchema, postJson({ id, body, tags })),
+    editJournalEntry: (id, body, tags) =>
+      request(
+        `/api/journal-entries/${id}`,
+        JournalEntryJsonSchema,
+        sendJson("PATCH", { body, tags }),
+      ),
     deleteJournalEntry: (id) =>
       request(`/api/journal-entries/${id}`, DeletedJournalEntryJsonSchema, { method: "DELETE" }),
     getTimeline: (before) =>
@@ -156,5 +165,6 @@ export const createApiClient = (
           : `/api/timeline?${new URLSearchParams({ before: before.toISOString() }).toString()}`,
         TimelinePageJsonSchema,
       ),
+    getTags: () => request("/api/tags", TagListJsonSchema),
   };
 };

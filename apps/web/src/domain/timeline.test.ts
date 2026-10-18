@@ -57,6 +57,7 @@ const entryAt = (
   id: v.parse(JournalEntryId.schema, uuid()),
   sessionId: session.id,
   body: v.parse(JournalEntryBody.schema, text),
+  tags: [],
   writtenAt: at(minutes),
   updatedAt: at(minutes),
   writtenDuring,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JournalEntry, JournalEntryId } from "../domain/journal-entry.ts";
+import type { TagName } from "../domain/tag.ts";
 import type { TimelineDay, TimelineDaySession } from "../domain/timeline.ts";
 import { Button } from "./components/ui/button.tsx";
 import {
@@ -10,6 +11,7 @@ import {
 } from "./journal-text.ts";
 import { linkify } from "./linkify.ts";
 import { isSubmitKey } from "./submit-key.ts";
+import { TagInput, TagList } from "./tag-input.tsx";
 import { useSubmitKey } from "./use-submit-key.ts";
 import type { TimelineState } from "./use-timeline.ts";
 
@@ -39,14 +41,22 @@ type EntryMode = "Viewing" | "Editing" | "ConfirmingDelete";
 
 const EntryEditor = ({
   initial,
+  knownTags,
   save,
   cancel,
-}: Readonly<{ initial: string; save: (body: string) => void; cancel: () => void }>) => {
-  const [draft, setDraft] = useState(initial);
+}: Readonly<{
+  initial: JournalEntry;
+  knownTags: ReadonlyArray<TagName>;
+  save: (body: string, tags: ReadonlyArray<TagName>) => void;
+  cancel: () => void;
+}>) => {
+  const [draft, setDraft] = useState(initial.body.unwrap());
+  const [tags, setTags] = useState(initial.tags);
   const [submitKey] = useSubmitKey();
   const canSave = draft.trim().length > 0;
   return (
     <div className="flex flex-col gap-2">
+      <TagInput known={knownTags} attached={tags} onChange={setTags} label="記入のタグを編集" />
       <textarea
         aria-label="記入を編集"
         // 編集を始めたらすぐ書き直せるよう、カーソルを置く
@@ -57,7 +67,7 @@ const EntryEditor = ({
         onKeyDown={(event) => {
           if (isSubmitKey(submitKey, event)) {
             event.preventDefault();
-            if (canSave) save(draft);
+            if (canSave) save(draft, tags);
           }
           if (event.key === "Escape") {
             cancel();
@@ -68,7 +78,7 @@ const EntryEditor = ({
         <Button variant="ghost" size="xs" onClick={cancel}>
           やめる
         </Button>
-        <Button size="xs" onClick={() => save(draft)} disabled={!canSave}>
+        <Button size="xs" onClick={() => save(draft, tags)} disabled={!canSave}>
           保存
         </Button>
       </div>
@@ -78,11 +88,13 @@ const EntryEditor = ({
 
 const EntryItem = ({
   entry,
+  knownTags,
   edit,
   remove,
 }: Readonly<{
   entry: JournalEntry;
-  edit: (id: JournalEntryId, body: string) => Promise<boolean>;
+  knownTags: ReadonlyArray<TagName>;
+  edit: TimelineState["edit"];
   remove: (id: JournalEntryId) => Promise<void>;
 }>) => {
   const [mode, setMode] = useState<EntryMode>("Viewing");
@@ -97,14 +109,18 @@ const EntryItem = ({
       </p>
       {mode === "Editing" ? (
         <EntryEditor
-          initial={body}
+          initial={entry}
+          knownTags={knownTags}
           cancel={() => setMode("Viewing")}
-          save={(draft) => {
-            void edit(entry.id, draft).then((saved) => saved && setMode("Viewing"));
+          save={(draft, tags) => {
+            void edit(entry.id, draft, tags).then((saved) => saved && setMode("Viewing"));
           }}
         />
       ) : (
-        <EntryBody text={body} />
+        <>
+          <EntryBody text={body} />
+          <TagList tags={entry.tags} />
+        </>
       )}
       {mode === "Viewing" && (
         <div className="flex gap-1">
@@ -133,10 +149,12 @@ const EntryItem = ({
 
 const DaySession = ({
   daySession,
+  knownTags,
   edit,
   remove,
 }: Readonly<{
   daySession: TimelineDaySession;
+  knownTags: ReadonlyArray<TagName>;
   edit: TimelineState["edit"];
   remove: TimelineState["remove"];
 }>) => (
@@ -149,7 +167,13 @@ const DaySession = ({
     ) : (
       <ul className="divide-y">
         {daySession.entries.map((entry) => (
-          <EntryItem key={entry.id} entry={entry} edit={edit} remove={remove} />
+          <EntryItem
+            key={entry.id}
+            entry={entry}
+            knownTags={knownTags}
+            edit={edit}
+            remove={remove}
+          />
         ))}
       </ul>
     )}
@@ -158,10 +182,12 @@ const DaySession = ({
 
 const Day = ({
   day,
+  knownTags,
   edit,
   remove,
 }: Readonly<{
   day: TimelineDay;
+  knownTags: ReadonlyArray<TagName>;
   edit: TimelineState["edit"];
   remove: TimelineState["remove"];
 }>) => (
@@ -173,7 +199,13 @@ const Day = ({
       </span>
     </h3>
     {day.sessions.map((daySession) => (
-      <DaySession key={daySession.sessionId} daySession={daySession} edit={edit} remove={remove} />
+      <DaySession
+        key={daySession.sessionId}
+        daySession={daySession}
+        knownTags={knownTags}
+        edit={edit}
+        remove={remove}
+      />
     ))}
   </section>
 );
@@ -211,7 +243,14 @@ const LoadMore = ({ loadMore, loading }: Readonly<{ loadMore: () => void; loadin
  * 画面下部のタイムライン（docs/PRODUCT.md「画面」）。新しい記入が上で、日付とセッションの区切りを挟む。
  * 組み立てはドメイン（`Timeline.build`）にあり、ここは描画と操作の受け渡しだけをする。
  */
-export const TimelinePanel = ({ timeline }: Readonly<{ timeline: TimelineState }>) => {
+export const TimelinePanel = ({
+  timeline,
+  knownTags,
+}: Readonly<{
+  timeline: TimelineState;
+  /** 使っているタグ（記入を編集するときの候補） */
+  knownTags: ReadonlyArray<TagName>;
+}>) => {
   const { view, loadingMore, edit, remove, loadMore, reload } = timeline;
 
   return (
@@ -235,7 +274,7 @@ export const TimelinePanel = ({ timeline }: Readonly<{ timeline: TimelineState }
             </p>
           )}
           {view.days.map((day) => (
-            <Day key={day.date.key} day={day} edit={edit} remove={remove} />
+            <Day key={day.date.key} day={day} knownTags={knownTags} edit={edit} remove={remove} />
           ))}
           {view.hasMore && <LoadMore loadMore={loadMore} loading={loadingMore} />}
         </>

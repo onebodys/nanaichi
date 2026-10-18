@@ -45,6 +45,8 @@ const errorResponseOf = (
       };
     case "EventIdConflict":
       return { status: 409, body: { error: "EVENT_ID_CONFLICT" } };
+    case "TagLimitExceeded":
+      return { status: 409, body: { error: "TAG_LIMIT_EXCEEDED", limit: error.limit } };
     case "JournalEntryNotFound":
       return { status: 404, body: { error: "JOURNAL_ENTRY_NOT_FOUND" } };
   }
