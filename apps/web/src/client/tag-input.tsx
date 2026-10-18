@@ -38,13 +38,11 @@ export const TagInput = ({
   known,
   attached,
   onChange,
-  disabled = false,
   label = "タグ",
 }: Readonly<{
   known: ReadonlyArray<TagName>;
   attached: ReadonlyArray<TagName>;
   onChange: (tags: ReadonlyArray<TagName>) => void;
-  disabled?: boolean;
   label?: string;
 }>) => {
   const [query, setQuery] = useState("");
@@ -68,7 +66,6 @@ export const TagInput = ({
       isItemEqualToValue={(a, b) => a.name === b.name}
       // 入力したら最初の候補を選んだ状態にし、Enter でつけられるようにする
       autoHighlight
-      disabled={disabled}
     >
       <ComboboxChips ref={anchor}>
         {attached.map((name) => (

@@ -1,7 +1,12 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { SessionId } from "../domain/session.ts";
 import type { TagName } from "../domain/tag.ts";
-import { attachedTagsOf, serializeAttachedTags } from "./attached-tags.ts";
+import {
+  attachedTagsIn,
+  attachTags,
+  parseAttachedTags,
+  serializeAttachedTags,
+} from "./attached-tags.ts";
 
 /**
  * 入力欄でつけたままのタグを、端末ごとに覚える（GLOSSARY の「タグ」、ADR 0013）。
@@ -48,32 +53,38 @@ const write = (stored: string) => {
 
 /** 同じ値を読んだら同じ配列を返す（useSyncExternalStore は読むたびに同じ値を返す必要がある） */
 let cache:
-  | Readonly<{ stored: string | null; sessionId: SessionId; tags: ReadonlyArray<TagName> }>
+  | Readonly<{
+      stored: string | null;
+      sessionId: SessionId | undefined;
+      tags: ReadonlyArray<TagName>;
+    }>
   | undefined;
-const NO_TAGS: ReadonlyArray<TagName> = [];
 
 const read = (sessionId: SessionId | undefined): ReadonlyArray<TagName> => {
-  if (sessionId === undefined) {
-    return NO_TAGS;
-  }
   const stored = readStored();
-  if (cache?.stored !== stored || cache.sessionId !== sessionId) {
-    cache = { stored, sessionId, tags: attachedTagsOf(stored, sessionId) };
+  if (cache === undefined || cache.stored !== stored || cache.sessionId !== sessionId) {
+    cache = { stored, sessionId, tags: attachedTagsIn(parseAttachedTags(stored), sessionId) };
   }
   return cache.tags;
 };
 
 /**
- * セッション `sessionId` で入力欄につけたままのタグと、それを変える関数。
- * セッションがなければ（終了したあとも）タグはついておらず、つけられない。
+ * 今のセッション `sessionId`（なければ `undefined`）で入力欄につけたままのタグと、それを変える関数。
+ *
+ * セッションの外でもつけられ、準備したタグとして次に始めるセッションに持ち越す。
+ * セッションの中で準備したタグを見たら、このセッションのタグとして覚え直し、セッションが終わったら外れるようにする。
  */
 export const useAttachedTags = (
   sessionId: SessionId | undefined,
-): readonly [ReadonlyArray<TagName>, (tags: ReadonlyArray<TagName>) => void] => [
-  useSyncExternalStore(subscribe, () => read(sessionId)),
-  (tags) => {
-    if (sessionId !== undefined) {
-      write(serializeAttachedTags({ sessionId, tags }));
+): readonly [ReadonlyArray<TagName>, (tags: ReadonlyArray<TagName>) => void] => {
+  const tags = useSyncExternalStore(subscribe, () => read(sessionId));
+
+  useEffect(() => {
+    const attached = parseAttachedTags(readStored());
+    if (sessionId !== undefined && attached.kind === "Prepared" && attached.tags.length > 0) {
+      write(serializeAttachedTags(attachTags(sessionId, attached.tags)));
     }
-  },
-];
+  }, [sessionId]);
+
+  return [tags, (next) => write(serializeAttachedTags(attachTags(sessionId, next)))];
+};

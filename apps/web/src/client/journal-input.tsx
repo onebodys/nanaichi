@@ -35,6 +35,7 @@ const submitKeyItems = SubmitKeySchema.options.map((option) => ({
  * セッションの外では書けないので、入力欄を使えなくする（サーバーも受け付けない）。
  *
  * タグの欄でつけたタグは送信しても外れず、外すかセッションが終わるまで続けて書く記入につく（GLOSSARY の「タグ」）。
+ * タグはセッションの外でもつけられ、これからやることとして準備しておくと、次に始めるセッションに持ち越す。
  * タグの欄で Enter を押しても送信しないよう、タグの欄は form の外に置く。
  */
 export const JournalInput = ({
@@ -76,12 +77,7 @@ export const JournalInput = ({
 
   return (
     <div className="flex flex-col gap-2">
-      <TagInput
-        known={knownTags}
-        attached={attachedTags}
-        onChange={setAttachedTags}
-        disabled={!inSession}
-      />
+      <TagInput known={knownTags} attached={attachedTags} onChange={setAttachedTags} />
       <form
         aria-label="ジャーナル記入"
         className="flex flex-col gap-2"

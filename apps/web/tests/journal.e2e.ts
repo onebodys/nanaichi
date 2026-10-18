@@ -202,22 +202,27 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await expect(screen.getByText("書き直した")).toHaveCount(0);
   });
 
-  test("タグの欄でつけたタグは送信しても外れず続けて書く記入にもつき、セッションを終えると外れる", async ({
+  test("セッションの前にタグを準備して始めると、そのタグは送信しても外れず続けて書く記入にもつき、セッションを終えると外れる", async ({
     app,
     browser,
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
-    await expect(input).toBeEnabled();
     const tagInput = screen.getByRole("combobox", { name: "タグ" });
+    const chip = screen.getByRole("button", { name: "#e2e読書 を外す" });
 
-    // 新しいタグは入力して Enter で作れる。前の実行で使ったタグなら候補から選ばれる
+    // セッションの外でも、これからやることとしてタグを準備できる。新しいタグは入力して Enter で作れる
+    // （前の実行で使ったタグなら候補から選ばれる）
+    await expect(input).toBeDisabled();
     await tagInput.tap();
     await tagInput.pressSequentially("#E2E読書");
     await tagInput.press("Enter");
-    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toBeVisible();
+    await expect(chip).toBeVisible();
+
+    await screen.getByRole("button", { name: "開始" }).tap();
+    await expect(input).toBeEnabled();
+    await expect(chip).toBeVisible();
 
     await input.pressSequentially("1章を読んだ");
     await input.press("Control+Enter");
@@ -236,9 +241,9 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     // 開き直しても、同じセッションのあいだはつけたまま
     await browser.reload();
-    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toBeVisible();
+    await expect(chip).toBeVisible();
 
     await screen.getByRole("button", { name: "終了" }).tap();
-    await expect(screen.getByRole("button", { name: "#e2e読書 を外す" })).toHaveCount(0);
+    await expect(chip).toHaveCount(0);
   });
 });
