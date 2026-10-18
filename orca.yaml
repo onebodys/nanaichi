@@ -2,8 +2,4 @@ scripts:
   setup: |
     vp install
     vp hooks enable
-    src="$ORCA_ROOT_PATH/apps/web/.env"
-    dest="$ORCA_WORKTREE_PATH/apps/web/.dev.vars"
-    if [ -r "$src" ] && [ ! -e "$dest" ]; then
-      (umask 077; cat "$src" > "$dest")
-    fi
+    cp $ORCA_ROOT_PATH/apps/web/.dev.vars $ORCA_WORKTREE_PATH/apps/web/.dev.vars
