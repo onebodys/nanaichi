@@ -3,6 +3,7 @@ import * as v from "valibot";
 import type { SessionId } from "../domain/session.ts";
 import type { TagName } from "../domain/tag.ts";
 import { Button } from "./components/ui/button.tsx";
+import { cn } from "./lib/utils.ts";
 import {
   Select,
   SelectContent,
@@ -37,12 +38,14 @@ const submitKeyItems = SubmitKeySchema.options.map((option) => ({
  * タグの欄でつけたタグは送信しても外れず、外すかセッションが終わるまで続けて書く記入につく（GLOSSARY の「タグ」）。
  * タグはセッションの外でもつけられ、これからやることとして準備しておくと、次に始めるセッションに持ち越す。
  * タグの欄で Enter を押しても送信しないよう、タグの欄は form の外に置く。
+ * ジャーナルのフェーズのあいだは、書く時間だとわかるよう入力欄の枠をジャーナルの色にする（Issue #34 の A 案）。
  */
 export const JournalInput = ({
   sessionId,
   knownTags,
   write,
   textareaRef,
+  inJournalPhase,
 }: Readonly<{
   /** 進行中のセッション。なければ（終了したあとも）書けない */
   sessionId: SessionId | undefined;
@@ -52,6 +55,8 @@ export const JournalInput = ({
   write: (body: string, tags: ReadonlyArray<TagName>) => Promise<boolean>;
   /** ジャーナルのフェーズに入ったときにカーソルを置くため、ホーム画面が持つ */
   textareaRef: Ref<HTMLTextAreaElement>;
+  /** ジャーナルのフェーズにいるか */
+  inJournalPhase: boolean;
 }>) => {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -76,8 +81,19 @@ export const JournalInput = ({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <TagInput known={knownTags} attached={attachedTags} onChange={setAttachedTags} />
+    <div
+      className={cn(
+        "flex flex-col gap-2.5 rounded-[14px] border bg-card px-4 py-3.5 shadow-xs transition-[border-color,box-shadow] focus-within:border-ring",
+        !inSession && "border-dashed",
+        inJournalPhase && "border-journal ring-4 ring-journal/15 focus-within:border-journal",
+      )}
+    >
+      <TagInput
+        known={knownTags}
+        attached={attachedTags}
+        onChange={setAttachedTags}
+        className="min-h-0 border-0 bg-transparent px-0 py-0 shadow-none focus-within:ring-0 has-data-[slot=combobox-chip]:px-0 dark:bg-transparent"
+      />
       <form
         aria-label="ジャーナル記入"
         className="flex flex-col gap-2"
@@ -89,11 +105,11 @@ export const JournalInput = ({
         <textarea
           ref={textareaRef}
           aria-label="ジャーナル記入の本文"
-          className="min-h-20 w-full resize-y rounded-md border bg-background px-3 py-2 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-20 w-full resize-none bg-transparent text-[15px] leading-[1.7] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
           placeholder={
             inSession
               ? `やったこと・次にやること・感想など（${submitKeyHintOf(submitKey, modifierLabel)}）`
-              : "セッション中に書けます"
+              : "セッションを始めると書けます"
           }
           value={draft}
           disabled={!inSession}
@@ -118,7 +134,7 @@ export const JournalInput = ({
             <SelectTrigger
               aria-label="送信キー"
               size="sm"
-              className="text-xs text-muted-foreground"
+              className="border-0 text-xs text-muted-foreground shadow-none dark:bg-transparent"
             >
               <SelectValue />
             </SelectTrigger>
@@ -130,7 +146,15 @@ export const JournalInput = ({
               ))}
             </SelectContent>
           </Select>
-          <Button type="submit" size="sm" disabled={!canSend}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!canSend}
+            className={cn(
+              "h-9 rounded-[10px] px-4",
+              inJournalPhase && "bg-journal text-journal-foreground hover:bg-journal/85",
+            )}
+          >
             送信
           </Button>
         </div>

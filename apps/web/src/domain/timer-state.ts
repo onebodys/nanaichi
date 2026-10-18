@@ -8,7 +8,8 @@ const MINUTE_MS = 60_000;
 const FOCUS_MS = 7 * MINUTE_MS;
 const JOURNAL_MS = 1 * MINUTE_MS;
 const BREAK_MS = 5 * MINUTE_MS;
-const SETS_PER_ROUND = 3;
+/** 休憩までのセット数（GLOSSARY の「ラウンド」） */
+export const SETS_PER_ROUND = 3;
 const ROUND_MS = SETS_PER_ROUND * (FOCUS_MS + JOURNAL_MS) + BREAK_MS;
 /** 自動終了までの、ジャーナル記入も操作もない時間（2ラウンド分 = 58分） */
 const AUTO_END_AFTER_MS = 2 * ROUND_MS;
@@ -128,7 +129,8 @@ type DeriveTimerStateError =
 // 計算の途中で持つ状態。時刻はミリ秒で扱い、返すときに Date にする
 // ---------------------------------------------------------------------------
 
-type Phase =
+/** フェーズ（GLOSSARY）。集中・ジャーナルはセットに、休憩はラウンドに属する */
+export type Phase =
   | Readonly<{ kind: "Focus"; round: number; setNumber: number }>
   | Readonly<{ kind: "Journal"; round: number; setNumber: number }>
   | Readonly<{ kind: "Break"; round: number }>;
@@ -168,7 +170,8 @@ type Activity =
   | Readonly<{ kind: "Operation"; operation: SessionOperation }>
   | Readonly<{ kind: "JournalEntry"; at: Date }>;
 
-const durationOf = (phase: Phase): number => {
+/** フェーズの長さ（ミリ秒） */
+export const phaseDurationMsOf = (phase: Phase): number => {
   switch (phase.kind) {
     case "Focus":
       return FOCUS_MS;
@@ -180,7 +183,7 @@ const durationOf = (phase: Phase): number => {
 };
 
 /** フェーズの自動的な切り替わり: 集中 → ジャーナル → … 3セット後に休憩 → 次のラウンドの集中 */
-const nextPhase = (phase: Phase): Phase => {
+export const nextPhase = (phase: Phase): Phase => {
   switch (phase.kind) {
     case "Focus":
       return { kind: "Journal", round: phase.round, setNumber: phase.setNumber };
@@ -206,7 +209,7 @@ const advanceTo = (progress: Progress, t: number): Progress => {
   if (progress.kind !== "Running") {
     return progress;
   }
-  const endsAt = progress.phaseStartedAt + durationOf(progress.phase);
+  const endsAt = progress.phaseStartedAt + phaseDurationMsOf(progress.phase);
   if (endsAt > t) {
     return progress;
   }
@@ -418,7 +421,7 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
         completedSets,
       };
     case "Running": {
-      const endsAt = progress.phaseStartedAt + durationOf(progress.phase);
+      const endsAt = progress.phaseStartedAt + phaseDurationMsOf(progress.phase);
       return inPhase(progress.phase, completedSets, endsAt - now, {
         kind: "Running",
         endsAt: new Date(endsAt),
@@ -428,7 +431,7 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
       return inPhase(
         progress.phase,
         completedSets,
-        durationOf(progress.phase) - progress.elapsedMs,
+        phaseDurationMsOf(progress.phase) - progress.elapsedMs,
         { kind: "Paused", pausedAt: new Date(progress.pausedAt) },
       );
     case "Ended":

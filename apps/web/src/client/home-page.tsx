@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertSettingsPanel } from "./alert-settings-panel.tsx";
-import { authClient } from "./auth-client.ts";
-import { Button } from "./components/ui/button.tsx";
+import { AppHeader } from "./app-header.tsx";
 import { JournalInput } from "./journal-input.tsx";
 import { createPhaseAlert } from "./phase-alert.ts";
 import { TimelinePanel } from "./timeline-panel.tsx";
@@ -17,8 +15,12 @@ const journalPhaseKeyOf = (view: TimerView): string | undefined =>
     ? `${view.state.round}:${view.state.setNumber}`
     : undefined;
 
+/**
+ * ホーム画面（docs/PRODUCT.md「画面」、Issue #34 の A 案）。
+ * PC は左にタイマー、右にジャーナル（入力欄とタイムライン）の2ペインで、右だけがスクロールする。
+ * スマホは上にタイマーのカード、その下に入力欄とタイムラインを縦に並べる。
+ */
 export const HomePage = () => {
-  const { data: session, isPending } = authClient.useSession();
   // タイマー（フェーズの切り替わりで知らせる）と設定（試しに鳴らす）で同じ音の準備を使う
   const [phaseAlert] = useState(createPhaseAlert);
   const timer = useSessionTimer(phaseAlert);
@@ -38,49 +40,34 @@ export const HomePage = () => {
     }
   }, [journalPhaseKey]);
 
-  const signOut = async () => {
-    await authClient.signOut();
-    // ログアウト後はセッションが無くなるので、ルートの beforeLoad がログイン画面へ送る
-    window.location.href = "/login";
-  };
-
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-10 px-6 py-6">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-bold tracking-tight">nanaichi</h1>
-        {isPending || session === null ? (
-          <p className="text-sm text-muted-foreground">読み込み中…</p>
-        ) : (
-          <div className="flex items-center gap-3">
-            <p className="text-sm text-muted-foreground">
-              {session.user.name} としてログインしています
-            </p>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              ログアウト
-            </Button>
-          </div>
-        )}
-      </header>
-
-      <AlertSettingsPanel phaseAlert={phaseAlert} />
-
-      <TimerPanel timer={timer} />
-
-      <div className="flex flex-col gap-2">
-        <JournalInput
-          sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
-          knownTags={tags.known}
-          write={timeline.write}
-          textareaRef={textareaRef}
+    <div className="flex min-h-dvh flex-col lg:h-dvh">
+      <AppHeader phaseAlert={phaseAlert} />
+      <div className="flex flex-1 flex-col gap-4 py-4 lg:min-h-0 lg:flex-row lg:gap-0 lg:py-0">
+        <TimerPanel
+          timer={timer}
+          className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
         />
-        {timeline.errorMessage !== undefined && (
-          <p role="alert" className="text-sm text-destructive">
-            {timeline.errorMessage}
-          </p>
-        )}
+        <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
+          <div className="flex max-w-[760px] flex-col gap-6 px-4 lg:gap-7 lg:px-12 lg:py-8">
+            <div className="flex flex-col gap-2">
+              <JournalInput
+                sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
+                knownTags={tags.known}
+                write={timeline.write}
+                textareaRef={textareaRef}
+                inJournalPhase={journalPhaseKey !== undefined}
+              />
+              {timeline.errorMessage !== undefined && (
+                <p role="alert" className="text-sm text-destructive">
+                  {timeline.errorMessage}
+                </p>
+              )}
+            </div>
+            <TimelinePanel timeline={timeline} knownTags={tags.known} />
+          </div>
+        </main>
       </div>
-
-      <TimelinePanel timeline={timeline} knownTags={tags.known} />
-    </main>
+    </div>
   );
 };

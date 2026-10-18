@@ -38,3 +38,20 @@ export const writtenDuringLabelOf = (writtenDuring: WrittenDuring): string => {
       return `${writtenDuring.round}ラウンド目・${writtenDuring.setNumber}セット目・待機`;
   }
 };
+
+/**
+ * 記入を書いたときのタイマーの状態を、タイムラインのバッジ用に短くしたもの（`2-1 ジャーナル` は
+ * 2ラウンド目・1セット目のジャーナル）。読み上げには `writtenDuringLabelOf` の長い文言を使う
+ */
+export const writtenDuringBadgeOf = (writtenDuring: WrittenDuring): string => {
+  switch (writtenDuring.kind) {
+    case "Focus":
+      return `${writtenDuring.round}-${writtenDuring.setNumber} 集中`;
+    case "Journal":
+      return `${writtenDuring.round}-${writtenDuring.setNumber} ジャーナル`;
+    case "Break":
+      return "休憩";
+    case "Idle":
+      return `${writtenDuring.round}-${writtenDuring.setNumber} 待機`;
+  }
+};
