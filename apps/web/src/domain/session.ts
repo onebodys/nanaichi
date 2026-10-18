@@ -12,10 +12,12 @@ import {
 import {
   autoEndDueAt,
   deriveCompletedSetTimes,
+  deriveSetOutcomes,
   deriveTimerState,
   TimerStateJsonSchema,
   type Ended,
   type OperationRejected,
+  type SetOutcome,
   type TimerState,
 } from "./timer-state.ts";
 
@@ -149,6 +151,17 @@ export const Session = {
     const derived = deriveCompletedSetTimes(session.events, now, session.journalEntryTimes);
     if (Result.isFailure(derived)) {
       throw new Error(`記録済みの操作イベントから完了セットを計算できない: ${derived.error.kind}`);
+    }
+    return derived.value;
+  },
+
+  /** 時刻 `now` までのセットの結末（完了セットと不成立セット）を古い順に。計算できないのは `stateAt` と同じく不変条件違反 */
+  setOutcomesAt: (session: Session, now: Date): ReadonlyArray<SetOutcome> => {
+    const derived = deriveSetOutcomes(session.events, now, session.journalEntryTimes);
+    if (Result.isFailure(derived)) {
+      throw new Error(
+        `記録済みの操作イベントからセットの結末を計算できない: ${derived.error.kind}`,
+      );
     }
     return derived.value;
   },

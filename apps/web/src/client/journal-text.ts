@@ -1,5 +1,6 @@
 import type { WrittenDuring } from "../domain/journal-entry.ts";
 import type { DayCompletedSets, LocalDate } from "../domain/timeline.ts";
+import { completedSetsAndFocusTimeOf } from "./focus-time-text.ts";
 
 /** タイムラインに出す文言。判断はせず、ドメインの値を言葉にするだけ（AGENTS.md §5） */
 
@@ -12,14 +13,19 @@ export const dateLabelOf = (date: LocalDate): string => {
   return `${date.month}月${date.day}日（${weekday}）`;
 };
 
+/** 日付の区切りに出す、その日の完了セット数と集中時間（`完了 10セット · 集中 1時間10分`） */
 export const completedSetsLabelOf = (completedSets: DayCompletedSets): string => {
   switch (completedSets.kind) {
     case "Counted":
-      return `完了セット ${completedSets.count}`;
+      return completedSetsAndFocusTimeOf(completedSets.count);
     case "NotYetCounted":
       return "完了セットは続きを読み込むと出ます";
   }
 };
+
+/** セッションの区切りの見出し（`13:05 からのセッション`）。区切りの名前にも使う */
+export const daySessionLabelOf = (startedAt: Date): string =>
+  `${timeLabelOf(startedAt)} からのセッション`;
 
 /** 端末のタイムゾーンでの時刻（`23:05`） */
 export const timeLabelOf = (at: Date): string =>

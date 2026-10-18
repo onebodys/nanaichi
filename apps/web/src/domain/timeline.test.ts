@@ -269,3 +269,41 @@ describe("ページ", () => {
     );
   });
 });
+
+describe("今日の完了セットと記入の数", () => {
+  // 23:30 に始めて 0:20 に終えたセッション。日付をまたぐ
+  const overMidnight = sessionStartedAt(0, [endAt(50)]);
+  const entries = [entryAt(overMidnight, 20, "23:50"), entryAt(overMidnight, 35, "0:05")];
+  const days = build([{ session: overMidnight, entries }], at(80));
+
+  test("今日の完了セット数は、端末のタイムゾーンで今日の日付の区切りの数", () => {
+    expect(Timeline.completedSetsOn(days, at(80), TOKYO)).toEqual({ kind: "Counted", count: 2 });
+  });
+
+  test("今日の区切りがなければ、今日の完了セットはまだない", () => {
+    expect(Timeline.completedSetsOn(days, at(60 * 24 + 80), TOKYO)).toEqual({
+      kind: "Counted",
+      count: 0,
+    });
+  });
+
+  test("進行中のセッションでセットが完了すると、その時刻から今日の完了セット数が増える", () => {
+    const running = sessionStartedAt(40);
+    const before = build([{ session: running, entries: [] }], at(46));
+    const after = build([{ session: running, entries: [] }], at(47));
+
+    expect(Timeline.completedSetsOn(before, at(46), TOKYO)).toEqual({ kind: "Counted", count: 0 });
+    expect(Timeline.completedSetsOn(after, at(47), TOKYO)).toEqual({ kind: "Counted", count: 1 });
+  });
+
+  test("セッションの区切りには、そのセッションがその日に完了したセットの数を持つ", () => {
+    expect(days.map((day) => day.sessions.map((daySession) => daySession.completedSets))).toEqual([
+      [2],
+      [3],
+    ]);
+  });
+
+  test("日付をまたいだセッションの記入の数は、すべての日付の分を足す", () => {
+    expect(Timeline.entryCountOf(days, overMidnight.id)).toBe(2);
+  });
+});

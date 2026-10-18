@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import type { SessionEvents } from "./session-event.ts";
-import { deriveCompletedSetTimes, deriveTimerState, type TimerState } from "./timer-state.ts";
+import {
+  deriveCompletedSetTimes,
+  deriveSetOutcomes,
+  deriveTimerState,
+  type TimerState,
+} from "./timer-state.ts";
 
 // セッションを始めた時刻からの経過で時刻を書く（`at(7)` は開始から7分後、`at(3, 20)` は3分20秒後）
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
@@ -490,5 +495,98 @@ describe("完了セットになった時刻", () => {
     ] as const satisfies SessionEvents;
 
     expect(completedSetTimes(events, at(40))).toHaveLength(derive(events, at(40)).completedSets);
+  });
+});
+
+describe("セットの結末", () => {
+  const setOutcomes = (
+    events: SessionEvents,
+    now: Date,
+    journalEntryTimes: ReadonlyArray<Date> = [],
+  ) => {
+    const derived = deriveSetOutcomes(events, now, journalEntryTimes);
+    if (Result.isFailure(derived)) {
+      throw new Error(`セットの結末を計算できなかった: ${derived.error.kind}`);
+    }
+    return derived.value;
+  };
+
+  test("集中を最後まで終えたセットは、集中を終えた時刻の完了セットになる", () => {
+    expect(setOutcomes(start, at(16))).toEqual([
+      { kind: "CompletedSet", round: 1, setNumber: 1, at: at(7) },
+      { kind: "CompletedSet", round: 1, setNumber: 2, at: at(15) },
+    ]);
+  });
+
+  test("集中中に中断すると不成立セットになり、集中を再開始すると同じセット番号でやり直す", () => {
+    const events = [
+      ...start,
+      { kind: "Abort", at: at(3) },
+      { kind: "RestartFocus", at: at(5) },
+    ] as const satisfies SessionEvents;
+
+    expect(setOutcomes(events, at(13))).toEqual([
+      { kind: "AbortedSet", round: 1, setNumber: 1, at: at(3) },
+      { kind: "CompletedSet", round: 1, setNumber: 1, at: at(12) },
+    ]);
+  });
+
+  test("一時停止中の集中を中断しても不成立セットになる", () => {
+    const events = [
+      ...start,
+      { kind: "Pause", at: at(2) },
+      { kind: "Abort", at: at(4) },
+    ] as const satisfies SessionEvents;
+
+    expect(setOutcomes(events, at(5))).toEqual([
+      { kind: "AbortedSet", round: 1, setNumber: 1, at: at(4) },
+    ]);
+  });
+
+  test("集中の途中で終了したセットは不成立セットになる", () => {
+    const events = [...start, { kind: "End", at: at(10) }] as const satisfies SessionEvents;
+
+    expect(setOutcomes(events, at(11))).toEqual([
+      { kind: "CompletedSet", round: 1, setNumber: 1, at: at(7) },
+      { kind: "AbortedSet", round: 1, setNumber: 2, at: at(10) },
+    ]);
+  });
+
+  test("ジャーナル中・休憩中・待機中に終了しても、不成立セットは増えない", () => {
+    const duringJournal = [
+      ...start,
+      { kind: "End", at: at(7, 30) },
+    ] as const satisfies SessionEvents;
+    const duringIdle = [
+      ...start,
+      { kind: "Abort", at: at(3) },
+      { kind: "End", at: at(4) },
+    ] as const satisfies SessionEvents;
+
+    expect(setOutcomes(duringJournal, at(8))).toEqual([
+      { kind: "CompletedSet", round: 1, setNumber: 1, at: at(7) },
+    ]);
+    expect(setOutcomes(duringIdle, at(5))).toEqual([
+      { kind: "AbortedSet", round: 1, setNumber: 1, at: at(3) },
+    ]);
+  });
+
+  test("自動終了した時刻が集中の途中なら、そのセットは不成立セットになる", () => {
+    // 最後の操作（開始）の時刻で閉じるので、1セット目の集中の途中で終了したのと同じ
+    expect(setOutcomes(start, at(120))).toEqual([
+      { kind: "AbortedSet", round: 1, setNumber: 1, at: at(0) },
+    ]);
+  });
+
+  test("完了セットの数はタイマーの状態の完了セット数と一致する", () => {
+    const events = [
+      ...start,
+      { kind: "Abort", at: at(10) },
+      { kind: "RestartFocus", at: at(11) },
+    ] as const satisfies SessionEvents;
+
+    expect(setOutcomes(events, at(40)).filter((set) => set.kind === "CompletedSet")).toHaveLength(
+      derive(events, at(40)).completedSets,
+    );
   });
 });

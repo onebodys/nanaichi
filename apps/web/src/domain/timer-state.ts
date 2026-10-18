@@ -135,24 +135,40 @@ export type Phase =
   | Readonly<{ kind: "Journal"; round: number; setNumber: number }>
   | Readonly<{ kind: "Break"; round: number }>;
 
+/**
+ * 1つのセットの結末（GLOSSARY の「完了セット」「不成立セット」）。`at` は集中を終えた時刻か、
+ * 中断・終了した時刻。セッションの中の時刻の順に並べ、セッションのまとめでセットの並びとして出す。
+ */
+export type SetOutcome =
+  | Readonly<{ kind: "CompletedSet"; round: number; setNumber: number; at: Date }>
+  | Readonly<{ kind: "AbortedSet"; round: number; setNumber: number; at: Date }>;
+
+/** 計算の途中で持つセットの結末。時刻はミリ秒 */
+type SetRecord = Readonly<{
+  kind: SetOutcome["kind"];
+  round: number;
+  setNumber: number;
+  at: number;
+}>;
+
 type Progress =
   | Readonly<{
       kind: "Idle";
       round: number;
       setNumber: number;
-      completedSetEnds: ReadonlyArray<number>;
+      sets: ReadonlyArray<SetRecord>;
     }>
   /** `phaseStartedAt` は一時停止していた時間の分だけ後ろにずらした、見かけのフェーズ開始時刻 */
   | Readonly<{
       kind: "Running";
       phase: Phase;
-      completedSetEnds: ReadonlyArray<number>;
+      sets: ReadonlyArray<SetRecord>;
       phaseStartedAt: number;
     }>
   | Readonly<{
       kind: "Paused";
       phase: Phase;
-      completedSetEnds: ReadonlyArray<number>;
+      sets: ReadonlyArray<SetRecord>;
       elapsedMs: number;
       pausedAt: number;
     }>
@@ -160,7 +176,7 @@ type Progress =
       kind: "Ended";
       endedAt: number;
       endedBy: "End" | "AutoEnd";
-      completedSetEnds: ReadonlyArray<number>;
+      sets: ReadonlyArray<SetRecord>;
     }>;
 
 type Derivation = Readonly<{ progress: Progress; lastActivityAt: number }>;
@@ -196,13 +212,35 @@ export const nextPhase = (phase: Phase): Phase => {
   }
 };
 
-/** 集中を最後まで終えたセットだけを完了セットとして数え、集中が終わった時刻を残す */
-const completedSetEndsAfter = (
+/** 集中を最後まで終えたセットを完了セットとして残す。集中のほかのフェーズが終わっても何も残さない */
+const setsAfterPhaseEnded = (
   phase: Phase,
-  completedSetEnds: ReadonlyArray<number>,
+  sets: ReadonlyArray<SetRecord>,
   endedAt: number,
-): ReadonlyArray<number> =>
-  phase.kind === "Focus" ? [...completedSetEnds, endedAt] : completedSetEnds;
+): ReadonlyArray<SetRecord> =>
+  phase.kind === "Focus"
+    ? [
+        ...sets,
+        { kind: "CompletedSet", round: phase.round, setNumber: phase.setNumber, at: endedAt },
+      ]
+    : sets;
+
+/** 集中の途中で中断・終了したセットを、不成立セットとして残す。集中の途中でなければ何も残さない */
+const setsAfterInterrupted = (progress: Progress, t: number): ReadonlyArray<SetRecord> =>
+  (progress.kind === "Running" || progress.kind === "Paused") && progress.phase.kind === "Focus"
+    ? [
+        ...progress.sets,
+        {
+          kind: "AbortedSet",
+          round: progress.phase.round,
+          setNumber: progress.phase.setNumber,
+          at: t,
+        },
+      ]
+    : progress.sets;
+
+const completedSetCountOf = (sets: ReadonlyArray<SetRecord>): number =>
+  sets.filter((set) => set.kind === "CompletedSet").length;
 
 /** 時刻 `t` までに終わったフェーズを、自動的に次のフェーズへ切り替える */
 const advanceTo = (progress: Progress, t: number): Progress => {
@@ -217,7 +255,7 @@ const advanceTo = (progress: Progress, t: number): Progress => {
     {
       kind: "Running",
       phase: nextPhase(progress.phase),
-      completedSetEnds: completedSetEndsAfter(progress.phase, progress.completedSetEnds, endsAt),
+      sets: setsAfterPhaseEnded(progress.phase, progress.sets, endsAt),
       phaseStartedAt: endsAt,
     },
     t,
@@ -238,12 +276,12 @@ const stateKindOf = (progress: Progress): TimerState["kind"] => {
 const startFocus = (
   round: number,
   setNumber: number,
-  completedSetEnds: ReadonlyArray<number>,
+  sets: ReadonlyArray<SetRecord>,
   t: number,
 ): Progress => ({
   kind: "Running",
   phase: { kind: "Focus", round, setNumber },
-  completedSetEnds,
+  sets,
   phaseStartedAt: t,
 });
 
@@ -252,7 +290,7 @@ const end = (progress: Progress, t: number, endedBy: "End" | "AutoEnd"): Progres
   kind: "Ended",
   endedAt: t,
   endedBy,
-  completedSetEnds: progress.completedSetEnds,
+  sets: setsAfterInterrupted(progress, t),
 });
 
 /** 時刻 `operation.at` まで進めた状態に、人の操作を当てはめる */
@@ -278,7 +316,7 @@ const applyOperation = (
         ? accept({
             kind: "Paused",
             phase: progress.phase,
-            completedSetEnds: progress.completedSetEnds,
+            sets: progress.sets,
             elapsedMs: t - progress.phaseStartedAt,
             pausedAt: t,
           })
@@ -288,7 +326,7 @@ const applyOperation = (
         ? accept({
             kind: "Running",
             phase: progress.phase,
-            completedSetEnds: progress.completedSetEnds,
+            sets: progress.sets,
             phaseStartedAt: t - progress.elapsedMs,
           })
         : reject();
@@ -300,18 +338,18 @@ const applyOperation = (
             kind: "Idle",
             round: progress.phase.round,
             setNumber: progress.phase.setNumber,
-            completedSetEnds: progress.completedSetEnds,
+            sets: setsAfterInterrupted(progress, t),
           })
         : reject();
     case "RestartFocus":
       return progress.kind === "Idle"
-        ? accept(startFocus(progress.round, progress.setNumber, progress.completedSetEnds, t))
+        ? accept(startFocus(progress.round, progress.setNumber, progress.sets, t))
         : reject();
     case "SkipBreak":
       // 休憩スキップは休憩中のみ（一時停止中の休憩を含む）。次のラウンドの集中がすぐ始まる
       return (progress.kind === "Running" || progress.kind === "Paused") &&
         progress.phase.kind === "Break"
-        ? accept(startFocus(progress.phase.round + 1, 1, progress.completedSetEnds, t))
+        ? accept(startFocus(progress.phase.round + 1, 1, progress.sets, t))
         : reject();
     case "End":
       return progress.kind === "Ended" ? reject() : accept(end(progress, t, "End"));
@@ -411,7 +449,7 @@ const toTimerState = (progress: Progress, now: number): TimerState => {
     }
   };
 
-  const completedSets = progress.completedSetEnds.length;
+  const completedSets = completedSetCountOf(progress.sets);
   switch (progress.kind) {
     case "Idle":
       return {
@@ -511,7 +549,25 @@ export const deriveCompletedSetTimes = (
 ): Result.Result<ReadonlyArray<Date>, DeriveTimerStateError> =>
   Result.pipe(
     progressAt(events, now, journalEntryTimes),
-    Result.map((progress) => progress.completedSetEnds.map((ms) => new Date(ms))),
+    Result.map((progress) =>
+      progress.sets.filter((set) => set.kind === "CompletedSet").map((set) => new Date(set.at)),
+    ),
+  );
+
+/**
+ * 時刻 `now` までのセットの結末（完了セットと不成立セット）を、時刻の古い順に並べたもの。
+ * セッションのまとめで、セットの並びを出すのに使う。計算は `deriveTimerState` と同じ。
+ */
+export const deriveSetOutcomes = (
+  events: SessionEvents,
+  now: Date,
+  journalEntryTimes: ReadonlyArray<Date>,
+): Result.Result<ReadonlyArray<SetOutcome>, DeriveTimerStateError> =>
+  Result.pipe(
+    progressAt(events, now, journalEntryTimes),
+    Result.map((progress) =>
+      progress.sets.map(({ at, ...set }): SetOutcome => ({ ...set, at: new Date(at) })),
+    ),
   );
 
 /**

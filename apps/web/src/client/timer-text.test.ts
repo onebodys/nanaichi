@@ -1,7 +1,13 @@
 import { describe, expect, test } from "vite-plus/test";
 import { roundProgressOf } from "../domain/round-progress.ts";
+import { timeLabelOf } from "./journal-text.ts";
 import {
+  abortedSetsNoteOf,
   countdownPartsOf,
+  currentSessionLabelOf,
+  endedMessageOf,
+  pausedForLabelOf,
+  sessionSpanLabelOf,
   idleMessageOf,
   sessionRhythmOf,
   untilBreakLabelOf,
@@ -81,5 +87,40 @@ test("中断のあとの待機では、中断したセットを集中の再開�
   expect(idleMessageOf(2)).toEqual({
     title: "2セット目を中断しました",
     body: "集中を再開始すると、2セット目の集中をはじめからやり直します",
+  });
+});
+
+describe("セッションの積み上げとまとめの表示", () => {
+  const startedAt = new Date(Date.UTC(2026, 9, 17, 4, 5, 0));
+  const later = (seconds: number) => new Date(startedAt.getTime() + seconds * 1000);
+
+  test("セッション中は、始めた時刻とこのセッションの完了セット・集中時間を出す", () => {
+    expect(currentSessionLabelOf(startedAt, 4)).toBe(
+      `このセッション ${timeLabelOf(startedAt)}〜 · 完了 4セット · 集中 28分`,
+    );
+  });
+
+  test("一時停止中は止めてからの時間を出し、1分未満は秒だけにする", () => {
+    expect(pausedForLabelOf(startedAt, later(133))).toBe("止めてから 2分13秒");
+    expect(pausedForLabelOf(startedAt, later(13))).toBe("止めてから 13秒");
+    expect(pausedForLabelOf(startedAt, later(60))).toBe("止めてから 1分00秒");
+  });
+
+  test("セッションのまとめには、始めた時刻と終わった時刻を出す", () => {
+    expect(sessionSpanLabelOf(startedAt, later(117 * 60))).toBe(
+      `${timeLabelOf(startedAt)} 〜 ${timeLabelOf(later(117 * 60))}`,
+    );
+  });
+
+  test("不成立セットがあるときだけ、点線の意味を説明する", () => {
+    expect(abortedSetsNoteOf(2)).toBe("点線は不成立セット（2セット）");
+    expect(abortedSetsNoteOf(0)).toBeUndefined();
+  });
+
+  test("自動終了したときは、記入も操作もないまま時間が過ぎたことを伝える", () => {
+    expect(endedMessageOf("End")).toBe("セッションを終了しました");
+    expect(endedMessageOf("AutoEnd")).toBe(
+      "記入も操作もないまま時間が過ぎたので、セッションを自動終了しました",
+    );
   });
 });

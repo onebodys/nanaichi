@@ -3,9 +3,11 @@ import type { JournalEntry, JournalEntryId, WrittenDuring } from "../domain/jour
 import type { TagName } from "../domain/tag.ts";
 import type { TimelineDay, TimelineDaySession } from "../domain/timeline.ts";
 import { Button } from "./components/ui/button.tsx";
+import { daySessionStatsOf } from "./focus-time-text.ts";
 import {
   completedSetsLabelOf,
   dateLabelOf,
+  daySessionLabelOf,
   timeLabelOf,
   writtenDuringBadgeOf,
   writtenDuringLabelOf,
@@ -192,28 +194,32 @@ const DaySession = ({
   knownTags: ReadonlyArray<TagName>;
   edit: TimelineState["edit"];
   remove: TimelineState["remove"];
-}>) => (
-  <section aria-label={`${timeLabelOf(daySession.startedAt)} からのセッション`}>
-    <h4 className="py-2 text-xs text-muted-foreground">
-      {timeLabelOf(daySession.startedAt)} からのセッション
-    </h4>
-    {daySession.entries.length === 0 ? (
-      <p className="border-t py-3 text-xs text-muted-foreground">記入はありません</p>
-    ) : (
-      <ul className="divide-y border-t">
-        {daySession.entries.map((entry) => (
-          <EntryItem
-            key={entry.id}
-            entry={entry}
-            knownTags={knownTags}
-            edit={edit}
-            remove={remove}
-          />
-        ))}
-      </ul>
-    )}
-  </section>
-);
+}>) => {
+  const stats = daySessionStatsOf(daySession.completedSets);
+  return (
+    <section aria-label={daySessionLabelOf(daySession.startedAt)}>
+      <h4 className="py-2 text-xs text-muted-foreground">
+        {daySessionLabelOf(daySession.startedAt)}
+        {stats !== undefined && <span> · {stats}</span>}
+      </h4>
+      {daySession.entries.length === 0 ? (
+        <p className="border-t py-3 text-xs text-muted-foreground">記入はありません</p>
+      ) : (
+        <ul className="divide-y border-t">
+          {daySession.entries.map((entry) => (
+            <EntryItem
+              key={entry.id}
+              entry={entry}
+              knownTags={knownTags}
+              edit={edit}
+              remove={remove}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+};
 
 const Day = ({
   day,
