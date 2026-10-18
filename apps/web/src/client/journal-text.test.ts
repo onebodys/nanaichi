@@ -13,8 +13,8 @@ describe("タイムラインの文言", () => {
     );
   });
 
-  test("その日の完了セット数を出し、確定していなければ続きを読み込むよう促す", () => {
-    expect(completedSetsLabelOf({ kind: "Counted", count: 6 })).toBe("完了セット 6");
+  test("その日の完了セット数と集中時間を出し、確定していなければ続きを読み込むよう促す", () => {
+    expect(completedSetsLabelOf({ kind: "Counted", count: 6 })).toBe("完了 6セット · 集中 42分");
     expect(completedSetsLabelOf({ kind: "NotYetCounted" })).toBe(
       "完了セットは続きを読み込むと出ます",
     );

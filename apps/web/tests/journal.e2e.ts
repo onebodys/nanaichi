@@ -3,6 +3,9 @@
 import { describe, test, type Browser } from "@e2e-dev/web";
 import { expect, type App, type Screen } from "e2e";
 
+/** 開始のボタン。終了したあとは「次のセッションを開始」になる */
+const START_BUTTON = /^(次のセッションを)?開始$/;
+
 /**
  * ジャーナル記入とタイムライン（Issue #6）。
  *
@@ -53,7 +56,7 @@ const chooseSubmitKey = async (screen: Screen, label: RegExp) => {
  */
 const loadUntilTodayIsCounted = async (screen: Screen) => {
   // 日付の区切りの見出しは新しい順に並ぶので、最初のものが今日
-  const today = screen.getByRole("heading", { name: /完了セット/ }).first();
+  const today = screen.getByRole("heading", { name: /完了/, level: 3 }).first();
   // 続きはボタンが画面に入ると自動でも読み込まれるので、読み込み中なら終わるのを待ってから見出しを読む
   const loaded = () => expect(screen.getByRole("button", { name: "読み込み中…" })).toBeHidden();
   await expect(today).toBeVisible();
@@ -76,7 +79,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await expect(input).toBeDisabled();
 
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(input).toBeEnabled();
 
     await screen.getByRole("button", { name: "終了" }).tap();
@@ -89,7 +92,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     await expect(input).toBeEnabled();
     // 前のテストで選び直していても、既定に戻してから確かめる
@@ -130,7 +133,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     await expect(input).toBeEnabled();
     await chooseSubmitKey(screen, /^Enter で送信$/);
@@ -155,13 +158,13 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 
-  test("ジャーナルのフェーズに入ると入力欄にカーソルが置かれ、日付の区切りに完了セット数が出る", async ({
+  test("ジャーナルのフェーズに入ると入力欄にカーソルが置かれ、日付の区切りに完了セット数と集中時間が出る", async ({
     app,
     browser,
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     // 集中中は入力欄からカーソルを外しておく
     await screen.getByRole("button", { name: "一時停止" }).focus();
@@ -171,14 +174,16 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await expect(screen.getByLabel("ジャーナル記入の本文")).toBeFocused();
     await loadUntilTodayIsCounted(screen);
-    await expect(screen.getByRole("heading", { name: /完了セット 1$/ })).toBeVisible();
+    await expect(
+      screen.getByRole("heading", { name: /完了 1セット · 集中 7分$/, level: 3 }),
+    ).toBeVisible();
 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 
   test("記入を編集・削除できる", async ({ app, browser, screen }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     const input = screen.getByLabel("ジャーナル記入の本文");
     // 開始がサーバーに受け付けられるまでは入力欄を使えない
     await expect(input).toBeEnabled();
@@ -220,7 +225,7 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await tagInput.press("Enter");
     await expect(chip).toBeVisible();
 
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(input).toBeEnabled();
     await expect(chip).toBeVisible();
 

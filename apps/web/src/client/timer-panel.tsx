@@ -8,17 +8,25 @@ import {
   type Segment,
 } from "../domain/round-progress.ts";
 import type { SessionOperation } from "../domain/session-event.ts";
-import type { Ended, TimerState } from "../domain/timer-state.ts";
+import { SessionSummary, type EntryCount } from "../domain/session-summary.ts";
+import type { Session } from "../domain/session.ts";
+import type { Ended, SetOutcome, TimerState } from "../domain/timer-state.ts";
 import { Button } from "./components/ui/button.tsx";
 import { cn } from "./lib/utils.ts";
 import { operationButtonsOf } from "./operation-layout.ts";
+import { focusTimeLabelOf } from "./focus-time-text.ts";
 import {
+  abortedSetsNoteOf,
   countdownPartsOf,
+  currentSessionLabelOf,
+  endedMessageOf,
   idleMessageOf,
   operationLabelOf,
+  pausedForLabelOf,
   phaseLabelOf,
   positionOf,
   sessionRhythmOf,
+  sessionSpanLabelOf,
   untilBreakLabelOf,
   upcomingLabelOf,
 } from "./timer-text.ts";
@@ -79,11 +87,6 @@ const primaryToneOf = (kind: SessionOperation["kind"], state: InSessionState): T
       return undefined;
   }
 };
-
-const endedMessageOf = (state: Ended): string =>
-  state.endedBy === "AutoEnd"
-    ? "記入も操作もないまま時間が過ぎたので、セッションを自動終了しました"
-    : "セッションを終了しました";
 
 const isPaused = (state: InSessionState): boolean =>
   state.kind !== "Idle" && state.clock.kind === "Paused";
@@ -273,7 +276,7 @@ const Stage = ({ children }: Readonly<{ children: ReactNode }>) => (
 // 状態ごとの描画
 // ---------------------------------------------------------------------------
 
-const InPhaseBody = ({ state }: Readonly<{ state: InPhase }>) => {
+const InPhaseBody = ({ state, now }: Readonly<{ state: InPhase; now: Date }>) => {
   const dimmed = state.clock.kind === "Paused";
   return (
     <div className="relative flex items-end justify-between lg:size-[340px] lg:flex-col lg:items-center lg:justify-center lg:gap-1">
@@ -282,7 +285,9 @@ const InPhaseBody = ({ state }: Readonly<{ state: InPhase }>) => {
       </Dial>
       <Countdown remainingSeconds={state.remainingSeconds} dimmed={dimmed} />
       <p className="relative pb-1.5 text-xs text-muted-foreground lg:pb-0 lg:text-sm">
-        {upcomingLabelOf(upcomingPhaseOf(state))}
+        {state.clock.kind === "Paused"
+          ? pausedForLabelOf(state.clock.pausedAt, now)
+          : upcomingLabelOf(upcomingPhaseOf(state))}
       </p>
     </div>
   );
@@ -300,12 +305,16 @@ const IdleBody = ({ setNumber }: Readonly<{ setNumber: number }>) => {
 };
 
 const InSession = ({
+  session,
   state,
+  now,
   operations,
   pending,
   operate,
 }: Readonly<{
+  session: Session;
   state: InSessionState;
+  now: Date;
   operations: ReadonlyArray<SessionOperation["kind"]>;
   pending: boolean;
   operate: (kind: SessionOperation["kind"]) => void;
@@ -318,14 +327,21 @@ const InSession = ({
     {state.kind === "Idle" ? (
       <IdleBody setNumber={state.setNumber} />
     ) : (
-      <InPhaseBody state={state} />
+      <InPhaseBody state={state} now={now} />
     )}
     <RoundBar progress={roundProgressOf(state)} />
     <Operations state={state} operations={operations} pending={pending} operate={operate} />
+    <p className="hidden text-sm text-muted-foreground lg:block">
+      {currentSessionLabelOf(session.events[0].at, state.completedSets)}
+    </p>
   </Stage>
 );
 
-const StartButton = ({ start, pending }: Readonly<{ start: () => void; pending: boolean }>) => (
+const StartButton = ({
+  start,
+  pending,
+  label = "開始",
+}: Readonly<{ start: () => void; pending: boolean; label?: string }>) => (
   <Button
     onClick={start}
     disabled={pending}
@@ -334,7 +350,7 @@ const StartButton = ({ start, pending }: Readonly<{ start: () => void; pending: 
       TONES.Focus.solid,
     )}
   >
-    開始
+    {label}
   </Button>
 );
 
@@ -356,32 +372,90 @@ const NoSession = ({ start, pending }: Readonly<{ start: () => void; pending: bo
   );
 };
 
+/** セットの並び。ラウンドごとに間をあけ、不成立セットは点線で出す */
+const SetSequence = ({ sets }: Readonly<{ sets: ReadonlyArray<SetOutcome> }>) => {
+  const rounds = [...new Set(sets.map((set) => set.round))];
+  return (
+    <div aria-hidden className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
+      {rounds.map((round) => (
+        <div key={round} className="flex gap-1">
+          {sets
+            .filter((set) => set.round === round)
+            .map((set, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-2 w-5.5 rounded-[3px]",
+                  set.kind === "CompletedSet"
+                    ? TONES.Focus.fill
+                    : "border-[1.5px] border-dashed border-muted-foreground",
+                )}
+              />
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const SummaryStat = ({ value, label }: Readonly<{ value: string; label: string }>) => (
+  <div className="flex flex-1 flex-col items-center gap-0.5">
+    <span className="font-mono text-xl lg:text-[26px]">{value}</span>
+    <span className="text-xs text-muted-foreground">{label}</span>
+  </div>
+);
+
 const EndedBody = ({
-  state,
+  summary,
   start,
   pending,
-}: Readonly<{ state: Ended; start: () => void; pending: boolean }>) => (
-  <Stage>
-    <div className="flex flex-col gap-1 lg:items-center lg:gap-2">
-      <p className="text-xs text-muted-foreground lg:text-sm">{endedMessageOf(state)}</p>
-      <h2 className="text-lg font-bold lg:text-2xl">おつかれさまでした</h2>
-    </div>
-    <div className="flex items-baseline gap-2 rounded-xl bg-muted px-4 py-3 lg:w-[400px] lg:flex-col lg:items-center lg:gap-1 lg:rounded-2xl lg:border lg:bg-card lg:py-6">
-      <span className="font-mono text-2xl lg:text-[34px]">{state.completedSets}</span>
-      <span className="text-sm text-muted-foreground">完了セット</span>
-    </div>
-    <StartButton start={start} pending={pending} />
-  </Stage>
-);
+}: Readonly<{ summary: SessionSummary; start: () => void; pending: boolean }>) => {
+  const abortedNote = abortedSetsNoteOf(summary.abortedSets);
+  return (
+    <Stage>
+      <div className="flex flex-col gap-1 lg:items-center lg:gap-2">
+        <p className="text-xs text-muted-foreground lg:text-sm">
+          {endedMessageOf(summary.endedBy)}
+        </p>
+        <h2 className="text-lg font-bold lg:text-2xl">おつかれさまでした</h2>
+        <p className="text-xs text-muted-foreground lg:text-sm">
+          {sessionSpanLabelOf(summary.startedAt, summary.endedAt)}
+        </p>
+      </div>
+      <section
+        aria-label="セッションのまとめ"
+        className="flex w-full flex-col gap-4 rounded-xl bg-muted px-4 py-4 lg:w-[400px] lg:gap-5 lg:rounded-2xl lg:border lg:bg-card lg:p-6"
+      >
+        <div className="flex">
+          <SummaryStat value={focusTimeLabelOf(summary.focusTimeMs)} label="集中" />
+          <SummaryStat value={String(summary.completedSets)} label="完了セット" />
+          <SummaryStat
+            value={summary.entries.kind === "Counted" ? String(summary.entries.count) : "—"}
+            label="記入"
+          />
+        </div>
+        {summary.sets.length > 0 && <SetSequence sets={summary.sets} />}
+        {abortedNote !== undefined && (
+          <p className="text-center text-xs text-muted-foreground">{abortedNote}</p>
+        )}
+      </section>
+      <StartButton start={start} pending={pending} label="次のセッションを開始" />
+    </Stage>
+  );
+};
 
 const Body = ({
   view,
+  now,
+  entries,
   pending,
   start,
   operate,
   reload,
 }: Readonly<{
   view: TimerView;
+  now: Date;
+  entries: EntryCount;
   pending: boolean;
   start: () => void;
   operate: (kind: SessionOperation["kind"]) => void;
@@ -404,11 +478,19 @@ const Body = ({
     case "NoSession":
       return <NoSession start={start} pending={pending} />;
     case "Ended":
-      return <EndedBody state={view.state} start={start} pending={pending} />;
+      return (
+        <EndedBody
+          summary={SessionSummary.of({ session: view.session, ended: view.state, now, entries })}
+          start={start}
+          pending={pending}
+        />
+      );
     case "InSession":
       return (
         <InSession
+          session={view.session}
           state={view.state}
+          now={now}
           operations={view.operations}
           pending={pending}
           operate={operate}
@@ -424,15 +506,29 @@ const Body = ({
  */
 export const TimerPanel = ({
   timer,
+  entries,
   className,
-}: Readonly<{ timer: SessionTimer; className?: string }>) => {
-  const { view, pending, errorMessage, start, operate, reload } = timer;
+}: Readonly<{
+  timer: SessionTimer;
+  /** 終了したセッションの記入の数（セッションのまとめに出す） */
+  entries: EntryCount;
+  className?: string;
+}>) => {
+  const { view, serverNow, pending, errorMessage, start, operate, reload } = timer;
   // セッション中（待機・一時停止を含む）は画面を消灯させない
   useWakeLock(view.kind === "InSession");
 
   return (
     <section aria-label="タイマー" className={cn("flex flex-col items-center gap-3", className)}>
-      <Body view={view} pending={pending} start={start} operate={operate} reload={reload} />
+      <Body
+        view={view}
+        now={serverNow}
+        entries={entries}
+        pending={pending}
+        start={start}
+        operate={operate}
+        reload={reload}
+      />
       {errorMessage !== undefined && (
         <p role="alert" className="text-sm text-destructive">
           {errorMessage}

@@ -6,6 +6,7 @@ import type { Session } from "../domain/session.ts";
 import { TAG_KINDS_MAX, type TagName } from "../domain/tag.ts";
 import {
   Timeline,
+  type DayCompletedSets,
   type TimelineCursor,
   type TimelineDay,
   type TimelineSession,
@@ -33,7 +34,13 @@ type Loading = Readonly<{ kind: "Loading" }> | Readonly<{ kind: "LoadFailed" }> 
 export type TimelineView =
   | Readonly<{ kind: "Loading" }>
   | Readonly<{ kind: "LoadFailed" }>
-  | Readonly<{ kind: "Loaded"; days: ReadonlyArray<TimelineDay>; hasMore: boolean }>;
+  | Readonly<{
+      kind: "Loaded";
+      days: ReadonlyArray<TimelineDay>;
+      hasMore: boolean;
+      /** 今日（端末のタイムゾーン）の完了セット数。ヘッダーの今日の集中時間に使う */
+      today: DayCompletedSets;
+    }>;
 
 /** 送信に失敗した記入。同じ本文とタグを送り直すときは同じ ID を使い、二重に書かないようにする（ADR 0010） */
 type FailedDraft = Readonly<{ id: JournalEntryId; body: string; tags: ReadonlyArray<TagName> }>;
@@ -172,19 +179,24 @@ export const useTimeline = (
     setErrorMessage(messageOf(error));
   };
 
-  const view: TimelineView =
-    loading.kind === "Loaded"
-      ? {
-          kind: "Loaded",
-          days: Timeline.build({
-            sessions: loading.sessions,
-            next: loading.next,
-            now: serverNow,
-            timeZone: deviceTimeZone(),
-          }),
-          hasMore: loading.next.kind === "More",
-        }
-      : loading;
+  const view = ((): TimelineView => {
+    if (loading.kind !== "Loaded") {
+      return loading;
+    }
+    const timeZone = deviceTimeZone();
+    const days = Timeline.build({
+      sessions: loading.sessions,
+      next: loading.next,
+      now: serverNow,
+      timeZone,
+    });
+    return {
+      kind: "Loaded",
+      days,
+      hasMore: loading.next.kind === "More",
+      today: Timeline.completedSetsOn(days, serverNow, timeZone),
+    };
+  })();
 
   return {
     view,

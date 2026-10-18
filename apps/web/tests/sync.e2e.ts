@@ -3,6 +3,9 @@
 import { describe, test, type Browser } from "@e2e-dev/web";
 import { expect, type App } from "e2e";
 
+/** 開始のボタン。終了したあとは「次のセッションを開始」になる */
+const START_BUTTON = /^(次のセッションを)?開始$/;
+
 /**
  * 複数タブ・複数デバイスの同期（Issue #7、ADR 0012）。
  *
@@ -76,7 +79,7 @@ describe("複数の端末の同期", { serial: true, session: "syncWatcher" }, (
     // 前の実行のセッションが残っていれば終了しておく（docs/E2E.md）
     await pc.operate("End");
     await app.open("/");
-    await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
 
     await pc.start();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
@@ -97,7 +100,7 @@ describe("複数の端末の同期", { serial: true, session: "syncWatcher" }, (
     const pc = await asOtherDevice(app, browser);
     await pc.operate("End");
     await app.open("/");
-    await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
     await pc.start();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     const id = crypto.randomUUID();
@@ -126,7 +129,7 @@ describe("複数の端末の同期", { serial: true, session: "syncWatcher" }, (
     await pc.operate("End");
     await browser.addInitScript(installDisconnectableSocket);
     await app.open("/");
-    await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
     await pc.start();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 

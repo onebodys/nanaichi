@@ -3,6 +3,9 @@
 import { describe, test, type Browser } from "@e2e-dev/web";
 import { expect, type App } from "e2e";
 
+/** 開始のボタン。終了したあとは「次のセッションを開始」になる */
+const START_BUTTON = /^(次のセッションを)?開始$/;
+
 /**
  * タイマー画面（Issue #5）。
  *
@@ -118,7 +121,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
   }) => {
     await openWithoutSession(app, browser);
 
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
 
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     await expect(screen.getByText("1ラウンド目・1セット目")).toBeVisible();
@@ -137,7 +140,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 
     const advance = (minutes: number) => advanceClock(browser, minutes);
@@ -179,7 +182,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: "音と通知の設定" }).tap();
     await screen.getByRole("checkbox", { name: "フェーズの切り替わりで音を鳴らす" }).tap();
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 
     await advanceClock(browser, 7);
@@ -201,7 +204,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: "音と通知の設定" }).tap();
     await screen.getByRole("checkbox", { name: "フェーズの切り替わりでブラウザ通知を出す" }).tap();
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     expect(await browser.evaluate(() => Notification.permission)).toBe("default");
 
@@ -220,7 +223,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     screen,
   }) => {
     await openWithoutSession(app, browser);
-    await screen.getByRole("button", { name: "開始" }).tap();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
 
     await screen.getByRole("button", { name: "一時停止" }).tap();
     await expect(screen.getByText("一時停止中")).toBeVisible();
@@ -239,7 +242,7 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
 
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(screen.getByText("セッションを終了しました")).toBeVisible();
-    await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
 
     const recorded = await recordedIn(browser);
     expect(recorded.notifications).toEqual([]);

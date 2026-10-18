@@ -1,6 +1,8 @@
 import type { SessionOperation } from "../domain/session-event.ts";
 import type { InPhase } from "../domain/phase-change.ts";
 import { setsUntilBreakOf, type RoundProgress } from "../domain/round-progress.ts";
+import { completedSetsAndFocusTimeOf } from "./focus-time-text.ts";
+import { timeLabelOf } from "./journal-text.ts";
 import {
   phaseDurationMsOf,
   SETS_PER_ROUND,
@@ -126,3 +128,30 @@ export const idleMessageOf = (setNumber: number): Readonly<{ title: string; body
   title: `${setNumber}セット目を中断しました`,
   body: `集中を再開始すると、${setNumber}セット目の集中をはじめからやり直します`,
 });
+
+/** セッション中にタイマーの下に出す、このセッションの積み上げ（`このセッション 13:05〜 · 完了 4セット · 集中 28分`） */
+export const currentSessionLabelOf = (startedAt: Date, completedSets: number): string =>
+  `このセッション ${timeLabelOf(startedAt)}〜 · ${completedSetsAndFocusTimeOf(completedSets)}`;
+
+/** 一時停止中に出す、止めてからの時間（`止めてから 2分13秒`）。1分未満は秒だけ */
+export const pausedForLabelOf = (pausedAt: Date, now: Date): string => {
+  const seconds = Math.max(0, Math.floor((now.getTime() - pausedAt.getTime()) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return minutes === 0
+    ? `止めてから ${seconds}秒`
+    : `止めてから ${minutes}分${String(seconds % 60).padStart(2, "0")}秒`;
+};
+
+/** セッションのまとめの、始めた時刻と終わった時刻（`13:05 〜 15:02`） */
+export const sessionSpanLabelOf = (startedAt: Date, endedAt: Date): string =>
+  `${timeLabelOf(startedAt)} 〜 ${timeLabelOf(endedAt)}`;
+
+/** セットの並びの点線の説明。不成立セットがなければ出さない */
+export const abortedSetsNoteOf = (abortedSets: number): string | undefined =>
+  abortedSets === 0 ? undefined : `点線は不成立セット（${abortedSets}セット）`;
+
+/** 終了の文言。自動終了なら、記入も操作もないまま時間が過ぎたことを伝える */
+export const endedMessageOf = (endedBy: Ended["endedBy"]): string =>
+  endedBy === "AutoEnd"
+    ? "記入も操作もないまま時間が過ぎたので、セッションを自動終了しました"
+    : "セッションを終了しました";

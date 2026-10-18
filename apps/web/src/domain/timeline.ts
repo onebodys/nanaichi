@@ -79,10 +79,14 @@ export type DayCompletedSets =
   | Readonly<{ kind: "Counted"; count: number }>
   | Readonly<{ kind: "NotYetCounted" }>;
 
-/** ある日付の中の、1つのセッションの区切りとその日に書いた記入（新しい順） */
+/**
+ * ある日付の中の、1つのセッションの区切りとその日に書いた記入（新しい順）。
+ * `completedSets` はそのセッションがその日に完了したセットの数（集中を終えた時刻の日付で数える）
+ */
 export type TimelineDaySession = Readonly<{
   sessionId: SessionId;
   startedAt: Date;
+  completedSets: number;
   entries: ReadonlyArray<JournalEntry>;
 }>;
 
@@ -151,18 +155,24 @@ const splitByDay = (
     ),
   );
 
-  return [...dates.values()].map((date) => ({
-    date,
-    daySession: {
-      sessionId: session.id,
-      startedAt,
-      entries: entriesWithDate
-        .filter((item) => item.date.key === date.key)
-        .map((item) => item.entry)
-        .toSorted(newestFirst((entry) => entry.writtenAt)),
-    },
-    completedSets: completedSetDates.filter((completed) => completed.key === date.key).length,
-  }));
+  return [...dates.values()].map((date) => {
+    const completedSets = completedSetDates.filter(
+      (completed) => completed.key === date.key,
+    ).length;
+    return {
+      date,
+      daySession: {
+        sessionId: session.id,
+        startedAt,
+        completedSets,
+        entries: entriesWithDate
+          .filter((item) => item.date.key === date.key)
+          .map((item) => item.entry)
+          .toSorted(newestFirst((entry) => entry.writtenAt)),
+      },
+      completedSets,
+    };
+  });
 };
 
 /** 古いセッションが残っていれば、読み込んだうちでいちばん古いセッションが始まった日 */
@@ -218,6 +228,28 @@ export const Timeline = {
       })
       .toSorted((a, b) => b.date.key.localeCompare(a.date.key));
   },
+
+  /**
+   * 時刻 `now` の日付（タイムゾーン `timeZone`）の完了セット数。ヘッダーに出す今日の集中時間のもと。
+   *
+   * 組み立てたタイムラインにその日付がなければ、その日にはまだ完了セットがない。セッションは
+   * 開始の新しい順に読み込むので、今日の完了セットを持つセッションは必ず最新のページに入っている。
+   */
+  completedSetsOn: (
+    days: ReadonlyArray<TimelineDay>,
+    now: Date,
+    timeZone: string,
+  ): DayCompletedSets => {
+    const key = localDateIn(timeZone)(now).key;
+    return days.find((day) => day.date.key === key)?.completedSets ?? { kind: "Counted", count: 0 };
+  },
+
+  /** セッションに書いた記入の数（削除したものを除く）。日付をまたいだセッションは、すべての日付の分を足す */
+  entryCountOf: (days: ReadonlyArray<TimelineDay>, sessionId: SessionId): number =>
+    days
+      .flatMap((day) => day.sessions)
+      .filter((daySession) => daySession.sessionId === sessionId)
+      .reduce((sum, daySession) => sum + daySession.entries.length, 0),
 
   /** 読み込んだ記録 `b` を `a` に重ねる。同じセッションは `b` で置き換え、開始時刻が新しい順に並べる */
   merge: (

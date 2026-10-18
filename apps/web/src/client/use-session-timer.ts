@@ -29,11 +29,12 @@ export type TimerView =
   | Readonly<{ kind: "NoSession" }>
   | Readonly<{
       kind: "InSession";
+      session: Session;
       state: Exclude<TimerState, Ended>;
       operations: ReadonlyArray<SessionOperation["kind"]>;
     }>
   /** 終了した（自動終了を含む）。次のセッションを開始できる */
-  | Readonly<{ kind: "Ended"; state: Ended }>;
+  | Readonly<{ kind: "Ended"; session: Session; state: Ended }>;
 
 /**
  * 端末の時刻 `deviceNow` のタイマーの様子。
@@ -52,9 +53,10 @@ const timerViewOf = (loading: Loading, deviceNow: Date): TimerView => {
   const serverNow = ClockOffset.serverNow(offset, deviceNow, snapshot.serverTime);
   const state = Session.stateAt(snapshot.session, serverNow);
   return state.kind === "Ended"
-    ? { kind: "Ended", state }
+    ? { kind: "Ended", session: snapshot.session, state }
     : {
         kind: "InSession",
+        session: snapshot.session,
         state,
         operations: Session.availableOperations(snapshot.session, serverNow),
       };
