@@ -1,0 +1,29 @@
+# 依存と GitHub Actions の更新を Dependabot の PR で受け取る。
+# 依存は正確なバージョンで固定し（pnpm-workspace.yaml の savePrefix）、Actions は actions.lock でコミットに固定している。
+# どちらも更新は Dependabot の PR だけで行い、CI（E2E を含む）が通ったものをマージする。
+version: 2
+updates:
+  # pnpm のワークスペース（catalog を含む）
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # 公開直後の版は入れない。pnpm 自身も公開から1日未満の版を入れない（minimumReleaseAge の既定値）
+    cooldown:
+      default-days: 3
+    groups:
+      # minor / patch はまとめて1つの PR にする。major は個別に出して、変更点を確かめてから上げる
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 10
+
+  # .github/workflows/ の Actions。onboard 済みのワークフローなら actions.lock も同じ PR で更新される
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      actions:
+        patterns: ["*"]

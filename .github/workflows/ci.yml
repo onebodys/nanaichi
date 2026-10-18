@@ -6,25 +6,64 @@ on:
   pull_request:
 
 jobs:
+  # ドキュメントだけの変更かを判定する。ドキュメントだけなら、テスト・ビルド・E2E を飛ばす。
+  # ドキュメントとみなすのは Markdown、docs/、エージェント向けの設定（.agents/、.claude/、skills-lock.json）。
+  # 判定できないとき（新しいブランチの最初の push、比較できるファイル数の上限を超えたときなど）は全部走らせる。
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          code=true
+          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
+            # compare API が返すファイルは 300 件まで。それを超えたら判定せず全部走らせる
+            if files=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq 'if (.files | length) < 300 then .files[].filename else error("too many files") end'); then
+              echo "$files"
+              if ! echo "$files" | grep -qvE '(\.md$|^docs/|^\.agents/|^\.claude/|^skills-lock\.json$)'; then
+                code=false
+                echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、vp check（書式・lint・型）だけを走らせます。"
+              fi
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   check:
+    needs: changes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "24"
           cache: true
+      # 書式（Markdown を含む）・lint・型はドキュメントだけの変更でも確かめる
       - run: vp check
-      - run: vp test
-      - run: vp run -r build
+      - if: needs.changes.outputs.code == 'true'
+        run: vp test
+      # 未使用のファイル・export・依存（AGENTS.md「7. ツールと作業の進め方」）。push 時のフックと同じ検査
+      - if: needs.changes.outputs.code == 'true'
+        run: vp exec knip
+      - if: needs.changes.outputs.code == 'true'
+        run: vp run -r build
 
   # 画面を実際のブラウザ（chromium）で動かす E2E テスト（docs/E2E.md）。
   # ローカルの D1 は毎回空から始まり、ランナーが開発サーバー（vp dev）を起動する。
   e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "24"
@@ -39,7 +78,7 @@ jobs:
       # 失敗したテストの trace（.e2e/results/<テスト>/trace.md）と開発サーバーのログ（.e2e/logs/app.log）を残す。
       # リトライで通った（flaky な）テストの trace も見られるよう、成功したときも残す
       - if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: e2e-results
           path: apps/web/.e2e/
@@ -51,7 +90,7 @@ jobs:
   # 未登録でも失敗させず（main の CI を赤くしない）、その旨をログと注釈に出す。
   deploy-secrets:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # E2E が落ちた main はデプロイしない
+    # E2E が落ちた main はデプロイしない。ドキュメントだけの変更（E2E を飛ばした）もデプロイしない
     needs: [check, e2e]
     runs-on: ubuntu-latest
     outputs:
@@ -85,7 +124,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - uses: voidzero-dev/setup-vp@v1.21.2
         with:
           node-version: "24"
