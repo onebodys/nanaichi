@@ -29,8 +29,9 @@ jobs:
         with:
           node-version: "24"
           cache: true
-      - run: pnpm --filter web exec e2e-web install chromium --with-deps
-      - run: pnpm test:e2e
+      # vite-plus 0.2 の setup-vp は pnpm を PATH に入れないので、vp から呼ぶ
+      - run: vp exec --filter web e2e-web install chromium --with-deps
+      - run: vp run web#test:e2e
       # 結果の要約を実行結果の画面に出す
       - if: always()
         run: |

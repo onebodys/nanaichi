@@ -14,8 +14,9 @@ export default {
         // vite.config.ts と同じ localhost:5173 で開く。
         url: "http://localhost:5173",
         command: {
-          executable: "pnpm",
-          args: ["exec", "vp", "dev"],
+          // CI（setup-vp）では pnpm が PATH にないため、vp を直接起動する
+          executable: "vp",
+          args: ["dev"],
           // 子プロセスには PATH などしか渡らない。`.dev.vars` がなくても認証の設定が読めるよう、
           // ダミーの値をプロセスの環境変数として Worker に渡す。Google には繋がない。
           env: {
