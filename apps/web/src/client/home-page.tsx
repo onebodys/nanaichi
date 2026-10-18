@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AlertSettingsPanel } from "./alert-settings-panel.tsx";
 import { authClient } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import { JournalInput } from "./journal-input.tsx";
+import { createPhaseAlert } from "./phase-alert.ts";
 import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
@@ -16,7 +18,9 @@ const journalPhaseKeyOf = (view: TimerView): string | undefined =>
 
 export const HomePage = () => {
   const { data: session, isPending } = authClient.useSession();
-  const timer = useSessionTimer();
+  // タイマー（フェーズの切り替わりで知らせる）と設定（試しに鳴らす）で同じ音の準備を使う
+  const [phaseAlert] = useState(createPhaseAlert);
+  const timer = useSessionTimer(phaseAlert);
   const timeline = useTimeline(timer.session, timer.serverNow, timer.refresh);
   useSync(timer, timeline);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -52,6 +56,8 @@ export const HomePage = () => {
           </div>
         )}
       </header>
+
+      <AlertSettingsPanel phaseAlert={phaseAlert} />
 
       <TimerPanel timer={timer} />
 
