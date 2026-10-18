@@ -62,7 +62,7 @@ const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
 
 /**
  * ホーム画面（docs/PRODUCT.md「画面」、Issue #34 の A 案）。
- * PC は左にタイマー、右にジャーナル（入力欄とタイムライン）の2ペインで、右だけがスクロールする。
+ * PC は左にタイマー、右にジャーナル（入力欄とタイムライン）の2ペインで、右のタイムラインだけがスクロールする（入力欄は上に固定）。
  * スマホは上にタイマーのカード、その下に入力欄とタイムラインを縦に並べる。
  */
 export const HomePage = ({
@@ -123,26 +123,33 @@ export const HomePage = ({
             entries={endedEntriesOf(timer.view, timeline.view)}
             className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
           />
-          <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
-            <div className="flex max-w-[760px] flex-col gap-6 px-4 lg:gap-7 lg:px-12 lg:py-8">
-              <div className="flex flex-col gap-2">
-                <JournalInput
-                  sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
-                  knownTags={tags.known}
-                  write={timeline.write}
-                  textareaRef={textareaRef}
-                  inJournalPhase={journalPhaseKey !== undefined}
-                />
-                {timeline.errorMessage !== undefined && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {timeline.errorMessage}
-                  </p>
-                )}
-              </div>
-              <TimelinePanel
-                timeline={withTodayCounted(timeline, todayStats)}
+          {/* PC では入力欄を上に固定し、タイムラインだけをスクロールする（Issue #72）。過去を読んでいてもすぐ書ける */}
+          <main className="flex flex-1 flex-col gap-6 lg:min-h-0 lg:gap-0">
+            <div className="flex max-w-[760px] flex-col gap-2 px-4 lg:shrink-0 lg:px-12 lg:pt-8 lg:pb-5">
+              <JournalInput
+                sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
                 knownTags={tags.known}
+                write={timeline.write}
+                textareaRef={textareaRef}
+                inJournalPhase={journalPhaseKey !== undefined}
               />
+              {timeline.errorMessage !== undefined && (
+                <p role="alert" className="text-sm text-destructive">
+                  {timeline.errorMessage}
+                </p>
+              )}
+            </div>
+            {/*
+              スクロールバーが右ペインの右端に出るよう、スクロールする領域は幅いっぱいにとる。
+              `relative` がないと、バッジの読み上げ用の文言（`sr-only` は absolute）がこの領域の外に出て、ページ全体までスクロールしてしまう
+            */}
+            <div className="relative lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:border-t">
+              <div className="max-w-[760px] px-4 lg:px-12 lg:pt-6 lg:pb-8">
+                <TimelinePanel
+                  timeline={withTodayCounted(timeline, todayStats)}
+                  knownTags={tags.known}
+                />
+              </div>
             </div>
           </main>
         </div>
