@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
+import { AdvanceMode, type AdvanceModeChange } from "./advance-mode.ts";
 import type { SessionEvents } from "./session-event.ts";
 import { phaseChangeBetween } from "./phase-change.ts";
 import { deriveTimerState, type TimerState } from "./timer-state.ts";
@@ -10,8 +11,12 @@ const at = (minutes: number, seconds = 0) =>
 
 const start = [{ kind: "Start", at: at(0) }] as const satisfies SessionEvents;
 
-const stateAt = (events: SessionEvents, now: Date): TimerState => {
-  const derived = deriveTimerState(events, now, []);
+const stateAt = (
+  events: SessionEvents,
+  now: Date,
+  advanceModeChanges: ReadonlyArray<AdvanceModeChange> = [],
+): TimerState => {
+  const derived = deriveTimerState(events, now, [], advanceModeChanges);
   if (Result.isFailure(derived)) {
     throw new Error(`状態を計算できなかった: ${derived.error.kind}`);
   }
@@ -71,5 +76,28 @@ describe("フェーズの切り替わり", () => {
 
   test("自動終了して終了になったのはフェーズの切り替わりではない", () => {
     expect(changeBetween(start, at(57), at(58))).toEqual({ kind: "Unchanged" });
+  });
+
+  describe("フェーズの進め方が手動の切り替わり", () => {
+    const manual = [
+      { at: at(0), mode: { ...AdvanceMode.default, FocusToJournal: "Manual" } },
+    ] as const;
+
+    test("時間が過ぎて切り替え待ちになったら、移る先のフェーズとして知らせる", () => {
+      expect(
+        phaseChangeBetween(stateAt(start, at(6, 59), manual), stateAt(start, at(7), manual)),
+      ).toEqual({
+        kind: "PhaseChanged",
+        to: { kind: "Journal", round: 1, setNumber: 1 },
+      });
+    });
+
+    test("切り替え待ちのまま時間が過ぎても、もう一度は知らせない", () => {
+      expect(
+        phaseChangeBetween(stateAt(start, at(8), manual), stateAt(start, at(20), manual)),
+      ).toEqual({
+        kind: "Unchanged",
+      });
+    });
   });
 });

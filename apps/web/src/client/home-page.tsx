@@ -11,6 +11,7 @@ import { statsRefreshKeyOf } from "./stats-refresh.ts";
 import { StatsScreen } from "./stats-screen.tsx";
 import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
+import { useAdvanceMode } from "./use-advance-mode.ts";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
 import { deviceTimeZone, useStats, type StatsView } from "./use-stats.ts";
 import { useSync } from "./use-sync.ts";
@@ -86,7 +87,9 @@ export const HomePage = ({
     timer.refresh();
     tags.refresh();
   });
-  useSync(timer, timeline, tags);
+  // 進め方を変えるとタイマーの状態が変わりうるので、変えたら読み込み直す（他の端末へは同期メッセージで届く）
+  const advanceMode = useAdvanceMode(timer.refresh);
+  useSync({ timer, timeline, tags, advanceMode });
   // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
   const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
   const todayStats = useStats("Today", statsRefreshKey);
@@ -145,7 +148,12 @@ export const HomePage = ({
         </div>
       </div>
       {settings.open && (
-        <SettingsScreen phaseAlert={phaseAlert} timer={timer.view} close={settings.close} />
+        <SettingsScreen
+          phaseAlert={phaseAlert}
+          advanceMode={advanceMode}
+          timer={timer.view}
+          close={settings.close}
+        />
       )}
       {stats.period !== undefined && (
         <StatsScreen

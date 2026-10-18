@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { Result } from "@praha/byethrow";
+import { AdvanceModeJsonSchema, type AdvanceMode } from "../domain/advance-mode.ts";
 import { ApiErrorBodyJsonSchema, type ApiErrorCode } from "../domain/api-error.ts";
 import { schemaResult } from "../domain/schema-result.ts";
 import type { SessionEventId, SessionOperation } from "../domain/session-event.ts";
@@ -94,7 +95,7 @@ const requestApi =
       Result.andThen(decode(schema)),
     );
 
-const sendJson = (method: "POST" | "PATCH", body: unknown): RequestInit => ({
+const sendJson = (method: "POST" | "PATCH" | "PUT", body: unknown): RequestInit => ({
   method,
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
@@ -147,6 +148,10 @@ export const createApiClient = (
    * `timeZone` は端末のタイムゾーンで、日付と時間帯はこれで区切る
    */
   getStats: (period: StatsPeriod, timeZone: string) => Result.ResultAsync<StatsReport, ApiError>;
+  /** `GET /api/settings/advance-mode`: いまのフェーズの進め方（ADR 0015） */
+  getAdvanceMode: () => Result.ResultAsync<AdvanceMode, ApiError>;
+  /** `PUT /api/settings/advance-mode`: フェーズの進め方を変える。変えたあとの進め方が返る */
+  changeAdvanceMode: (mode: AdvanceMode) => Result.ResultAsync<AdvanceMode, ApiError>;
 }> => {
   const request = requestApi(fetchApi);
   return {
@@ -177,5 +182,8 @@ export const createApiClient = (
         `/api/stats?${new URLSearchParams({ period, timeZone }).toString()}`,
         StatsReportJsonSchema,
       ),
+    getAdvanceMode: () => request("/api/settings/advance-mode", AdvanceModeJsonSchema),
+    changeAdvanceMode: (mode) =>
+      request("/api/settings/advance-mode", AdvanceModeJsonSchema, sendJson("PUT", mode)),
   };
 };

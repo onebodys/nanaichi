@@ -13,6 +13,7 @@ const session = Session.start(
   v.parse(SessionId.schema, "00000000-0000-4000-8000-000000000000"),
   v.parse(SessionEventId.schema, "00000000-0000-4000-8000-000000000001"),
   at(0),
+  [],
 );
 
 const viewAt = (minutes: number): TimerView => {

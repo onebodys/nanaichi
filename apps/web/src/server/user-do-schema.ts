@@ -72,6 +72,34 @@ const MIGRATIONS: ReadonlyArray<string> = [
   -- 候補・上限の判断と、今後の集計（タグで記入を探す）のため
   CREATE INDEX journal_entry_tags_by_name ON journal_entry_tags (name);
   `,
+  `
+  -- 操作イベントに「進める」を足す（ADR 0015）。SQLite は CHECK 制約を変えられないので作り直す。
+  -- 同じミリ秒の操作は rowid の順に並べるので、rowid も写す
+  CREATE TABLE session_events_next (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions (id),
+    kind TEXT NOT NULL CHECK (
+      kind IN ('Start', 'Pause', 'Resume', 'Abort', 'RestartFocus', 'SkipBreak', 'Advance', 'End')
+    ),
+    at INTEGER NOT NULL
+  );
+  INSERT INTO session_events_next (rowid, id, session_id, kind, at)
+    SELECT rowid, id, session_id, kind, at FROM session_events;
+  DROP TABLE session_events;
+  ALTER TABLE session_events_next RENAME TO session_events;
+  CREATE INDEX session_events_by_session ON session_events (session_id, at);
+
+  -- フェーズの進め方の変更履歴（ADR 0015）。いまの進め方は最後の行で、行がなければすべて自動。
+  -- 過去のセッションの計算に要るので消さない
+  CREATE TABLE advance_mode_changes (
+    changed_at INTEGER NOT NULL,
+    focus_to_journal TEXT NOT NULL CHECK (focus_to_journal IN ('Auto', 'Manual')),
+    journal_to_focus TEXT NOT NULL CHECK (journal_to_focus IN ('Auto', 'Manual')),
+    journal_to_break TEXT NOT NULL CHECK (journal_to_break IN ('Auto', 'Manual')),
+    break_to_focus TEXT NOT NULL CHECK (break_to_focus IN ('Auto', 'Manual'))
+  );
+  CREATE INDEX advance_mode_changes_by_time ON advance_mode_changes (changed_at);
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

@@ -13,4 +13,9 @@ export const sessionRoutes = new Hono<AppEnv>()
   .post("/session", async (c) => respond(c, await userDOOf(c).startSession(await bodyOf(c))))
   .post("/session/commands", async (c) =>
     respond(c, await userDOOf(c).operateSession(await bodyOf(c))),
+  )
+  // フェーズの進め方はセッションの計算に使うアカウントの設定なので、セッションの API と並べる（ADR 0015）
+  .get("/settings/advance-mode", async (c) => respond(c, await userDOOf(c).getAdvanceMode()))
+  .put("/settings/advance-mode", async (c) =>
+    respond(c, await userDOOf(c).changeAdvanceMode(await bodyOf(c))),
   );

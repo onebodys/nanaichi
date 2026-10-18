@@ -26,6 +26,14 @@ describe("操作ボタンの並びと目立たせ方", () => {
     ]);
   });
 
+  test("切り替え待ちでは進めるを主にし、休憩スキップもできるときは控えめにする", () => {
+    expect(operationButtonsOf(["SkipBreak", "Advance", "End"])).toEqual([
+      { kind: "Advance", emphasis: "Primary" },
+      { kind: "SkipBreak", emphasis: "Secondary" },
+      { kind: "End", emphasis: "Quiet" },
+    ]);
+  });
+
   test("中断のあとの待機では集中の再開始を主にする", () => {
     expect(operationButtonsOf(["RestartFocus", "End"])).toEqual([
       { kind: "RestartFocus", emphasis: "Primary" },

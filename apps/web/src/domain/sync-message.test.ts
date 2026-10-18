@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { AdvanceMode } from "./advance-mode.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "./journal-entry.ts";
 import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
@@ -14,6 +15,7 @@ const started = Session.start(
   v.parse(SessionId.schema, "00000000-0000-4000-8000-000000000000"),
   v.parse(SessionEventId.schema, "00000000-0000-4000-8000-000000000001"),
   at(0),
+  [],
 );
 
 const written = Result.unwrap(
@@ -60,6 +62,15 @@ describe("同期メッセージの送受信", () => {
     const message: SyncMessage = {
       kind: "JournalEntryDeleted",
       deleted: { id: written.id, deletedAt: at(4) },
+    };
+
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
+  test("フェーズの進め方を変えたら、新しい進め方を受け取れる", () => {
+    const message: SyncMessage = {
+      kind: "AdvanceModeChanged",
+      mode: { ...AdvanceMode.default, JournalToBreak: "Manual" },
     };
 
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));

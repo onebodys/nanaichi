@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { AdvanceMode } from "../domain/advance-mode.ts";
 import { SessionEventId } from "../domain/session-event.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "../domain/journal-entry.ts";
 import { Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
@@ -16,6 +17,7 @@ const started = Session.start(
   v.parse(SessionId.schema, "00000000-0000-4000-8000-000000000000"),
   v.parse(SessionEventId.schema, "00000000-0000-4000-8000-000000000001"),
   at(0),
+  [],
 );
 
 /** サーバーと同じく、本文を JSON にして返す fetch。呼ばれたパスとリクエストを記録する */
@@ -333,6 +335,33 @@ describe("スタッツ", () => {
     const { client } = respondWith(200, { ...report, period: "Year" });
 
     expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(
+      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+    );
+  });
+});
+
+describe("フェーズの進め方", () => {
+  const mode = { ...AdvanceMode.default, FocusToJournal: "Manual" } as const;
+
+  test("GET /api/settings/advance-mode を呼び、いまの進め方を返す", async () => {
+    const { client, paths } = respondWith(200, mode);
+
+    expect(await client.getAdvanceMode()).toEqual(Result.succeed(mode));
+    expect(paths).toEqual(["/api/settings/advance-mode"]);
+  });
+
+  test("変えるときは4つの切り替わりの進め方を本文に入れて PUT する", async () => {
+    const { client, paths, requests } = respondWith(200, mode);
+
+    expect(await client.changeAdvanceMode(mode)).toEqual(Result.succeed(mode));
+    expect(paths).toEqual(["/api/settings/advance-mode"]);
+    expect(requests[0]).toMatchObject({ method: "PUT", body: JSON.stringify(mode) });
+  });
+
+  test("応答の進め方が自動・手動のどちらでもなければ UnexpectedResponse を返す", async () => {
+    const { client } = respondWith(200, { ...mode, BreakToFocus: "Sometimes" });
+
+    expect(await client.getAdvanceMode()).toEqual(
       Result.fail({ kind: "UnexpectedResponse", status: 200 }),
     );
   });

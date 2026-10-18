@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { AdvanceMode } from "./advance-mode.ts";
 import {
   JournalEntry,
   JournalEntryBody,
@@ -22,7 +23,7 @@ const eventId = (n: number) =>
   v.parse(SessionEventId.schema, `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`);
 const body = (text: string) => v.parse(JournalEntryBody.schema, text);
 
-const started = Session.start(sessionId, eventId(0), at(0));
+const started = Session.start(sessionId, eventId(0), at(0), []);
 
 /** 開始から `now` までの操作を加えたセッションで、時刻 `now` に書く */
 const writeAt = (now: Date, session: Session = started) =>
@@ -60,6 +61,17 @@ describe("ジャーナル記入の紐付き", () => {
     };
 
     expect(writtenDuringAt(at(11), aborted)).toEqual({ kind: "Idle", round: 1, setNumber: 2 });
+  });
+
+  test("切り替え待ちの間に書くと、時間が過ぎて終わったフェーズに紐付く", () => {
+    const manual: Session = {
+      ...started,
+      advanceModeChanges: [
+        { at: at(0), mode: { ...AdvanceMode.default, FocusToJournal: "Manual" } },
+      ],
+    };
+
+    expect(writtenDuringAt(at(9), manual)).toEqual({ kind: "Focus", round: 1, setNumber: 1 });
   });
 
   test("終了したセッションには書けない", () => {

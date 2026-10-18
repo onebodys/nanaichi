@@ -10,13 +10,21 @@ import {
 import type { SessionOperation } from "../domain/session-event.ts";
 import { SessionSummary, type EntryCount } from "../domain/session-summary.ts";
 import type { Session } from "../domain/session.ts";
-import type { Ended, SetOutcome, TimerState } from "../domain/timer-state.ts";
+import {
+  nextPhase,
+  type Ended,
+  type Phase,
+  type SetOutcome,
+  type TimerState,
+} from "../domain/timer-state.ts";
 import { Button } from "./components/ui/button.tsx";
 import { cn } from "./lib/utils.ts";
 import { operationButtonsOf } from "./operation-layout.ts";
 import { focusTimeLabelOf } from "./focus-time-text.ts";
 import {
   abortedSetsNoteOf,
+  advanceLabelOf,
+  awaitingLabelOf,
   countdownPartsOf,
   currentSessionLabelOf,
   endedMessageOf,
@@ -34,6 +42,7 @@ import type { SessionTimer, TimerView } from "./use-session-timer.ts";
 import { useWakeLock } from "./wake-lock.ts";
 
 type InSessionState = Exclude<TimerState, Ended>;
+type AwaitingAdvance = Extract<TimerState, Readonly<{ kind: "AwaitingAdvance" }>>;
 
 /** フェーズの色（index.css のトークン）。Tailwind が拾えるよう、クラス名は省略せずに書く */
 type Tone = Readonly<{ text: string; soft: string; fill: string; stroke: string; solid: string }>;
@@ -67,11 +76,15 @@ const TONES = {
     stroke: "stroke-muted-foreground",
     solid: "bg-primary text-primary-foreground hover:bg-primary/85",
   },
-} as const satisfies Record<InSessionState["kind"], Tone>;
+} as const satisfies Record<Phase["kind"] | "Idle", Tone>;
+
+/** 状態の色。切り替え待ちは、これから始まるフェーズの色 */
+const toneOf = (state: InSessionState): Tone =>
+  state.kind === "AwaitingAdvance" ? TONES[nextPhase(state.finished).kind] : TONES[state.kind];
 
 /**
- * 主な操作のボタンの色。集中の再開始は集中、休憩スキップは休憩の色、それ以外（再開）はいまのフェーズの色。
- * 一時停止を主にするときは色をつけない（`undefined`）
+ * 主な操作のボタンの色。集中の再開始は集中、休憩スキップは休憩の色、それ以外（再開・進める）は
+ * いまのフェーズ（切り替え待ちなら、これから始まるフェーズ）の色。一時停止を主にするときは色をつけない（`undefined`）
  */
 const primaryToneOf = (kind: SessionOperation["kind"], state: InSessionState): Tone | undefined => {
   switch (kind) {
@@ -80,7 +93,8 @@ const primaryToneOf = (kind: SessionOperation["kind"], state: InSessionState): T
     case "SkipBreak":
       return TONES.Break;
     case "Resume":
-      return TONES[state.kind];
+    case "Advance":
+      return toneOf(state);
     case "Pause":
     case "Abort":
     case "End":
@@ -89,7 +103,13 @@ const primaryToneOf = (kind: SessionOperation["kind"], state: InSessionState): T
 };
 
 const isPaused = (state: InSessionState): boolean =>
-  state.kind !== "Idle" && state.clock.kind === "Paused";
+  state.kind !== "Idle" && state.kind !== "AwaitingAdvance" && state.clock.kind === "Paused";
+
+/** 操作ボタンの文言。進めるは、何が始まるかで言う */
+const operationButtonLabelOf = (kind: SessionOperation["kind"], state: InSessionState): string =>
+  kind === "Advance" && state.kind === "AwaitingAdvance"
+    ? advanceLabelOf(nextPhase(state.finished))
+    : operationLabelOf(kind);
 
 // ---------------------------------------------------------------------------
 // 部品
@@ -209,8 +229,9 @@ const RoundBar = ({ progress }: Readonly<{ progress: RoundProgress }>) => {
 };
 
 const PhasePill = ({ state }: Readonly<{ state: InSessionState }>) => {
-  const tone = TONES[state.kind];
-  const paused = isPaused(state);
+  const tone = toneOf(state);
+  // 一時停止中と切り替え待ちは、止まっていることを中抜きの点で示す
+  const paused = isPaused(state) || state.kind === "AwaitingAdvance";
   return (
     <div
       className={cn(
@@ -224,7 +245,7 @@ const PhasePill = ({ state }: Readonly<{ state: InSessionState }>) => {
         className={cn("size-2 rounded-full", paused ? "border-2 border-current" : tone.fill)}
       />
       <h2>{phaseLabelOf(state)}</h2>
-      {paused && (
+      {isPaused(state) && (
         <>
           <span aria-hidden>·</span>
           <span>一時停止中</span>
@@ -259,7 +280,7 @@ const Operations = ({
           emphasis === "Quiet" && "px-3 text-muted-foreground",
         )}
       >
-        {operationLabelOf(kind)}
+        {operationButtonLabelOf(kind, state)}
       </Button>
     ))}
   </div>
@@ -292,6 +313,19 @@ const InPhaseBody = ({ state, now }: Readonly<{ state: InPhase; now: Date }>) =>
     </div>
   );
 };
+
+/** 切り替え待ち。0:00 で止まり、何が終わってどれだけ待っているかを出す。円はこれから始まるフェーズの色で満たす */
+const AwaitingBody = ({ state, now }: Readonly<{ state: AwaitingAdvance; now: Date }>) => (
+  <div className="relative flex items-end justify-between lg:size-[340px] lg:flex-col lg:items-center lg:justify-center lg:gap-1">
+    <Dial>
+      <RemainingArc ratio={1} tone={toneOf(state)} dimmed />
+    </Dial>
+    <Countdown remainingSeconds={0} dimmed={false} />
+    <p className="relative pb-1.5 text-xs text-muted-foreground lg:pb-0 lg:text-sm">
+      {awaitingLabelOf(state.finished, state.since, now)}
+    </p>
+  </div>
+);
 
 const IdleBody = ({ setNumber }: Readonly<{ setNumber: number }>) => {
   const { title, body } = idleMessageOf(setNumber);
@@ -326,6 +360,8 @@ const InSession = ({
     </div>
     {state.kind === "Idle" ? (
       <IdleBody setNumber={state.setNumber} />
+    ) : state.kind === "AwaitingAdvance" ? (
+      <AwaitingBody state={state} now={now} />
     ) : (
       <InPhaseBody state={state} now={now} />
     )}
