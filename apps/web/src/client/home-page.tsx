@@ -43,7 +43,8 @@ export const HomePage = () => {
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
       <AppHeader phaseAlert={phaseAlert} />
-      <div className="flex flex-1 flex-col gap-4 py-4 lg:min-h-0 lg:flex-row lg:gap-0 lg:py-0">
+      {/* 4K のような広い画面でも左に寄らないよう、2ペインの幅を抑えて中央に置く。十分に広い画面では左右に線を引いて区切る */}
+      <div className="flex flex-1 flex-col gap-4 py-4 lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[1400px] lg:flex-row lg:gap-0 lg:py-0 min-[1600px]:border-x">
         <TimerPanel
           timer={timer}
           className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"

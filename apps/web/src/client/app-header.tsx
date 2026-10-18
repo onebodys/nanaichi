@@ -48,19 +48,22 @@ const AccountMenu = () => {
  * 「7·1」は集中7分とジャーナル1分のマーク。
  */
 export const AppHeader = ({ phaseAlert }: Readonly<{ phaseAlert: PhaseAlert }>) => (
-  <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-card px-4 lg:h-16 lg:px-8">
-    <div className="flex items-center gap-2.5">
-      <span
-        aria-hidden
-        className="flex size-7 items-center justify-center rounded-lg bg-primary font-mono text-xs font-medium text-primary-foreground"
-      >
-        7·1
-      </span>
-      <h1 className="text-lg font-bold tracking-tight">nanaichi</h1>
-    </div>
-    <div className="flex items-center gap-2 lg:gap-3">
-      <AlertSettingsPanel phaseAlert={phaseAlert} />
-      <AccountMenu />
+  <header className="shrink-0 border-b bg-card">
+    {/* 広い画面では中身をタイマーとジャーナルの2ペインと同じ幅にそろえる（home-page.tsx） */}
+    <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 lg:h-16 lg:px-8">
+      <div className="flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className="flex size-7 items-center justify-center rounded-lg bg-primary font-mono text-xs font-medium text-primary-foreground"
+        >
+          7·1
+        </span>
+        <h1 className="text-lg font-bold tracking-tight">nanaichi</h1>
+      </div>
+      <div className="flex items-center gap-2 lg:gap-3">
+        <AlertSettingsPanel phaseAlert={phaseAlert} />
+        <AccountMenu />
+      </div>
     </div>
   </header>
 );
