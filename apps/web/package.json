@@ -22,8 +22,8 @@
     "clsx": "catalog:",
     "hono": "catalog:",
     "lucide-react": "catalog:",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tailwind-merge": "catalog:",
     "valibot": "catalog:"
   },
