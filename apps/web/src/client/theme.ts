@@ -50,6 +50,18 @@ const read = (): ThemePreference => {
   }
 };
 
+/**
+ * ブラウザの枠やステータスバーの色（`<meta name="theme-color">`、index.html）を、ヘッダーの背景（`--card`）にそろえる。
+ * ホーム画面に追加して開いたときに、画面の上端がヘッダーと続いて見えるようにする
+ */
+const paintThemeColor = () => {
+  const card = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (card !== "" && meta !== null) {
+    meta.setAttribute("content", card);
+  }
+};
+
 /** 好みに合わせて明るさを当て、端末の設定が変わったら当て直す。戻り値で追うのをやめる */
 const followTheme = (preference: ThemePreference): (() => void) => {
   const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -58,6 +70,7 @@ const followTheme = (preference: ThemePreference): (() => void) => {
       "dark",
       resolveTheme(preference, media.matches) === "Dark",
     );
+    paintThemeColor();
   };
   apply();
   media.addEventListener("change", apply);
