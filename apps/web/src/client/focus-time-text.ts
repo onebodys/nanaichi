@@ -14,12 +14,6 @@ export const focusTimeLabelOf = (ms: number): string => {
   return hours === 0 ? `${minutes}分` : `${hours}時間${minutes}分`;
 };
 
-/** スマホのヘッダーに出す短い集中時間（`1:10`） */
-export const focusTimeShortLabelOf = (ms: number): string => {
-  const { hours, minutes } = hoursAndMinutesOf(ms);
-  return `${hours}:${String(minutes).padStart(2, "0")}`;
-};
-
 /** 完了セットの数と、その集中時間（`完了 4セット · 集中 28分`） */
 export const completedSetsAndFocusTimeOf = (completedSets: number): string =>
   `完了 ${completedSets}セット · 集中 ${focusTimeLabelOf(FocusTime.ofCompletedSets(completedSets))}`;
@@ -29,16 +23,13 @@ export type TodayFocus = DayCompletedSets | Readonly<{ kind: "Loading" }>;
 
 export const todayFocusOf = (
   today: TodayFocus,
-):
-  | Readonly<{ kind: "Counted"; long: string; short: string; sets: string }>
-  | Readonly<{ kind: "Unknown" }> => {
+): Readonly<{ kind: "Counted"; label: string; sets: string }> | Readonly<{ kind: "Unknown" }> => {
   switch (today.kind) {
     case "Counted": {
       const ms = FocusTime.ofCompletedSets(today.count);
       return {
         kind: "Counted",
-        long: focusTimeLabelOf(ms),
-        short: focusTimeShortLabelOf(ms),
+        label: focusTimeLabelOf(ms),
         sets: `${today.count}セット`,
       };
     }

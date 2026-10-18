@@ -46,7 +46,7 @@ const AccountMenu = () => {
 
 /**
  * 今日の集中時間（GLOSSARY の「集中時間」）。続けるはげみにするため、いつも見える場所に出す。
- * PC は集中時間とセット数、スマホは短く `今日 1:24` にする。数が確定するまでは「—」
+ * PC は集中時間とセット数、スマホは短く `今日 1時間24分` にする（`1:24` は時刻と見分けにくい）。数が確定するまでは「—」
  */
 const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
   const focus = todayFocusOf(today);
@@ -56,11 +56,11 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
   return (
     <p className="text-xs text-muted-foreground">
       <span className="flex items-baseline gap-1.5 lg:hidden">
-        今日 {value(focus.kind === "Counted" ? focus.short : "—")}
+        今日 {value(focus.kind === "Counted" ? focus.label : "—")}
       </span>
       <span className="hidden items-baseline gap-2 rounded-full bg-muted px-3.5 py-2 lg:flex">
         今日の集中
-        <span className="text-[15px]">{value(focus.kind === "Counted" ? focus.long : "—")}</span>
+        <span className="text-[15px]">{value(focus.kind === "Counted" ? focus.label : "—")}</span>
         {focus.kind === "Counted" && <span>{focus.sets}</span>}
       </span>
     </p>

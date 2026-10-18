@@ -3,7 +3,6 @@ import {
   completedSetsAndFocusTimeOf,
   daySessionStatsOf,
   focusTimeLabelOf,
-  focusTimeShortLabelOf,
   todayFocusOf,
 } from "./focus-time-text.ts";
 
@@ -17,11 +16,6 @@ describe("集中時間の表示", () => {
     [70, "1時間10分"],
   ])("%i分の集中時間は「%s」", (n, label) => {
     expect(focusTimeLabelOf(minutes(n))).toBe(label);
-  });
-
-  test("スマホのヘッダーでは時間と分を「:」でつなぐ", () => {
-    expect(focusTimeShortLabelOf(minutes(84))).toBe("1:24");
-    expect(focusTimeShortLabelOf(minutes(7))).toBe("0:07");
   });
 
   test("完了セットの数に、その集中時間（1セット7分）を添える", () => {
@@ -39,8 +33,7 @@ describe("今日の集中時間", () => {
   test("今日の完了セット数から、集中時間とセット数を出す", () => {
     expect(todayFocusOf({ kind: "Counted", count: 12 })).toEqual({
       kind: "Counted",
-      long: "1時間24分",
-      short: "1:24",
+      label: "1時間24分",
       sets: "12セット",
     });
   });
