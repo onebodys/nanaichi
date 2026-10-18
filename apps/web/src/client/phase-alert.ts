@@ -17,6 +17,8 @@ export type PhaseAlert = Readonly<{
   /** 設定画面で音量を確かめるために鳴らす。人の操作の中で呼ぶ */
   preview: (volume: Volume) => void;
   alert: (to: InPhase) => void;
+  /** 今の音の状態。まだ画面に触れておらず音を鳴らせなければ `Locked`（知らせた記録に残す、alert-log.ts） */
+  soundState: () => AudioContextState | "Locked";
 }>;
 
 /** ブラウザ通知の許可の状態。通知のないブラウザでは `unsupported` */
@@ -165,5 +167,6 @@ export const createPhaseAlert = (): PhaseAlert => {
         showNotification(to);
       }
     },
+    soundState: () => audio?.state ?? "Locked",
   };
 };

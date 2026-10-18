@@ -7,7 +7,9 @@ import { SessionEventId, type SessionOperation } from "../domain/session-event.t
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import { createApiClient, type ApiError } from "./api.ts";
+import { latenessSeconds, recordAlert } from "./alert-log.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
+import { startTicker } from "./ticker.ts";
 
 /** カウントダウンを描き直す間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで */
 const TICK_MS = 250;
@@ -162,10 +164,8 @@ export const useSessionTimer = (
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const timer = setInterval(() => setDeviceNow(readDeviceClock()), TICK_MS);
-    return () => clearInterval(timer);
-  }, []);
+  // 隠れたタブでも遅れずに切り替わりに気づけるよう、Worker で刻む（ticker.ts、Issue #45）
+  useEffect(() => startTicker(TICK_MS, () => setDeviceNow(readDeviceClock())), []);
 
   // ページを開き直したあとは、最初に画面に触れたときに音を鳴らせるようにする（ブラウザの制約）
   useEffect(() => {
@@ -185,6 +185,10 @@ export const useSessionTimer = (
   const previous = useRef<Readonly<{ snapshot: SessionSnapshot; state: TimerState }>>(undefined);
   const received = loading.kind === "Loaded" ? loading.received : undefined;
   const state = view.kind === "InSession" || view.kind === "Ended" ? view.state : undefined;
+  const serverNow =
+    received === undefined
+      ? deviceNow
+      : ClockOffset.serverNow(received.offset, deviceNow, received.snapshot.serverTime);
   useEffect(() => {
     if (received === undefined || state === undefined) {
       previous.current = undefined;
@@ -194,11 +198,18 @@ export const useSessionTimer = (
     if (last !== undefined && last.snapshot === received.snapshot) {
       const change = phaseChangeBetween(last.state, state);
       if (change.kind === "PhaseChanged") {
+        recordAlert({
+          at: deviceNow.toISOString(),
+          to: change.to.kind,
+          lateSeconds: latenessSeconds(last.state, serverNow),
+          visibility: document.visibilityState,
+          sound: phaseAlert.soundState(),
+        });
         phaseAlert.alert(change.to);
       }
     }
     previous.current = { snapshot: received.snapshot, state };
-  }, [received, state, phaseAlert]);
+  }, [received, state, phaseAlert, deviceNow, serverNow]);
 
   const send = async (call: () => Result.ResultAsync<SessionSnapshot, ApiError>) => {
     setPending(true);
@@ -222,10 +233,7 @@ export const useSessionTimer = (
   return {
     view,
     session: snapshot?.kind === "Session" ? snapshot.session : undefined,
-    serverNow:
-      received === undefined
-        ? deviceNow
-        : ClockOffset.serverNow(received.offset, deviceNow, received.snapshot.serverTime),
+    serverNow,
     pending,
     errorMessage,
     start: () => {
