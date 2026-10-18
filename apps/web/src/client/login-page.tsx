@@ -53,6 +53,43 @@ export const LoginPage = ({ error }: LoginPageProps) => {
           </p>
         )}
       </div>
+
+      {import.meta.env.DEV && <TestSignInForm />}
     </main>
   );
 };
+
+/**
+ * テスト用のログイン（`/api/test/sign-in`、ADR 0008）の入口。開発サーバー（`vp dev`）でだけ描画し、
+ * 本番のビルドには入らない。
+ *
+ * portless の `*.localhost` は Google のリダイレクト URI に登録できず Google のログインが通らないので、
+ * 人間はここから許可リストのメールアドレスでログインする。サーバー側で `TEST_SIGN_IN=enabled` が
+ * なければ 404 になる。
+ */
+const TestSignInForm = () => (
+  <form
+    action="/api/test/sign-in"
+    method="get"
+    className="flex w-full max-w-xs flex-col gap-2 rounded-lg border border-dashed border-neutral-300 p-3"
+  >
+    <label htmlFor="test-sign-in-email" className="text-xs text-neutral-500">
+      開発用ログインのメールアドレス（Google を通さない。許可リストに載せたもの）
+    </label>
+    <div className="flex gap-2">
+      <input
+        id="test-sign-in-email"
+        name="email"
+        type="email"
+        required
+        className="min-w-0 flex-1 rounded-md border border-neutral-300 px-2 py-1 text-sm"
+      />
+      <button
+        type="submit"
+        className="rounded-md border border-neutral-300 px-3 py-1 text-sm transition hover:bg-neutral-50"
+      >
+        開発用ログイン
+      </button>
+    </div>
+  </form>
+);

@@ -66,10 +66,30 @@ test("ログインするとホームが表示される", { session: "signedIn" }
 `GET /api/test/sign-in?email=<メールアドレス>` を開くと、Google を通さずにそのユーザーでログインし、
 cookie を付けてホーム（`/`）へ戻る。ユーザーがいなければ作る。
 
-- 開くのは、バインディング `TEST_SIGN_IN=enabled` があり、かつ `localhost:5173` / `127.0.0.1:5173` へのリクエストのときだけ。
+- 開くのは、バインディング `TEST_SIGN_IN=enabled` があり、かつ `localhost:5173` / `127.0.0.1:5173` か portless の `*.localhost` へのリクエストのときだけ。
   それ以外（本番を含む）では 404 になる。`TEST_SIGN_IN` は `wrangler.jsonc` にも `wrangler secret` にも登録しない。
 - 許可リスト（`ALLOWED_EMAILS`）に載っていないメールアドレスでは 403 になり、ログインしない。
 - E2E では `e2e.config.ts` が `TEST_SIGN_IN=enabled` を渡す。手元の `pnpm dev` では `.dev.vars` に書く（`.dev.vars.example` に入っている）。
+
+- 開発サーバーで開いたログイン画面には、Google のボタンの下に「開発用ログイン」のフォームが出る。メールアドレスを入れると
+  このテスト用のログインを開く。本番のビルドには入らない。
+
+## worktree ごとに開発サーバーを立てる（portless）
+
+worktree ごとに `pnpm dev` を立てると 5173 がぶつかる。[portless](https://portless.sh/) を使うと、worktree（ブランチ）ごとに
+名前のついた URL で開ける（Issue #43）。portless はプロジェクトの依存に入れず、グローバルに入れる（`npm install -g portless`）。
+
+```bash
+pnpm dev:portless    # → http://<ブランチ名>.nanaichi.localhost:1355
+```
+
+- URL は起動時に表示される。`portless list` でも見られる。portless が割り振った `PORT` / `HOST` で Vite が待ち受ける（`vite.config.ts`）。
+- このホストでは Google のログインは通らない（リダイレクト URI に登録できない）。ログイン画面の「開発用ログイン」を使う。
+  そのため `.dev.vars` に `TEST_SIGN_IN=enabled` と、ログインするメールアドレスを入れた `ALLOWED_EMAILS` が要る。
+- 新しい worktree ではローカルの D1 が空なので、先に `pnpm cf d1 migrations apply nanaichi --local` を当てる。
+- portless の `--tld` で `.localhost` 以外にすると、認証がホストを受け付けない（`src/server/base-url.ts`）。
+- 本物の Google ログインを確かめるときは、portless を使わずに `pnpm dev`（`localhost:5173`）で起動する。
+- E2E は今までどおり `localhost:5173` で走る。
 
 ## ワーカーが画面を確かめる
 
