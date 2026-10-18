@@ -1,11 +1,28 @@
 import { useState, type Ref } from "react";
+import * as v from "valibot";
 import { Button } from "./components/ui/button.tsx";
-import { isSubmitKey } from "./submit-key.ts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select.tsx";
+import {
+  isSubmitKey,
+  modifierLabelOf,
+  SubmitKeySchema,
+  submitKeyHintOf,
+  submitKeyLabelOf,
+} from "./submit-key.ts";
+import { useSubmitKey } from "./use-submit-key.ts";
+
+const modifierLabel = modifierLabelOf(navigator.userAgent);
 
 /**
  * ジャーナル記入の入力欄（docs/PRODUCT.md「画面」の中央）。
  *
- * Enter で送信、Shift+Enter で改行。送信すると空になり、続けて書ける。
+ * 送るキーは送信キー（GLOSSARY.md）で選べ、送信ボタンの隣で切り替える。送信すると空になり、続けて書ける。
  * セッションの外では書けないので、入力欄を使えなくする（サーバーも受け付けない）。
  */
 export const JournalInput = ({
@@ -21,6 +38,7 @@ export const JournalInput = ({
 }>) => {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [submitKey, setSubmitKey] = useSubmitKey();
   const canSend = inSession && !sending && draft.trim().length > 0;
 
   const submit = async () => {
@@ -53,20 +71,38 @@ export const JournalInput = ({
         className="min-h-20 w-full resize-y rounded-md border bg-background px-3 py-2 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
         placeholder={
           inSession
-            ? "やったこと・次にやること・感想など（Enter で送信、Shift+Enter で改行）"
+            ? `やったこと・次にやること・感想など（${submitKeyHintOf(submitKey, modifierLabel)}）`
             : "セッション中に書けます"
         }
         value={draft}
         disabled={!inSession}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (isSubmitKey(event)) {
+          if (isSubmitKey(submitKey, event)) {
             event.preventDefault();
             void submit();
           }
         }}
       />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <Select
+          value={submitKey}
+          onValueChange={(value) => {
+            const parsed = v.safeParse(SubmitKeySchema, value);
+            if (parsed.success) setSubmitKey(parsed.output);
+          }}
+        >
+          <SelectTrigger aria-label="送信キー" size="sm" className="text-xs text-muted-foreground">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SubmitKeySchema.options.map((option) => (
+              <SelectItem key={option} value={option} className="text-xs">
+                {submitKeyLabelOf(option, modifierLabel)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button type="submit" size="sm" disabled={!canSend}>
           送信
         </Button>
