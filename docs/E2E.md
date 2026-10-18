@@ -77,12 +77,16 @@ cookie を付けてホーム（`/`）へ戻る。ユーザーがいなければ�
 ## worktree ごとに開発サーバーを立てる（portless）
 
 worktree ごとに `pnpm dev` を立てると 5173 がぶつかる。[portless](https://portless.sh/) を使うと、worktree（ブランチ）ごとに
-名前のついた URL で開ける（Issue #43）。portless はプロジェクトの依存に入れず、グローバルに入れる（`npm install -g portless`）。
+名前のついた URL で開ける（Issue #43）。portless はプロジェクトの依存に入れず、グローバルに入れる。
 
 ```bash
-pnpm dev:portless    # → http://<ブランチ名>.nanaichi.localhost:1355
+mise use -g npm:portless                     # 初回だけ。mise なら Node のバージョンに関わらず使える
+portless proxy start --port 1355 --https     # proxy を常駐させる（sudo なし。マシンの再起動後はもう一度）
+pnpm dev:portless                            # → https://<ブランチ名>.nanaichi.localhost:1355
 ```
 
+- `pnpm dev:portless` は TTY がないので、proxy が止まっていると sudo を聞けずに落ちる。先に proxy を起動しておく。
+  初回はローカルの CA を信頼するか聞かれることがある。443 番（`sudo portless proxy start --https`）でもよいが、proxy が root で常駐する。
 - URL は起動時に表示される。`portless list` でも見られる。portless が割り振った `PORT` / `HOST` で Vite が待ち受ける（`vite.config.ts`）。
 - このホストでは Google のログインは通らない（リダイレクト URI に登録できない）。ログイン画面の「開発用ログイン」を使う。
   そのため `.dev.vars` に `TEST_SIGN_IN=enabled` と、ログインするメールアドレスを入れた `ALLOWED_EMAILS` が要る。
