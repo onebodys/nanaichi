@@ -18,12 +18,41 @@ jobs:
       - run: vp test
       - run: vp run -r build
 
+  # 画面を実際のブラウザ（chromium）で動かす E2E テスト（docs/E2E.md）。
+  # ローカルの D1 は毎回空から始まり、ランナーが開発サーバー（vp dev）を起動する。
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: voidzero-dev/setup-vp@v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+      # vite-plus 0.2 の setup-vp は pnpm を PATH に入れないので、vp から呼ぶ
+      - run: vp exec --filter web e2e-web install chromium --with-deps
+      - run: vp run web#test:e2e
+      # 結果の要約を実行結果の画面に出す
+      - if: always()
+        run: |
+          if [ -f apps/web/.e2e/summary.md ]; then cat apps/web/.e2e/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
+      # 失敗したテストの trace（.e2e/results/<テスト>/trace.md）と開発サーバーのログ（.e2e/logs/app.log）を残す。
+      # リトライで通った（flaky な）テストの trace も見られるよう、成功したときも残す
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-results
+          path: apps/web/.e2e/
+          include-hidden-files: true
+          retention-days: 14
+
   # デプロイに必要な Actions secrets が登録されているかを確かめる。
   # secrets はジョブの `if` で直接参照できないため、ここで判定して output に出す。
   # 未登録でも失敗させず（main の CI を赤くしない）、その旨をログと注釈に出す。
   deploy-secrets:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: check
+    # E2E が落ちた main はデプロイしない
+    needs: [check, e2e]
     runs-on: ubuntu-latest
     outputs:
       configured: ${{ steps.secrets.outputs.configured }}
@@ -43,7 +72,7 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # main への push で、check が通ったあとに本番 D1 へのマイグレーション → wrangler deploy を実行する。
+  # main への push で、check と e2e が通ったあとに本番 D1 へのマイグレーション → wrangler deploy を実行する。
   deploy:
     needs: deploy-secrets
     if: needs.deploy-secrets.outputs.configured == 'true'
