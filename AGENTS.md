@@ -77,6 +77,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - コンポーネントは「状態を受け取って描画し、操作をワークフローの呼び出しに変換する」だけにする。
 - サーバーから受け取った値（API のレスポンス、WebSocket のメッセージ）もスキーマで検証してから使う。
 - shadcn/ui のコンポーネントは Base UI 版（`components.json` の style が `base-vega`）を `shadcn add` で入れる。Radix 版は使わない。CLI は `cn` を npm の `cn` パッケージから import し、依存にも足してしまうので、import は `@/client/lib/utils` に直し、`cn` パッケージは入れない。
+- 押せるもの（ボタン、切り替え）はカーソルを指の形（`cursor: pointer`）にそろえる。Tailwind v4 の既定（ボタンは矢印）には従わず、`client/index.css` の base でボタンに付けている。ボタン以外の要素で押せるものを作ったら `cursor-pointer` を付ける。
 
 ### API のレスポンスの検証（ADR 0009）
 
