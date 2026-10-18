@@ -1,9 +1,29 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* shadcn/ui のテーマ（neutral）。色はここの CSS 変数で決め、コンポーネントは bg-primary などで参照する */
+/*
+ * 本文は IBM Plex Sans JP、カウントダウンなどの数字は IBM Plex Mono（Issue #34 の A 案）。
+ * 自己ホストする。日本語は unicode-range で分割されているので、使った文字の分だけ読み込まれる
+ */
+@import "@fontsource/ibm-plex-sans-jp/400.css";
+@import "@fontsource/ibm-plex-sans-jp/500.css";
+@import "@fontsource/ibm-plex-sans-jp/600.css";
+@import "@fontsource/ibm-plex-sans-jp/700.css";
+@import "@fontsource/ibm-plex-mono/300.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+/*
+ * 色はここの CSS 変数で決め、コンポーネントは bg-primary などで参照する（shadcn/ui のテーマの形）。
+ * 値は Issue #34 の A 案「モノクロに、フェーズの色だけを差す」。
+ * ダークは html に `.dark` を付けて切り替える（client/theme.ts）
+ */
 
 @custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "IBM Plex Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -28,49 +48,81 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* フェーズの色（GLOSSARY の Focus / Journal / Break）。文字・線は `text-focus`、淡い背景は `bg-focus-soft`、
+     塗りの上の文字は `text-focus-foreground` */
+  --color-focus: var(--focus);
+  --color-focus-soft: var(--focus-soft);
+  --color-focus-foreground: var(--focus-foreground);
+  --color-journal: var(--journal);
+  --color-journal-soft: var(--journal-soft);
+  --color-journal-foreground: var(--journal-foreground);
+  --color-break: var(--break);
+  --color-break-soft: var(--break-soft);
+  --color-break-foreground: var(--break-foreground);
 }
 
+/* 文字の色は背景・淡い背景のどちらの上でもコントラスト 4.5:1 以上になる値にしている */
 :root {
+  color-scheme: light;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #fafaf9;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #1c1917;
+  --primary-foreground: #fafaf9;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #1c1917;
+  --muted: #f5f5f4;
+  --muted-foreground: #57534e;
+  --accent: #f5f5f4;
+  --accent-foreground: #1c1917;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #a8a29e;
+  --focus: #2f5bd3;
+  --focus-soft: #eef2fc;
+  --focus-foreground: #ffffff;
+  --journal: #8a5300;
+  --journal-soft: #fcf1de;
+  --journal-foreground: #ffffff;
+  --break: #246b47;
+  --break-soft: #e4f2ea;
+  --break-foreground: #ffffff;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  color-scheme: dark;
+  --background: #111214;
+  --foreground: #ededec;
+  --card: #1a1b1e;
+  --card-foreground: #ededec;
+  --popover: #1a1b1e;
+  --popover-foreground: #ededec;
+  --primary: #ededec;
+  --primary-foreground: #111214;
+  --secondary: #26272b;
+  --secondary-foreground: #ededec;
+  --muted: #1f2023;
+  --muted-foreground: #a1a1aa;
+  --accent: #26272b;
+  --accent-foreground: #ededec;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #2a2b2f;
+  --input: #2a2b2f;
+  --ring: #52525b;
+  --focus: #8fb0ff;
+  --focus-soft: #1b2340;
+  --focus-foreground: #111214;
+  --journal: #f2b35a;
+  --journal-soft: #2e2415;
+  --journal-foreground: #111214;
+  --break: #7fd1a3;
+  --break-soft: #16271d;
+  --break-foreground: #111214;
 }
 
 @layer base {

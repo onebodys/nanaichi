@@ -13,6 +13,8 @@ catalog:
   "@cloudflare/vite-plugin": 1.64.0
   "@cloudflare/vitest-plugin": 1.4.3
   "@e2e-dev/web": 0.15.1
+  "@fontsource/ibm-plex-mono": 5.3.0
+  "@fontsource/ibm-plex-sans-jp": 5.3.1
   "@praha/byethrow": 0.12.0
   "@standard-schema/spec": 1.1.0
   "@tailwindcss/vite": 4.3.3
