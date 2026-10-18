@@ -142,4 +142,12 @@
   body {
     @apply bg-background text-foreground;
   }
+  /*
+   * 押せるものはカーソルを指の形にそろえる。Tailwind v4 はボタンをブラウザ既定の矢印に戻したが、
+   * 切り替え（segmented.tsx）など指の形のものと混ざって押せるかどうかが見分けにくくなるため（Issue #73）
+   */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
