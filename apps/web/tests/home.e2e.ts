@@ -33,7 +33,10 @@ test(
   async ({ app, browser, screen }) => {
     await app.open("/");
     await screen.getByRole("button", { name: "設定" }).tap();
-    await screen.getByRole("radio", { name: "ダーク" }).tap();
+    // 選択肢のラジオボタンは見た目の上ではラベルに覆われているので、ラベルの文字を押す
+    const choose = (label: string) => screen.getByText(label, { exact: true }).tap();
+    await choose("ダーク");
+    await expect(screen.getByRole("radio", { name: "ダーク" })).toBeChecked();
     const isDark = () =>
       browser.evaluate(() => document.documentElement.classList.contains("dark"));
     expect(await isDark()).toBe(true);
@@ -44,9 +47,9 @@ test(
     expect(await isDark()).toBe(true);
 
     // 端末に合わせる（既定）に戻しておく
-    await screen.getByRole("radio", { name: "ライト" }).tap();
+    await choose("ライト");
     expect(await isDark()).toBe(false);
-    await screen.getByRole("radio", { name: "端末に合わせる" }).tap();
+    await choose("端末に合わせる");
     await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
     await expect(screen.getByRole("heading", { name: "設定", level: 1 })).toHaveCount(0);
   },

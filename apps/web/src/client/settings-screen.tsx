@@ -318,7 +318,10 @@ export const SettingsScreen = ({
       </div>
     </header>
     <div className="mx-auto flex max-w-[960px] gap-10 px-4 py-8 lg:px-8 lg:py-10">
-      <nav aria-label="設定の項目" className="hidden w-44 shrink-0 flex-col gap-0.5 pt-12 lg:flex">
+      <nav
+        aria-label="設定の項目"
+        className="sticky top-24 hidden w-44 shrink-0 flex-col gap-0.5 self-start pt-12 lg:flex"
+      >
         {SECTIONS.map((section) => (
           <button
             key={section.id}

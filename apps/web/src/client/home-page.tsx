@@ -51,13 +51,15 @@ export const HomePage = ({
   useSync(timer, timeline, tags);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）
+  // ジャーナルのフェーズに入ったら、すぐ書けるよう入力欄にカーソルを置く（docs/PRODUCT.md「画面」）。
+  // 設定画面を開いている間は置けないので、ジャーナル中に設定画面を閉じたときに置く
   const journalPhaseKey = journalPhaseKeyOf(timer.view);
+  const settingsOpen = settings.open;
   useEffect(() => {
-    if (journalPhaseKey !== undefined) {
+    if (journalPhaseKey !== undefined && !settingsOpen) {
       textareaRef.current?.focus();
     }
-  }, [journalPhaseKey]);
+  }, [journalPhaseKey, settingsOpen]);
 
   return (
     <>
