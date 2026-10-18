@@ -16,5 +16,6 @@ GOOGLE_CLIENT_SECRET=
 ALLOWED_EMAILS=
 
 # Google を通さないテスト用のログイン（/api/test/sign-in）を開くなら `enabled` にする（docs/E2E.md、ADR 0008）。
-# ローカルの開発サーバー（localhost:5173）でだけ効く。本番では登録しない。
+# ローカルの開発サーバー（localhost:5173 と portless の *.localhost）でだけ効く。本番では登録しない。
+# ログイン画面の「開発用ログイン」から使う。そのメールアドレスを ALLOWED_EMAILS にも入れておく。
 TEST_SIGN_IN=enabled

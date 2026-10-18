@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
+    "dev:portless": "portless run --name nanaichi vp dev",
     "build": "tsc -b && vp build",
     "preview": "vp preview",
     "test": "vp test",
