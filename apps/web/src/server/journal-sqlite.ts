@@ -11,8 +11,13 @@ import {
   type StoredJournalEntry,
   type WrittenDuring,
 } from "../domain/journal-entry.ts";
+import type {
+  FindEntryTimesWrittenIn,
+  FindJournalEntriesWrittenIn,
+} from "../domain/journal-calendar.ts";
 import { SessionId } from "../domain/session.ts";
 import { TagName, Tags, type ListTagsInUse } from "../domain/tag.ts";
+import type { FindJournalEntriesWithTag } from "../domain/tagged-entries.ts";
 import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
 import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
 
@@ -92,6 +97,12 @@ const parseJournalEntryRow = parseRow(JournalEntryRowSchema, "journal_entries");
 const SessionIdRowsSchema = v.array(v.object({ id: SessionId.schema }));
 const parseSessionIdRows = parseRow(SessionIdRowsSchema, "sessions");
 
+const WrittenAtRowsSchema = v.pipe(
+  v.array(v.object({ written_at: epochMs })),
+  v.transform((rows) => rows.map(({ written_at }) => new Date(written_at))),
+);
+const parseWrittenAtRows = parseRow(WrittenAtRowsSchema, "journal_entries");
+
 const TagNameRowsSchema = v.pipe(
   v.array(v.object({ name: TagName.schema })),
   v.transform((rows) => rows.map(({ name }) => name)),
@@ -123,22 +134,33 @@ export type JournalSqlite = Readonly<{
   saveEditedJournalEntry: SaveEditedJournalEntry;
   deleteJournalEntry: DeleteJournalEntry;
   findTimelineSessions: FindTimelineSessions;
+  findEntryTimesWrittenIn: FindEntryTimesWrittenIn;
+  findJournalEntriesWrittenIn: FindJournalEntriesWrittenIn;
+  findJournalEntriesWithTag: FindJournalEntriesWithTag;
 }>;
 
 export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
   const loadSession = sessionLoader(sql);
 
-  /** セッションの削除していない記入 */
-  const writtenEntriesOf = (sessionId: SessionId): ReadonlyArray<JournalEntry> =>
-    sql
-      .exec(
-        `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
-         WHERE session_id = ? AND deleted_at IS NULL ORDER BY written_at`,
-        sessionId,
-      )
-      .toArray()
+  /** 記入の行を記入にする。削除した記入は除く */
+  const writtenEntriesFrom = (
+    rows: ReadonlyArray<Record<string, SqlStorageValue>>,
+  ): ReadonlyArray<JournalEntry> =>
+    rows
       .map(parseJournalEntryRow)
       .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : []));
+
+  /** セッションの削除していない記入 */
+  const writtenEntriesOf = (sessionId: SessionId): ReadonlyArray<JournalEntry> =>
+    writtenEntriesFrom(
+      sql
+        .exec(
+          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+           WHERE session_id = ? AND deleted_at IS NULL ORDER BY written_at`,
+          sessionId,
+        )
+        .toArray(),
+    );
 
   /** 記入のタグを、つけた順に書き直す */
   const saveTags = (entry: JournalEntry): void => {
@@ -234,6 +256,46 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
         session: loadSession(id),
         entries: writtenEntriesOf(id),
       }));
+    },
+
+    findEntryTimesWrittenIn: (window) =>
+      parseWrittenAtRows(
+        sql
+          .exec(
+            `SELECT written_at FROM journal_entries
+             WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ?`,
+            window.from.getTime(),
+            window.until.getTime(),
+          )
+          .toArray(),
+      ),
+
+    findJournalEntriesWrittenIn: (window) =>
+      writtenEntriesFrom(
+        sql
+          .exec(
+            `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+             WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ? ORDER BY written_at`,
+            window.from.getTime(),
+            window.until.getTime(),
+          )
+          .toArray(),
+      ),
+
+    findJournalEntriesWithTag: (range) => {
+      const tagged = `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+        WHERE deleted_at IS NULL
+          AND id IN (SELECT entry_id FROM journal_entry_tags WHERE name = ?)`;
+      const rows =
+        range.kind === "Latest"
+          ? sql.exec(`${tagged} ORDER BY written_at DESC LIMIT ?`, range.tag, range.limit)
+          : sql.exec(
+              `${tagged} AND written_at < ? ORDER BY written_at DESC LIMIT ?`,
+              range.tag,
+              range.before.getTime(),
+              range.limit,
+            );
+      return writtenEntriesFrom(rows.toArray());
     },
   };
 };

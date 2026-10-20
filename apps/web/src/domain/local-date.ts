@@ -98,3 +98,22 @@ export const LocalDateJsonSchema: v.GenericSchema<unknown, LocalDate> = v.pipe(
     "key が年月日と合わない",
   ),
 );
+
+/**
+ * `YYYY-MM-DD` と書いた日付（API のクエリ）を日付にする。暦にない日付（2月30日など）は通さない
+ */
+export const LocalDateKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^\d{4}-\d{2}-\d{2}$/),
+  v.transform((key) =>
+    localDateOf(Number(key.slice(0, 4)), Number(key.slice(5, 7)), Number(key.slice(8, 10))),
+  ),
+  v.check(
+    (date) =>
+      date.month >= 1 &&
+      date.month <= 12 &&
+      date.day >= 1 &&
+      date.day <= Calendar.daysInMonth(date.year, date.month),
+    "暦にない日付",
+  ),
+);
