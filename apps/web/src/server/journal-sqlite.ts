@@ -11,6 +11,7 @@ import {
   type StoredJournalEntry,
   type WrittenDuring,
 } from "../domain/journal-entry.ts";
+import type { FindJournalEntriesWritten } from "../domain/journal-period.ts";
 import { SessionId } from "../domain/session.ts";
 import { TagName, Tags, type ListTagsInUse } from "../domain/tag.ts";
 import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
@@ -112,7 +113,7 @@ const columnsOf = (writtenDuring: WrittenDuring) => {
 };
 
 // ---------------------------------------------------------------------------
-// 読み書きの契約（domain/journal-entry.ts, domain/timeline.ts）を DO の SQLite で実装する
+// 読み書きの契約（domain/journal-entry.ts, domain/timeline.ts, domain/journal-period.ts）を DO の SQLite で実装する
 // ---------------------------------------------------------------------------
 
 export type JournalSqlite = Readonly<{
@@ -123,6 +124,7 @@ export type JournalSqlite = Readonly<{
   saveEditedJournalEntry: SaveEditedJournalEntry;
   deleteJournalEntry: DeleteJournalEntry;
   findTimelineSessions: FindTimelineSessions;
+  findJournalEntriesWritten: FindJournalEntriesWritten;
 }>;
 
 export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
@@ -235,5 +237,17 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
         entries: writtenEntriesOf(id),
       }));
     },
+
+    findJournalEntriesWritten: (range) =>
+      sql
+        .exec(
+          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+           WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ? ORDER BY written_at`,
+          range.since.getTime(),
+          range.until.getTime(),
+        )
+        .toArray()
+        .map(parseJournalEntryRow)
+        .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : [])),
   };
 };

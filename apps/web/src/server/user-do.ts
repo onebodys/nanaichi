@@ -7,6 +7,7 @@ import {
   type DeletedJournalEntry,
   type JournalEntryJson,
 } from "../domain/journal-entry.ts";
+import { JournalPeriod, type JournalPeriodReportJson } from "../domain/journal-period.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import type { StatsReport } from "../domain/stats.ts";
@@ -24,6 +25,7 @@ import {
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getAdvanceMode } from "../workflows/get-advance-mode.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
+import { getJournalPeriod, type GetJournalPeriodError } from "../workflows/get-journal-period.ts";
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTags } from "../workflows/get-tags.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
@@ -151,6 +153,15 @@ export class UserDO extends DurableObject<Env> {
         getTimeline({ ...this.#sessions, ...this.#journal })(rawQuery, now),
         Result.map(Timeline.toJson),
       ),
+    );
+  }
+
+  /** MCP の `get_journal_entries`。`rawQuery` はツールの引数で、検証はワークフローが行う */
+  async getJournalPeriod(
+    rawQuery: unknown,
+  ): Promise<Result.Result<JournalPeriodReportJson, GetJournalPeriodError>> {
+    return this.#run(() =>
+      Result.pipe(getJournalPeriod(this.#journal)(rawQuery), Result.map(JournalPeriod.toJson)),
     );
   }
 
