@@ -85,6 +85,30 @@ export const Calendar = {
   firstOfMonth: (year: number, month: number): LocalDate => localDateOf(year, month, 1),
 } as const;
 
+/** 日付と時刻を、暦の上の分（1970-01-01 0:00 からの分）にする。タイムゾーンの差を求めるのに使う */
+const minuteNumberOf = (time: LocalTime): number =>
+  Calendar.dayNumberOf(time.date) * 1440 + time.minuteOfDay;
+
+/**
+ * タイムゾーン `timeZone` で、日付 `date` が始まる時刻（その日の 0:00）。
+ *
+ * UTC の 0:00 から、タイムゾーンの差だけずらす。夏時間の切り替わりで、その日の前後で差が変わることがあるので、
+ * UTC の 0:00 での差と、ずらした先での差の両方で候補を作り、その日付に入るうち早いほうを選ぶ。
+ * 0:00 が夏時間で飛ぶ日は、その日の最初の時刻（1:00 など）になる。
+ */
+export const startOfDayIn = (timeZone: string): ((date: LocalDate) => Date) => {
+  const timeOf = localTimeIn(timeZone);
+  const offsetMsAt = (at: number): number =>
+    (minuteNumberOf(timeOf(new Date(at))) - Math.floor(at / 60_000)) * 60_000;
+  return (date) => {
+    const midnightUtc = Calendar.dayNumberOf(date) * DAY_MS;
+    const first = midnightUtc - offsetMsAt(midnightUtc);
+    const second = midnightUtc - offsetMsAt(first);
+    const inDate = [first, second].filter((at) => timeOf(new Date(at)).date.key === date.key);
+    return new Date(inDate.length === 0 ? Math.max(first, second) : Math.min(...inDate));
+  };
+};
+
 /** JSON にした日付を検証して戻す。`key` は年月日から作り直さず、そのまま確かめる */
 export const LocalDateJsonSchema: v.GenericSchema<unknown, LocalDate> = v.pipe(
   v.object({

@@ -45,3 +45,15 @@ export const resolveBaseURL = (requestUrl: string): string => {
 
   return url.origin;
 };
+
+/**
+ * このホストで MCP サーバーを出せるか（ADR 0017）。
+ *
+ * MCP の仕様（と `@better-auth/mcp`）は、MCP サーバーの URL を https か loopback（`localhost`・`127.0.0.1`）に
+ * 限っている。portless の `http://<ブランチ>.<名前>.localhost` はどちらでもないので、そこでは MCP サーバーを出さない。
+ * ローカルで MCP クライアントを試すときは `http://localhost:5173` で開発サーバーを開く。
+ */
+export const servesMcpOn = (baseURL: string): boolean => {
+  const url = new URL(baseURL);
+  return url.protocol === "https:" || ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+};

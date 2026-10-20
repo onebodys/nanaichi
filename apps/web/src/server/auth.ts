@@ -1,6 +1,9 @@
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
+import { jwt } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
 import { Allowlist } from "../domain/allowlist.ts";
+import { servesMcpOn } from "./base-url.ts";
 import type { AuthConfig } from "./env.ts";
 
 /**
@@ -22,6 +25,18 @@ export const guardUserCreation =
       message: "このメールアドレスでは登録できません",
     });
   };
+
+/** MCP サーバーのパス（mcp-routes.ts）。アクセストークンはこの URL に宛てて発行する */
+export const MCP_PATH = "/api/mcp";
+
+/** MCP サーバーの URL。OAuth の resource（RFC 8707）で、アクセストークンの `aud` になる */
+export const mcpResourceOf = (baseURL: string): string => `${baseURL}${MCP_PATH}`;
+
+/**
+ * MCP クライアントに許す範囲。記録の読み取りだけ（GLOSSARY「MCP サーバー」）。
+ * 書き換える操作を足すときは、別の scope にして連携の許可で選べるようにする。
+ */
+export const MCP_READ_SCOPE = "journal:read";
 
 /**
  * Better Auth のインスタンスを作る。
@@ -50,6 +65,30 @@ export const createAuth = (config: AuthConfig, baseURL: string) =>
     databaseHooks: {
       user: { create: { before: guardUserCreation(config.allowlist) } },
     },
+    // jwt プラグインの `/token`（セッションから JWT を作る）は使わない。MCP のトークンは OAuth の `/oauth2/token` で出す
+    disabledPaths: ["/token"],
+    plugins: [
+      // アクセストークンを JWT にして、MCP のルートが D1 を引かずに署名で確かめられるようにする（ADR 0017）
+      jwt(),
+      // portless の `*.localhost` では MCP サーバーを出さない（base-url.ts の `servesMcpOn`）
+      ...(servesMcpOn(baseURL)
+        ? [
+            mcp({
+              resource: mcpResourceOf(baseURL),
+              loginPage: "/login",
+              consentPage: "/oauth/consent",
+              scopes: ["openid", "offline_access", MCP_READ_SCOPE],
+              // MCP クライアントは事前に登録できないので、動的登録（RFC 7591）を誰にでも開く。
+              // 登録しただけでは何も読めず、ユーザーが連携の許可で選んだクライアントだけが読める（ADR 0017）
+              allowDynamicClientRegistration: true,
+              allowUnauthenticatedClientRegistration: true,
+              // Claude Code などは手元で待ち受ける `http://localhost:<port>/callback` に戻させる。application_type を
+              // 送らないクライアントも、loopback の http ならネイティブアプリとして登録できるよう推し量る（RFC 8252）
+              clientRegistrationDefaultApplicationType: "infer",
+            }),
+          ]
+        : []),
+    ],
   });
 
 export type Auth = ReturnType<typeof createAuth>;

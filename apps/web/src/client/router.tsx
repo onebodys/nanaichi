@@ -8,6 +8,7 @@ import {
 import * as v from "valibot";
 import { STATS_PERIODS } from "../domain/stats.ts";
 import { authClient } from "./auth-client.ts";
+import { ConsentPage } from "./consent-page.tsx";
 import { HomePage } from "./home-page.tsx";
 import { LoginPage } from "./login-page.tsx";
 
@@ -26,6 +27,43 @@ const loginRoute = createRoute({
   component: () => {
     const { error } = loginRoute.useSearch();
     return <LoginPage error={error} />;
+  },
+});
+
+/**
+ * 連携の許可の画面の URL の値（ADR 0017）。認可の入口が署名して付けるもののうち、画面に出すものだけを読む。
+ * 署名を確かめて許可に使うのはサーバーで、画面は URL をそのまま `oauthProviderClient` に渡す（auth-client.ts）
+ */
+const ConsentSearchSchema = v.object({
+  client_id: v.optional(v.string()),
+  scope: v.optional(v.string()),
+  redirect_uri: v.optional(v.string()),
+});
+
+const consentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/oauth/consent",
+  validateSearch: (search) => {
+    const parsed = v.safeParse(ConsentSearchSchema, search);
+    return parsed.success ? parsed.output : {};
+  },
+  // 認可の入口はログインしていなければログイン画面へ送るので、ここへはログイン済みで来る。
+  // セッションが切れていたときだけ、ログイン画面へ送る
+  beforeLoad: async () => {
+    const { data } = await authClient.getSession();
+    if (data === null) {
+      throw redirect({ to: "/login" });
+    }
+  },
+  component: () => {
+    const search = consentRoute.useSearch();
+    return (
+      <ConsentPage
+        clientId={search.client_id}
+        scope={search.scope}
+        redirectUri={search.redirect_uri}
+      />
+    );
   },
 });
 
@@ -76,7 +114,9 @@ const homeRoute = createRoute({
   },
 });
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([homeRoute, loginRoute]) });
+export const router = createRouter({
+  routeTree: rootRoute.addChildren([homeRoute, loginRoute, consentRoute]),
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

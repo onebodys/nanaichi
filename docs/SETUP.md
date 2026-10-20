@@ -99,6 +99,27 @@ Setup Script が、worktree を作るときに元のチェックアウトの `ap
 `apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` は `localhost:5173` を前提にしている。
 Vite が別のポートを使うとログインが 400 で弾かれる。
 
+### MCP クライアントをつなぐ
+
+MCP サーバー（ADR 0017）は `/api/mcp` にある。本番なら `https://nanaichi.onori-black1984.workers.dev/api/mcp`、
+ローカルなら `http://localhost:5173/api/mcp`。初めてつなぐとブラウザが開き、nanaichi へのログインと連携の許可を求められる。
+
+```bash
+# Claude Code
+claude mcp add --transport http nanaichi https://nanaichi.onori-black1984.workers.dev/api/mcp
+# つないだら Claude Code の中で /mcp を開き、nanaichi の Authenticate を選ぶ
+
+# MCP Inspector（ツールを1つずつ試す）
+npx @modelcontextprotocol/inspector
+# 画面の Add Servers → Add manually で、Transport を streamable-http、URL を上の URL にして Connect
+```
+
+MCP の仕様は MCP サーバーの URL を https か loopback（`localhost`・`127.0.0.1`）に限っているので、
+portless の `http://*.localhost` では MCP サーバーを出さない（`/api/mcp` は 404）。ローカルで試すときは 5173 番で開く。
+5173 番の `localhost` が別のアプリに使われていたら、`PORTLESS_URL=http://127.0.0.1:5173 PORT=5173 HOST=127.0.0.1`
+を付けて起動し、`127.0.0.1:5173` で開く。ローカルでは Google のログインが通らないので、先にテスト用のログイン
+（docs/E2E.md）でログインしてからつなぐ。
+
 ## 4. デプロイ
 
 main への push で GitHub Actions（`.github/workflows/ci.yml`）が次の順に実行する。PR では `check` と `e2e` だけが走り、デプロイはしない。
