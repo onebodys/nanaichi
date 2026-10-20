@@ -177,6 +177,7 @@ export const HomePage = ({
           stats={statsView}
           period={statsPeriod}
           changePeriod={stats.changePeriod}
+          knownTags={tags.known}
           close={stats.close}
         />
       )}

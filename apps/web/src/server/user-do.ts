@@ -7,10 +7,16 @@ import {
   type DeletedJournalEntry,
   type JournalEntryJson,
 } from "../domain/journal-entry.ts";
+import {
+  JournalCalendar,
+  type EntriesOnDateJson,
+  type JournalCalendar as JournalCalendarReport,
+} from "../domain/journal-calendar.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import type { StatsReport } from "../domain/stats.ts";
 import type { DeletedTag, TagList, TagUsageList } from "../domain/tag.ts";
+import { TaggedEntries, type TaggedEntriesPageJson } from "../domain/tagged-entries.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
 import {
@@ -25,6 +31,15 @@ import { deleteTag, type DeleteTagError } from "../workflows/delete-tag.ts";
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getAdvanceMode } from "../workflows/get-advance-mode.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
+import { getEntriesOnDate, type GetEntriesOnDateError } from "../workflows/get-entries-on-date.ts";
+import {
+  getEntriesWithTag,
+  type GetEntriesWithTagError,
+} from "../workflows/get-entries-with-tag.ts";
+import {
+  getJournalCalendar,
+  type GetJournalCalendarError,
+} from "../workflows/get-journal-calendar.ts";
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTagUsage } from "../workflows/get-tag-usage.ts";
 import { getTags } from "../workflows/get-tags.ts";
@@ -184,6 +199,34 @@ export class UserDO extends DurableObject<Env> {
   /** `GET /api/stats?period=&timeZone=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
   async getStats(rawQuery: unknown): Promise<Result.Result<StatsReport, GetStatsError>> {
     return this.#run((now) => getStats({ ...this.#sessions, ...this.#stats })(rawQuery, now));
+  }
+
+  /** `GET /api/journal-calendar?month=&timeZone=`。ジャーナルのカレンダーの1か月分 */
+  async getJournalCalendar(
+    rawQuery: unknown,
+  ): Promise<Result.Result<JournalCalendarReport, GetJournalCalendarError>> {
+    return this.#run((now) => getJournalCalendar(this.#journal)(rawQuery, now));
+  }
+
+  /** `GET /api/journal-entries/by-date?date=&timeZone=`。選んだ日の記入 */
+  async getEntriesOnDate(
+    rawQuery: unknown,
+  ): Promise<Result.Result<EntriesOnDateJson, GetEntriesOnDateError>> {
+    return this.#run(() =>
+      Result.pipe(
+        getEntriesOnDate(this.#journal)(rawQuery),
+        Result.map(JournalCalendar.entriesOnDateToJson),
+      ),
+    );
+  }
+
+  /** `GET /api/journal-entries/by-tag?tag=&before=`。タグのついた記入の1ページ */
+  async getEntriesWithTag(
+    rawQuery: unknown,
+  ): Promise<Result.Result<TaggedEntriesPageJson, GetEntriesWithTagError>> {
+    return this.#run(() =>
+      Result.pipe(getEntriesWithTag(this.#journal)(rawQuery), Result.map(TaggedEntries.toJson)),
+    );
   }
 
   /** `GET /api/settings/advance-mode` */

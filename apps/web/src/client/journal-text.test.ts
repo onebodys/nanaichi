@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  calendarDayLabelOf,
   completedSetsLabelOf,
   dateLabelOf,
+  monthLabelOf,
   writtenDuringBadgeOf,
   writtenDuringLabelOf,
 } from "./journal-text.ts";
@@ -36,5 +38,17 @@ describe("タイムラインの文言", () => {
     [{ kind: "Idle", round: 1, setNumber: 2 } as const, "1-2 待機"],
   ])("バッジでは書いたときの状態 %j を「%s」と短く出す", (writtenDuring, badge) => {
     expect(writtenDuringBadgeOf(writtenDuring)).toBe(badge);
+  });
+});
+
+describe("ジャーナル記入の見返しの文言", () => {
+  test("ジャーナルのカレンダーの月は年と月で出す", () => {
+    expect(monthLabelOf({ year: 2026, month: 10 })).toBe("2026年10月");
+  });
+
+  test("カレンダーの日は、日付と記入の数を読み上げる", () => {
+    const date = { key: "2026-10-20", year: 2026, month: 10, day: 20 };
+    expect(calendarDayLabelOf(date, 3)).toBe("10月20日（火） 記入3件");
+    expect(calendarDayLabelOf(date, 0)).toBe("10月20日（火） 記入なし");
   });
 });

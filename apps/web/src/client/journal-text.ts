@@ -15,6 +15,17 @@ export const weekdayLabelOf = (date: LocalDate): string =>
 export const dateLabelOf = (date: LocalDate): string =>
   `${date.month}月${date.day}日（${weekdayLabelOf(date)}）`;
 
+/** ジャーナルのカレンダーの月（`2026年10月`） */
+export const monthLabelOf = (month: Readonly<{ year: number; month: number }>): string =>
+  `${month.year}年${month.month}月`;
+
+/** 記入の数（`3件`） */
+export const entryCountLabelOf = (count: number): string => `${count}件`;
+
+/** ジャーナルのカレンダーの日の読み上げ（`10月20日（火） 記入3件`、記入がなければ `記入なし`） */
+export const calendarDayLabelOf = (date: LocalDate, entries: number): string =>
+  `${dateLabelOf(date)} ${entries === 0 ? "記入なし" : `記入${entryCountLabelOf(entries)}`}`;
+
 /** 日付の区切りに出す、その日の完了セット数と集中時間（`完了 10セット · 集中 1時間10分`） */
 export const completedSetsLabelOf = (completedSets: DayCompletedSets): string => {
   switch (completedSets.kind) {
