@@ -11,9 +11,27 @@ import {
   type JournalEntry,
   type JournalEntryId,
 } from "../domain/journal-entry.ts";
+import {
+  EntriesOnDateJsonSchema,
+  JournalCalendar,
+  JournalCalendarJsonSchema,
+  type EntriesOnDate,
+  type JournalMonth,
+} from "../domain/journal-calendar.ts";
+import type { LocalDate } from "../domain/local-date.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "../domain/session.ts";
 import { StatsReportJsonSchema, type StatsPeriod, type StatsReport } from "../domain/stats.ts";
-import { TagListJsonSchema, type TagList, type TagName } from "../domain/tag.ts";
+import {
+  DeletedTagJsonSchema,
+  TagListJsonSchema,
+  TagUsageListJsonSchema,
+  type DeletedTag,
+  type TagDeletion,
+  type TagList,
+  type TagName,
+  type TagUsageList,
+} from "../domain/tag.ts";
+import { TaggedEntriesPageJsonSchema, type TaggedEntriesPage } from "../domain/tagged-entries.ts";
 import { TimelinePageJsonSchema, type TimelinePage } from "../domain/timeline.ts";
 
 /**
@@ -95,7 +113,7 @@ const requestApi =
       Result.andThen(decode(schema)),
     );
 
-const sendJson = (method: "POST" | "PATCH" | "PUT", body: unknown): RequestInit => ({
+const sendJson = (method: "POST" | "PATCH" | "PUT" | "DELETE", body: unknown): RequestInit => ({
   method,
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
@@ -143,11 +161,39 @@ export const createApiClient = (
   getTimeline: (before?: Date) => Result.ResultAsync<TimelinePage, ApiError>;
   /** `GET /api/tags`: 入力の候補に出す、使っているタグ（最近使った順） */
   getTags: () => Result.ResultAsync<TagList, ApiError>;
+  /** `GET /api/tags/usage`: 設定画面に出す、使っているタグとその記入の数（最近使った順） */
+  getTagUsage: () => Result.ResultAsync<TagUsageList, ApiError>;
+  /**
+   * `DELETE /api/tags/:name`: タグを削除する。ついている記入からは外すか、`deletion` の付け替え先に付け替える
+   * （ADR 0017）
+   */
+  deleteTag: (name: TagName, deletion: TagDeletion) => Result.ResultAsync<DeletedTag, ApiError>;
   /**
    * `GET /api/stats?period=&timeZone=`: 期間のスタッツ（ADR 0014）。
    * `timeZone` は端末のタイムゾーンで、日付と時間帯はこれで区切る
    */
   getStats: (period: StatsPeriod, timeZone: string) => Result.ResultAsync<StatsReport, ApiError>;
+  /**
+   * `GET /api/journal-calendar?month=&timeZone=`: ジャーナルのカレンダーの1か月分。
+   * `timeZone` は端末のタイムゾーンで、記入はこれで区切った日付に数える
+   */
+  getJournalCalendar: (
+    month: JournalMonth,
+    timeZone: string,
+  ) => Result.ResultAsync<JournalCalendar, ApiError>;
+  /** `GET /api/journal-entries/by-date?date=&timeZone=`: 端末のタイムゾーンで日付 `date` に書いた記入 */
+  getEntriesOnDate: (
+    date: LocalDate,
+    timeZone: string,
+  ) => Result.ResultAsync<EntriesOnDate, ApiError>;
+  /**
+   * `GET /api/journal-entries/by-tag?tag=&before=`: タグのついた記入の1ページ（新しい順）。
+   * `before` を省けば最新のページ
+   */
+  getEntriesWithTag: (
+    tag: TagName,
+    before?: Date,
+  ) => Result.ResultAsync<TaggedEntriesPage, ApiError>;
   /** `GET /api/settings/advance-mode`: いまのフェーズの進め方（ADR 0016） */
   getAdvanceMode: () => Result.ResultAsync<AdvanceMode, ApiError>;
   /** `PUT /api/settings/advance-mode`: フェーズの進め方を変える。変えたあとの進め方が返る */
@@ -177,10 +223,34 @@ export const createApiClient = (
         TimelinePageJsonSchema,
       ),
     getTags: () => request("/api/tags", TagListJsonSchema),
+    getTagUsage: () => request("/api/tags/usage", TagUsageListJsonSchema),
+    deleteTag: (name, deletion) =>
+      request(
+        `/api/tags/${encodeURIComponent(name)}`,
+        DeletedTagJsonSchema,
+        sendJson("DELETE", deletion),
+      ),
     getStats: (period, timeZone) =>
       request(
         `/api/stats?${new URLSearchParams({ period, timeZone }).toString()}`,
         StatsReportJsonSchema,
+      ),
+    getJournalCalendar: (month, timeZone) =>
+      request(
+        `/api/journal-calendar?${new URLSearchParams({ month: JournalCalendar.keyOfMonth(month), timeZone }).toString()}`,
+        JournalCalendarJsonSchema,
+      ),
+    getEntriesOnDate: (date, timeZone) =>
+      request(
+        `/api/journal-entries/by-date?${new URLSearchParams({ date: date.key, timeZone }).toString()}`,
+        EntriesOnDateJsonSchema,
+      ),
+    getEntriesWithTag: (tag, before) =>
+      request(
+        `/api/journal-entries/by-tag?${new URLSearchParams(
+          before === undefined ? { tag } : { tag, before: before.toISOString() },
+        ).toString()}`,
+        TaggedEntriesPageJsonSchema,
       ),
     getAdvanceMode: () => request("/api/settings/advance-mode", AdvanceModeJsonSchema),
     changeAdvanceMode: (mode) =>

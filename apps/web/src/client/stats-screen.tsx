@@ -11,7 +11,9 @@ import {
 } from "../domain/stats.ts";
 import { Button } from "./components/ui/button.tsx";
 import { cn } from "@/client/lib/utils";
+import type { TagName } from "../domain/tag.ts";
 import { dateLabelOf, weekdayLabelOf } from "./journal-text.ts";
+import { JournalLookup } from "./journal-lookup.tsx";
 import { OverlayScreen } from "./overlay-screen.tsx";
 import { Segmented } from "./segmented.tsx";
 import {
@@ -430,12 +432,15 @@ export const StatsScreen = ({
   stats,
   period,
   changePeriod,
+  knownTags,
   close,
 }: Readonly<{
   timer: TimerView;
   stats: StatsView;
   period: StatsPeriod;
   changePeriod: (period: StatsPeriod) => void;
+  /** 使っているタグ（記入をタグで見返すときに選ぶ） */
+  knownTags: ReadonlyArray<TagName>;
   close: () => void;
 }>) => (
   <OverlayScreen labelledBy="stats-title" timer={timer} close={close}>
@@ -466,6 +471,10 @@ export const StatsScreen = ({
           スタッツを読み込めませんでした。通信できる状態で開き直してください。
         </p>
       )}
+      {/* ジャーナル記入の見返しは期間に関わらないので、スタッツを読み込めなくても出す */}
+      <Card title="ジャーナル記入を見返す" note="期間に関わらず">
+        <JournalLookup knownTags={knownTags} />
+      </Card>
     </div>
   </OverlayScreen>
 );

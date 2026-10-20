@@ -3,10 +3,12 @@ import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { AdvanceMode } from "../domain/advance-mode.ts";
 import { SessionEventId } from "../domain/session-event.ts";
+import { JournalCalendar } from "../domain/journal-calendar.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "../domain/journal-entry.ts";
 import { Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { Stats } from "../domain/stats.ts";
 import { TagName } from "../domain/tag.ts";
+import { TaggedEntries } from "../domain/tagged-entries.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { createApiClient } from "./api.ts";
 
@@ -182,6 +184,15 @@ const written = (() => {
 })();
 
 /** 本文は `Sensitive` なので、比べるときは取り出した形にする */
+/** 2026-10-17（`STARTED_AT` の日付） */
+const calendarDate = () =>
+  JournalCalendar.of({
+    month: { year: 2026, month: 10 },
+    writtenAts: [],
+    now: at(0),
+    timeZone: "Asia/Tokyo",
+  }).today;
+
 const unwrapped = (result: Result.Result<JournalEntry, unknown>) =>
   Result.isSuccess(result) ? JournalEntry.toJson(result.value) : result;
 
@@ -291,6 +302,34 @@ describe("タイムライン", () => {
 });
 
 describe("タグ", () => {
+  test("GET /api/tags/usage を呼び、使っているタグとついている記入の数を返す", async () => {
+    const { client, paths } = respondWith(200, { tags: [{ name: "読書", entryCount: 3 }] });
+
+    const result = await client.getTagUsage();
+
+    expect(paths).toEqual(["/api/tags/usage"]);
+    expect(result).toEqual(Result.succeed({ tags: [{ name: "読書", entryCount: 3 }] }));
+  });
+
+  test("タグの削除は、名前を URL に入れて DELETE /api/tags/:name を呼び、付け替え先を本文で送る", async () => {
+    const deletion = { kind: "Reassign", to: v.parse(TagName.schema, "本") } as const;
+    const { client, paths, requests } = respondWith(200, { name: "読書", deletion });
+
+    const result = await client.deleteTag(readingTag, deletion);
+
+    expect(paths).toEqual([`/api/tags/${encodeURIComponent("読書")}`]);
+    expect(requests[0]).toMatchObject({ method: "DELETE", body: JSON.stringify(deletion) });
+    expect(result).toEqual(Result.succeed({ name: "読書", deletion }));
+  });
+
+  test("削除するタグが使われていなければ、TAG_NOT_FOUND の ApiRejected を返す", async () => {
+    const { client } = respondWith(404, { error: "TAG_NOT_FOUND" });
+
+    expect(await client.deleteTag(readingTag, { kind: "Detach" })).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 404, code: "TAG_NOT_FOUND" }),
+    );
+  });
+
   test("GET /api/tags を呼び、使っているタグを最近使った順のまま返す", async () => {
     const { client, paths } = respondWith(200, { tags: ["読書", "設計"] });
 
@@ -336,6 +375,80 @@ describe("スタッツ", () => {
 
     expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(
       Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+    );
+  });
+});
+
+describe("ジャーナルのカレンダー", () => {
+  const calendar = JournalCalendar.of({
+    month: { year: 2026, month: 10 },
+    writtenAts: [at(10)],
+    now: at(30),
+    timeZone: "Asia/Tokyo",
+  });
+
+  test("GET /api/journal-calendar に月と端末のタイムゾーンを渡し、カレンダーを返す", async () => {
+    const { client, paths } = respondWith(200, calendar);
+
+    expect(await client.getJournalCalendar({ year: 2026, month: 10 }, "Asia/Tokyo")).toEqual(
+      Result.succeed(calendar),
+    );
+    expect(paths).toEqual(["/api/journal-calendar?month=2026-10&timeZone=Asia%2FTokyo"]);
+  });
+
+  test("応答がスキーマに合わなければ UnexpectedResponse を返す", async () => {
+    const { client } = respondWith(200, { ...calendar, days: [{ kind: "Day" }] });
+
+    expect(await client.getJournalCalendar({ year: 2026, month: 10 }, "Asia/Tokyo")).toEqual(
+      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+    );
+  });
+});
+
+describe("選んだ日の記入", () => {
+  test("GET /api/journal-entries/by-date に日付と端末のタイムゾーンを渡し、記入を返す", async () => {
+    const date = calendarDate();
+    const { client, paths } = respondWith(
+      200,
+      JournalCalendar.entriesOnDateToJson({ date, entries: [written] }),
+    );
+
+    const result = await client.getEntriesOnDate(date, "Asia/Tokyo");
+
+    expect(paths).toEqual(["/api/journal-entries/by-date?date=2026-10-17&timeZone=Asia%2FTokyo"]);
+    expect(Result.isSuccess(result) && result.value.entries.map(JournalEntry.toJson)).toEqual([
+      JournalEntry.toJson(written),
+    ]);
+  });
+});
+
+describe("タグのついた記入", () => {
+  const page = TaggedEntries.page(readingTag, [written], 20);
+
+  test("GET /api/journal-entries/by-tag にタグを渡し、1ページを返す", async () => {
+    const { client, paths } = respondWith(200, TaggedEntries.toJson(page));
+
+    const result = await client.getEntriesWithTag(readingTag);
+
+    expect(paths).toEqual([`/api/journal-entries/by-tag?tag=${encodeURIComponent("読書")}`]);
+    expect(Result.isSuccess(result) && result.value.next).toEqual({ kind: "End" });
+  });
+
+  test("続きは before に前のページのいちばん古い時刻を渡す", async () => {
+    const { client, paths } = respondWith(200, TaggedEntries.toJson(page));
+
+    await client.getEntriesWithTag(readingTag, at(5));
+
+    expect(paths).toEqual([
+      `/api/journal-entries/by-tag?tag=${encodeURIComponent("読書")}&before=${encodeURIComponent(at(5).toISOString())}`,
+    ]);
+  });
+
+  test("ログインしていなければ、UNAUTHENTICATED の ApiRejected を返す", async () => {
+    const { client } = respondWith(401, { error: "UNAUTHENTICATED" });
+
+    expect(await client.getEntriesWithTag(readingTag)).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 401, code: "UNAUTHENTICATED" }),
     );
   });
 });

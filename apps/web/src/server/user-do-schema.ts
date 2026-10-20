@@ -100,6 +100,10 @@ const MIGRATIONS: ReadonlyArray<string> = [
   );
   CREATE INDEX advance_mode_changes_by_time ON advance_mode_changes (changed_at);
   `,
+  `
+  -- スタッツで、ジャーナルのカレンダーの月や選んだ日の記入を、書いた時刻の範囲で読む（Issue #83）
+  CREATE INDEX journal_entries_by_written_at ON journal_entries (written_at);
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

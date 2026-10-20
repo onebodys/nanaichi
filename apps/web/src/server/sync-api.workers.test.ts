@@ -263,3 +263,41 @@ describe("ジャーナル記入の同期", () => {
     });
   });
 });
+
+describe("タグの削除の同期", () => {
+  test("タグを削除すると、書き換えた記入ではなく、削除したタグと付け替え先だけが届く", async () => {
+    await start();
+    await request(
+      "/api/journal-entries",
+      withBody("POST", { id: crypto.randomUUID(), body: "メモ", tags: ["読書", "本"] }),
+    );
+    const phone = await connect();
+
+    await request(
+      `/api/tags/${encodeURIComponent("読書")}`,
+      withBody("DELETE", { kind: "Reassign", to: "本" }),
+    );
+
+    await waitFor(phone.received, 1);
+    await settle();
+    expect(phone.received).toHaveLength(1);
+    const message = decode(phone.received[0]);
+    expect(Result.isSuccess(message) && message.value).toEqual({
+      kind: "TagDeleted",
+      deleted: { name: "読書", deletion: { kind: "Reassign", to: "本" } },
+    });
+  });
+
+  test("削除できなかったときは何も届かない", async () => {
+    await start();
+    const phone = await connect();
+
+    await request(
+      `/api/tags/${encodeURIComponent("読書")}`,
+      withBody("DELETE", { kind: "Detach" }),
+    );
+
+    await settle();
+    expect(phone.received).toEqual([]);
+  });
+});

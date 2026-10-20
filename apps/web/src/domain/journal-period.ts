@@ -21,8 +21,8 @@ export const JOURNAL_PERIOD_MAX_DAYS = 366;
  */
 export type JournalPeriod = Readonly<{ from: LocalDate; to: LocalDate; timeZone: string }>;
 
-/** 期間の時刻の範囲。`since` 以後で `until` より前に書いた記入が期間に入る */
-type WrittenRange = Readonly<{ since: Date; until: Date }>;
+/** 期間の時刻の範囲。`from` 以後で `until` より前に書いた記入が期間に入る（journal-calendar.ts と同じ形） */
+type WrittenRange = Readonly<{ from: Date; until: Date }>;
 
 /** 期間に書いた記入を、書いた日付と時刻（期間のタイムゾーン）とともに並べたもの */
 type JournalPeriodEntry = JournalEntry &
@@ -65,7 +65,7 @@ export const JournalPeriod = {
   rangeOf: (period: JournalPeriod): WrittenRange => {
     const startOf = startOfDayIn(period.timeZone);
     return {
-      since: startOf(period.from),
+      from: startOf(period.from),
       until: startOf(Calendar.dateOfDayNumber(Calendar.dayNumberOf(period.to) + 1)),
     };
   },
@@ -95,10 +95,3 @@ export const JournalPeriod = {
     entries: report.entries.map((entry) => ({ ...entry, body: entry.body.unwrap() })),
   }),
 } as const;
-
-// ---------------------------------------------------------------------------
-// ワークフローが使う読み書きの契約（kamae: 概念の隣に置き、1つの契約に1つの操作）
-// ---------------------------------------------------------------------------
-
-/** `range` の間に書いた、削除していない記入を書いた順に読む */
-export type FindJournalEntriesWritten = (range: WrittenRange) => ReadonlyArray<JournalEntry>;

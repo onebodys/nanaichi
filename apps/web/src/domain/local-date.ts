@@ -109,24 +109,6 @@ export const startOfDayIn = (timeZone: string): ((date: LocalDate) => Date) => {
   };
 };
 
-/** `YYYY-MM-DD` の日付。外から受け取るので、暦にある日かまで確かめる */
-export const LocalDateKeySchema: v.GenericSchema<string, LocalDate> = v.pipe(
-  v.string(),
-  v.regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD ではない"),
-  v.transform((key) => {
-    const [year = 0, month = 0, day = 0] = key.split("-").map(Number);
-    return localDateOf(year, month, day);
-  }),
-  v.check(
-    (date) =>
-      date.month >= 1 &&
-      date.month <= 12 &&
-      date.day >= 1 &&
-      date.day <= Calendar.daysInMonth(date.year, date.month),
-    "暦にない日付",
-  ),
-);
-
 /** JSON にした日付を検証して戻す。`key` は年月日から作り直さず、そのまま確かめる */
 export const LocalDateJsonSchema: v.GenericSchema<unknown, LocalDate> = v.pipe(
   v.object({
@@ -138,5 +120,24 @@ export const LocalDateJsonSchema: v.GenericSchema<unknown, LocalDate> = v.pipe(
   v.check(
     (date) => date.key === localDateOf(date.year, date.month, date.day).key,
     "key が年月日と合わない",
+  ),
+);
+
+/**
+ * `YYYY-MM-DD` と書いた日付（API のクエリ）を日付にする。暦にない日付（2月30日など）は通さない
+ */
+export const LocalDateKeySchema = v.pipe(
+  v.string(),
+  v.regex(/^\d{4}-\d{2}-\d{2}$/),
+  v.transform((key) =>
+    localDateOf(Number(key.slice(0, 4)), Number(key.slice(5, 7)), Number(key.slice(8, 10))),
+  ),
+  v.check(
+    (date) =>
+      date.month >= 1 &&
+      date.month <= 12 &&
+      date.day >= 1 &&
+      date.day <= Calendar.daysInMonth(date.year, date.month),
+    "暦にない日付",
   ),
 );

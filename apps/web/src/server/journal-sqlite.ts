@@ -5,15 +5,21 @@ import {
   type DeleteJournalEntry,
   type FindJournalEntry,
   type JournalEntry,
+  type ListJournalEntriesTaggedWith,
   type ListTagsOfOtherEntries,
   type SaveEditedJournalEntry,
   type SaveJournalEntry,
+  type SaveJournalEntryTags,
   type StoredJournalEntry,
   type WrittenDuring,
 } from "../domain/journal-entry.ts";
-import type { FindJournalEntriesWritten } from "../domain/journal-period.ts";
+import type {
+  FindEntryTimesWrittenIn,
+  FindJournalEntriesWrittenIn,
+} from "../domain/journal-calendar.ts";
 import { SessionId } from "../domain/session.ts";
-import { TagName, Tags, type ListTagsInUse } from "../domain/tag.ts";
+import { TagName, Tags, type ListTagsInUse, type ListTagUsage } from "../domain/tag.ts";
+import type { FindJournalEntriesWithTag } from "../domain/tagged-entries.ts";
 import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
 import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
 
@@ -93,11 +99,28 @@ const parseJournalEntryRow = parseRow(JournalEntryRowSchema, "journal_entries");
 const SessionIdRowsSchema = v.array(v.object({ id: SessionId.schema }));
 const parseSessionIdRows = parseRow(SessionIdRowsSchema, "sessions");
 
+const WrittenAtRowsSchema = v.pipe(
+  v.array(v.object({ written_at: epochMs })),
+  v.transform((rows) => rows.map(({ written_at }) => new Date(written_at))),
+);
+const parseWrittenAtRows = parseRow(WrittenAtRowsSchema, "journal_entries");
+
 const TagNameRowsSchema = v.pipe(
   v.array(v.object({ name: TagName.schema })),
   v.transform((rows) => rows.map(({ name }) => name)),
 );
 const parseTagNameRows = parseRow(TagNameRowsSchema, "journal_entry_tags");
+
+const TagUsageRowsSchema = v.pipe(
+  v.array(
+    v.object({
+      name: TagName.schema,
+      entry_count: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    }),
+  ),
+  v.transform((rows) => rows.map(({ name, entry_count }) => ({ name, entryCount: entry_count }))),
+);
+const parseTagUsageRows = parseRow(TagUsageRowsSchema, "journal_entry_tags");
 
 /** 紐付きを列に書く形にする */
 const columnsOf = (writtenDuring: WrittenDuring) => {
@@ -113,34 +136,47 @@ const columnsOf = (writtenDuring: WrittenDuring) => {
 };
 
 // ---------------------------------------------------------------------------
-// 読み書きの契約（domain/journal-entry.ts, domain/timeline.ts, domain/journal-period.ts）を DO の SQLite で実装する
+// 読み書きの契約（domain/journal-entry.ts, domain/timeline.ts）を DO の SQLite で実装する
 // ---------------------------------------------------------------------------
 
 export type JournalSqlite = Readonly<{
   findJournalEntry: FindJournalEntry;
   listTagsOfOtherEntries: ListTagsOfOtherEntries;
   listTagsInUse: ListTagsInUse;
+  listTagUsage: ListTagUsage;
+  listJournalEntriesTaggedWith: ListJournalEntriesTaggedWith;
   saveJournalEntry: SaveJournalEntry;
   saveEditedJournalEntry: SaveEditedJournalEntry;
+  saveJournalEntryTags: SaveJournalEntryTags;
   deleteJournalEntry: DeleteJournalEntry;
   findTimelineSessions: FindTimelineSessions;
-  findJournalEntriesWritten: FindJournalEntriesWritten;
+  findEntryTimesWrittenIn: FindEntryTimesWrittenIn;
+  findJournalEntriesWrittenIn: FindJournalEntriesWrittenIn;
+  findJournalEntriesWithTag: FindJournalEntriesWithTag;
 }>;
 
 export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
   const loadSession = sessionLoader(sql);
 
-  /** セッションの削除していない記入 */
-  const writtenEntriesOf = (sessionId: SessionId): ReadonlyArray<JournalEntry> =>
-    sql
-      .exec(
-        `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
-         WHERE session_id = ? AND deleted_at IS NULL ORDER BY written_at`,
-        sessionId,
-      )
-      .toArray()
+  /** 記入の行を記入にする。削除した記入は除く */
+  const writtenEntriesFrom = (
+    rows: ReadonlyArray<Record<string, SqlStorageValue>>,
+  ): ReadonlyArray<JournalEntry> =>
+    rows
       .map(parseJournalEntryRow)
       .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : []));
+
+  /** セッションの削除していない記入 */
+  const writtenEntriesOf = (sessionId: SessionId): ReadonlyArray<JournalEntry> =>
+    writtenEntriesFrom(
+      sql
+        .exec(
+          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+           WHERE session_id = ? AND deleted_at IS NULL ORDER BY written_at`,
+          sessionId,
+        )
+        .toArray(),
+    );
 
   /** 記入のタグを、つけた順に書き直す */
   const saveTags = (entry: JournalEntry): void => {
@@ -215,6 +251,33 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
           .toArray(),
       ),
 
+    // 1件の記入に同じタグは1つしかつかない（`Tags`）ので、行の数がそのまま記入の数になる
+    listTagUsage: () =>
+      parseTagUsageRows(
+        sql
+          .exec(
+            `SELECT t.name, COUNT(*) AS entry_count FROM journal_entry_tags t
+             JOIN journal_entries e ON e.id = t.entry_id
+             WHERE e.deleted_at IS NULL
+             GROUP BY t.name ORDER BY MAX(e.written_at) DESC, t.name`,
+          )
+          .toArray(),
+      ),
+
+    listJournalEntriesTaggedWith: (name) =>
+      sql
+        .exec(
+          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+           WHERE deleted_at IS NULL
+             AND id IN (SELECT entry_id FROM journal_entry_tags WHERE name = ?)`,
+          name,
+        )
+        .toArray()
+        .map(parseJournalEntryRow)
+        .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : [])),
+
+    saveJournalEntryTags: saveTags,
+
     deleteJournalEntry: (deleted) => {
       sql.exec(
         "UPDATE journal_entries SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
@@ -238,16 +301,44 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
       }));
     },
 
-    findJournalEntriesWritten: (range) =>
-      sql
-        .exec(
-          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
-           WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ? ORDER BY written_at`,
-          range.since.getTime(),
-          range.until.getTime(),
-        )
-        .toArray()
-        .map(parseJournalEntryRow)
-        .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : [])),
+    findEntryTimesWrittenIn: (window) =>
+      parseWrittenAtRows(
+        sql
+          .exec(
+            `SELECT written_at FROM journal_entries
+             WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ?`,
+            window.from.getTime(),
+            window.until.getTime(),
+          )
+          .toArray(),
+      ),
+
+    findJournalEntriesWrittenIn: (window) =>
+      writtenEntriesFrom(
+        sql
+          .exec(
+            `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+             WHERE deleted_at IS NULL AND written_at >= ? AND written_at < ? ORDER BY written_at`,
+            window.from.getTime(),
+            window.until.getTime(),
+          )
+          .toArray(),
+      ),
+
+    findJournalEntriesWithTag: (range) => {
+      const tagged = `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+        WHERE deleted_at IS NULL
+          AND id IN (SELECT entry_id FROM journal_entry_tags WHERE name = ?)`;
+      const rows =
+        range.kind === "Latest"
+          ? sql.exec(`${tagged} ORDER BY written_at DESC LIMIT ?`, range.tag, range.limit)
+          : sql.exec(
+              `${tagged} AND written_at < ? ORDER BY written_at DESC LIMIT ?`,
+              range.tag,
+              range.before.getTime(),
+              range.limit,
+            );
+      return writtenEntriesFrom(rows.toArray());
+    },
   };
 };

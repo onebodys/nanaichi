@@ -1,5 +1,6 @@
 import type { AdvanceChoice, PhaseTransition } from "../domain/advance-mode.ts";
 import type { InPhase } from "../domain/phase-change.ts";
+import { TAG_KINDS_MAX, type TagDeletion, type TagName } from "../domain/tag.ts";
 import type { AlertTone, Volume } from "./alert-settings.ts";
 import type { NotificationPermissionState } from "./phase-alert.ts";
 import type { ThemePreference } from "./theme.ts";
@@ -125,3 +126,23 @@ export const backgroundTimerLabelOf = (state: Exclude<TimerState, Ended>): strin
   const paused = state.clock.kind === "Paused" ? "（一時停止中）" : "";
   return `${phaseLabelOf(state)} ${minutes}:${seconds}${paused}`;
 };
+
+/** タグの一覧の前に出す、使っているタグの種類と上限 */
+export const tagKindsNoteOf = (inUse: number): string =>
+  `使えるタグは${TAG_KINDS_MAX}種類までで、いま${inUse}種類を使っています。`;
+
+/** タグの行の補足。ついている記入の数 */
+export const entryCountLabelOf = (count: number): string => `${count}件の記入`;
+
+/** タグを削除するボタンの文言。付け替えるなら付け替え先も書く（押すと何が起きるかを示す） */
+export const tagDeletionActionOf = (deletion: TagDeletion): string => {
+  switch (deletion.kind) {
+    case "Detach":
+      return "外して削除";
+    case "Reassign":
+      return `#${deletion.to} に付け替えて削除`;
+  }
+};
+
+/** タグの名前を、入力欄やタイムラインと同じく `#` をつけて書く */
+export const tagLabelOf = (name: TagName): string => `#${name}`;

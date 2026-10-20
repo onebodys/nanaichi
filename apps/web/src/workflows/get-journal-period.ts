@@ -1,8 +1,8 @@
 import { Result } from "@praha/byethrow";
+import type { FindJournalEntriesWrittenIn } from "../domain/journal-calendar.ts";
 import {
   JournalPeriod,
   JournalPeriodQuerySchema,
-  type FindJournalEntriesWritten,
   type JournalPeriodReport,
 } from "../domain/journal-period.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
@@ -10,7 +10,7 @@ import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
 export type GetJournalPeriodError = ValidationError;
 
 export type GetJournalPeriodDeps = Readonly<{
-  findJournalEntriesWritten: FindJournalEntriesWritten;
+  findJournalEntriesWrittenIn: FindJournalEntriesWrittenIn;
 }>;
 
 const parseQuery = schemaResult(JournalPeriodQuerySchema);
@@ -27,6 +27,9 @@ export const getJournalPeriod =
     Result.pipe(
       parseQuery(rawQuery),
       Result.map((period) =>
-        JournalPeriod.report(period, deps.findJournalEntriesWritten(JournalPeriod.rangeOf(period))),
+        JournalPeriod.report(
+          period,
+          deps.findJournalEntriesWrittenIn(JournalPeriod.rangeOf(period)),
+        ),
       ),
     );

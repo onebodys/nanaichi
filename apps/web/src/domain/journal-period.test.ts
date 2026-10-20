@@ -22,7 +22,7 @@ describe("期間の時刻の範囲", () => {
     const range = JournalPeriod.rangeOf(periodOf("2026-10-12", "2026-10-18", "Asia/Tokyo"));
 
     expect(range).toEqual({
-      since: new Date("2026-10-11T15:00:00Z"),
+      from: new Date("2026-10-11T15:00:00Z"),
       until: new Date("2026-10-18T15:00:00Z"),
     });
   });
@@ -32,7 +32,7 @@ describe("期間の時刻の範囲", () => {
     const range = JournalPeriod.rangeOf(periodOf("2026-03-08", "2026-03-08", "America/New_York"));
 
     expect(range).toEqual({
-      since: new Date("2026-03-08T05:00:00Z"),
+      from: new Date("2026-03-08T05:00:00Z"),
       until: new Date("2026-03-09T04:00:00Z"),
     });
   });
@@ -41,7 +41,7 @@ describe("期間の時刻の範囲", () => {
     // サンティアゴは 2026-09-06 の 0:00 が 1:00 に飛ぶ（-04:00 → -03:00）
     const range = JournalPeriod.rangeOf(periodOf("2026-09-06", "2026-09-06", "America/Santiago"));
 
-    expect(range.since).toEqual(new Date("2026-09-06T04:00:00Z"));
+    expect(range.from).toEqual(new Date("2026-09-06T04:00:00Z"));
   });
 
   test("年をまたぐ期間でも、to の翌日まで数える", () => {
