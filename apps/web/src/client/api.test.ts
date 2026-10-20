@@ -291,6 +291,34 @@ describe("タイムライン", () => {
 });
 
 describe("タグ", () => {
+  test("GET /api/tags/usage を呼び、使っているタグとついている記入の数を返す", async () => {
+    const { client, paths } = respondWith(200, { tags: [{ name: "読書", entryCount: 3 }] });
+
+    const result = await client.getTagUsage();
+
+    expect(paths).toEqual(["/api/tags/usage"]);
+    expect(result).toEqual(Result.succeed({ tags: [{ name: "読書", entryCount: 3 }] }));
+  });
+
+  test("タグの削除は、名前を URL に入れて DELETE /api/tags/:name を呼び、付け替え先を本文で送る", async () => {
+    const deletion = { kind: "Reassign", to: v.parse(TagName.schema, "本") } as const;
+    const { client, paths, requests } = respondWith(200, { name: "読書", deletion });
+
+    const result = await client.deleteTag(readingTag, deletion);
+
+    expect(paths).toEqual([`/api/tags/${encodeURIComponent("読書")}`]);
+    expect(requests[0]).toMatchObject({ method: "DELETE", body: JSON.stringify(deletion) });
+    expect(result).toEqual(Result.succeed({ name: "読書", deletion }));
+  });
+
+  test("削除するタグが使われていなければ、TAG_NOT_FOUND の ApiRejected を返す", async () => {
+    const { client } = respondWith(404, { error: "TAG_NOT_FOUND" });
+
+    expect(await client.deleteTag(readingTag, { kind: "Detach" })).toEqual(
+      Result.fail({ kind: "ApiRejected", status: 404, code: "TAG_NOT_FOUND" }),
+    );
+  });
+
   test("GET /api/tags を呼び、使っているタグを最近使った順のまま返す", async () => {
     const { client, paths } = respondWith(200, { tags: ["読書", "設計"] });
 

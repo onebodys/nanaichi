@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { JsonDateSchema } from "./json-date.ts";
 import { Sensitive } from "./sensitive.ts";
 import { SessionId } from "./session.ts";
-import { Tags, type TagName } from "./tag.ts";
+import { DeletedTag, Tags, type TagName } from "./tag.ts";
 import type { TimerState } from "./timer-state.ts";
 
 /**
@@ -169,6 +169,15 @@ export const JournalEntry = {
     updatedAt: now,
   }),
 
+  /**
+   * 削除したタグを記入から外す（付け替えるなら付け替え先に置き換える）。記入を編集するのではないので、
+   * 更新時刻は変えない（GLOSSARY の「タグの削除」、ADR 0017）
+   */
+  deleteTag: (entry: JournalEntry, deleted: DeletedTag): JournalEntry => ({
+    ...entry,
+    tags: DeletedTag.applyTo(entry.tags, deleted),
+  }),
+
   /** 応答に使う JSON にできる形。本文は応答の中でだけ取り出す */
   toJson: (entry: JournalEntry): JournalEntryJson => ({ ...entry, body: entry.body.unwrap() }),
 } as const;
@@ -194,3 +203,9 @@ export type DeleteJournalEntry = (deleted: DeletedJournalEntry) => void;
  * 上限を超えないかを確かめるのに使う（`Tag.ensureWithinLimit`）。書き直す記入自身のタグは数えない
  */
 export type ListTagsOfOtherEntries = (id: JournalEntryId) => ReadonlyArray<TagName>;
+
+/** タグ `name` がついている、削除していない記入を読む */
+export type ListJournalEntriesTaggedWith = (name: TagName) => ReadonlyArray<JournalEntry>;
+
+/** 記入のタグだけを記録し直す（本文と更新時刻は変えない） */
+export type SaveJournalEntryTags = (entry: JournalEntry) => void;

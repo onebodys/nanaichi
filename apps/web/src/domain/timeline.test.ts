@@ -10,6 +10,7 @@ import {
 import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
 import { SessionId, type Session } from "./session.ts";
+import { TagName } from "./tag.ts";
 import {
   Timeline,
   TimelinePageJsonSchema,
@@ -262,6 +263,28 @@ describe("読み込んだ記録の更新", () => {
     expect(written[0]?.entries).toEqual([entry]);
     expect(Timeline.putEntry(written, edited)[0]?.entries).toEqual([edited]);
     expect(Timeline.removeEntry(written, entry.id)[0]?.entries).toEqual([]);
+  });
+
+  test("タグを削除すると、読み込んだどのセッションの記入からも外れ、更新時刻は変わらない", () => {
+    const reading = v.parse(TagName.schema, "読書");
+    const book = v.parse(TagName.schema, "本");
+    const inB = { ...entryAt(b, -55), tags: [reading] };
+    const inA = { ...entryAt(a, -85), tags: [book, reading] };
+    const loaded = [
+      { session: b, entries: [inB] },
+      { session: a, entries: [inA] },
+    ];
+
+    const deleted = Timeline.deleteTag(loaded, {
+      name: reading,
+      deletion: { kind: "Reassign", to: book },
+    });
+
+    expect(deleted.map(({ entries }) => entries.map(({ tags }) => tags))).toEqual([
+      [["本"]],
+      [["本"]],
+    ]);
+    expect(deleted[0]?.entries[0]?.updatedAt).toEqual(inB.updatedAt);
   });
 });
 
