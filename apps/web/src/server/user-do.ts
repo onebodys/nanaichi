@@ -15,7 +15,7 @@ import {
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import type { StatsReport } from "../domain/stats.ts";
-import type { TagList } from "../domain/tag.ts";
+import type { DeletedTag, TagList, TagUsageList } from "../domain/tag.ts";
 import { TaggedEntries, type TaggedEntriesPageJson } from "../domain/tagged-entries.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
@@ -27,6 +27,7 @@ import {
   deleteJournalEntry,
   type DeleteJournalEntryError,
 } from "../workflows/delete-journal-entry.ts";
+import { deleteTag, type DeleteTagError } from "../workflows/delete-tag.ts";
 import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getAdvanceMode } from "../workflows/get-advance-mode.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
@@ -40,6 +41,7 @@ import {
   type GetJournalCalendarError,
 } from "../workflows/get-journal-calendar.ts";
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
+import { getTagUsage } from "../workflows/get-tag-usage.ts";
 import { getTags } from "../workflows/get-tags.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
 import { operateSession, type OperateSessionError } from "../workflows/operate-session.ts";
@@ -172,6 +174,26 @@ export class UserDO extends DurableObject<Env> {
   /** `GET /api/tags`。入力の候補に出す、使っているタグ */
   async getTags(): Promise<Result.Result<TagList, never>> {
     return this.#run(() => getTags(this.#journal)());
+  }
+
+  /** `GET /api/tags/usage`。設定画面のタグの一覧に出す、使っているタグとその記入の数 */
+  async getTagUsage(): Promise<Result.Result<TagUsageList, never>> {
+    return this.#run(() => getTagUsage(this.#journal)());
+  }
+
+  /**
+   * `DELETE /api/tags/:name`。`raw` はリクエストの本文（外すか付け替えるか）で、検証はワークフローが行う。
+   * 削除したら、削除したタグと付け替え先を全接続へ送る。書き換えた記入は送らない（ADR 0017）
+   */
+  async deleteTag(
+    rawName: unknown,
+    raw: unknown,
+  ): Promise<Result.Result<DeletedTag, DeleteTagError>> {
+    const result = await this.#run(() => deleteTag(this.#journal)(rawName, raw));
+    return Result.pipe(
+      result,
+      Result.inspect((deleted) => this.#broadcast([{ kind: "TagDeleted", deleted }])),
+    );
   }
 
   /** `GET /api/stats?period=&timeZone=`。`rawQuery` はクエリの値で、検証はワークフローが行う */

@@ -19,6 +19,11 @@ export const journalRoutes = new Hono<AppEnv>()
     respond(c, await userDOOf(c).deleteJournalEntry(c.req.param("id"))),
   )
   .get("/tags", async (c) => respond(c, await userDOOf(c).getTags()))
+  .get("/tags/usage", async (c) => respond(c, await userDOOf(c).getTagUsage()))
+  // 本文は外すか付け替えるか（`TagDeletion`）。名前は URL でエンコードされて届き、`param` が戻す
+  .delete("/tags/:name", async (c) =>
+    respond(c, await userDOOf(c).deleteTag(c.req.param("name"), await bodyOf(c))),
+  )
   // `c.req.query()` はプロトタイプのないオブジェクトで DO の RPC で送れないので、使う値だけを取り出す
   .get("/timeline", async (c) =>
     respond(c, await userDOOf(c).getTimeline({ before: c.req.query("before") })),

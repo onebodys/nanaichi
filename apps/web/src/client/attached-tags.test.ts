@@ -7,6 +7,7 @@ import {
   attachTags,
   parseAttachedTags,
   serializeAttachedTags,
+  withTagDeleted,
 } from "./attached-tags.ts";
 
 const sessionId = v.parse(SessionId.schema, "00000000-0000-4000-8000-000000000001");
@@ -44,4 +45,25 @@ describe("入力欄でつけたままのタグ", () => {
       expect(attachedTagsIn(parseAttachedTags(stored), sessionId)).toEqual([]);
     },
   );
+});
+
+describe("タグを削除したときのつけたままのタグ", () => {
+  const book = v.parse(TagName.schema, "本");
+  const design = v.parse(TagName.schema, "設計");
+
+  test("外しただけなら、つけたままのタグからも外れ、続けて書く記入につかない", () => {
+    const attached = attachTags(sessionId, [reading, design]);
+
+    expect(withTagDeleted(attached, { name: reading, deletion: { kind: "Detach" } })).toEqual(
+      attachTags(sessionId, [design]),
+    );
+  });
+
+  test("付け替えたなら、準備したタグも付け替え先に置き換わる", () => {
+    const attached = attachTags(undefined, [reading]);
+
+    expect(
+      withTagDeleted(attached, { name: reading, deletion: { kind: "Reassign", to: book } }),
+    ).toEqual(attachTags(undefined, [book]));
+  });
 });

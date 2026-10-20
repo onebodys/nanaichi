@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
-import { Tag, TAG_KINDS_MAX, TagName, Tags } from "./tag.ts";
+import { DeletedTag, Tag, TAG_KINDS_MAX, TagName, Tags } from "./tag.ts";
 
 const tag = (name: string) => v.parse(TagName.schema, name);
 const tagsNumbered = (count: number, prefix = "tag") =>
@@ -71,5 +71,87 @@ describe("使えるタグの種類の上限", () => {
     expect(Tag.canAdd(inUse, [], tag("読書"))).toBe(true);
     expect(Tag.canAdd(inUse, [tag("読書")], tag("本"))).toBe(false);
     expect(Tag.canAdd(inUse, [tag("読書")], tag("tag1"))).toBe(true);
+  });
+});
+
+describe("タグの削除", () => {
+  const reading = tag("読書");
+  const design = tag("設計");
+  const review = tag("レビュー");
+  const inUse = [reading, design, review];
+
+  test("使っているタグは、外すだけなら削除できる", () => {
+    const deleted: DeletedTag = { name: reading, deletion: { kind: "Detach" } };
+
+    expect(DeletedTag.ensureDeletable(inUse, deleted)).toEqual(Result.succeed(deleted));
+  });
+
+  test("使っている別のタグになら、付け替えて削除できる", () => {
+    const deleted: DeletedTag = { name: reading, deletion: { kind: "Reassign", to: design } };
+
+    expect(DeletedTag.ensureDeletable(inUse, deleted)).toEqual(Result.succeed(deleted));
+  });
+
+  test("どの記入にもついていないタグは存在しないので、削除できない", () => {
+    const deleted: DeletedTag = { name: tag("料理"), deletion: { kind: "Detach" } };
+
+    expect(DeletedTag.ensureDeletable(inUse, deleted)).toEqual(
+      Result.fail({ kind: "TagNotFound", name: "料理" }),
+    );
+  });
+
+  test("付け替え先は使っているタグから選ぶので、使っていないタグには付け替えられない", () => {
+    const deleted: DeletedTag = {
+      name: reading,
+      deletion: { kind: "Reassign", to: tag("料理") },
+    };
+
+    expect(DeletedTag.ensureDeletable(inUse, deleted)).toEqual(
+      Result.fail({ kind: "TagNotFound", name: "料理" }),
+    );
+  });
+
+  test("削除するタグ自身には付け替えられない", () => {
+    const deleted: DeletedTag = { name: reading, deletion: { kind: "Reassign", to: reading } };
+
+    expect(DeletedTag.ensureDeletable(inUse, deleted)).toEqual(
+      Result.fail({ kind: "ReassignToSameTag" }),
+    );
+  });
+
+  test("外すだけなら、記入のタグから削除したタグだけがなくなり、残りの順は変わらない", () => {
+    expect(
+      DeletedTag.applyTo([design, reading, review], {
+        name: reading,
+        deletion: { kind: "Detach" },
+      }),
+    ).toEqual([design, review]);
+  });
+
+  test("付け替えると、削除したタグのあった位置に付け替え先がつく", () => {
+    expect(
+      DeletedTag.applyTo([design, reading], {
+        name: reading,
+        deletion: { kind: "Reassign", to: review },
+      }),
+    ).toEqual([design, review]);
+  });
+
+  test("付け替え先がすでについている記入では、先にあった位置の1つにまとめる", () => {
+    expect(
+      DeletedTag.applyTo([reading, review, design], {
+        name: reading,
+        deletion: { kind: "Reassign", to: design },
+      }),
+    ).toEqual([design, review]);
+  });
+
+  test("削除したタグがついていない記入のタグは変わらない", () => {
+    expect(
+      DeletedTag.applyTo([design, review], {
+        name: reading,
+        deletion: { kind: "Reassign", to: design },
+      }),
+    ).toEqual([design, review]);
   });
 });

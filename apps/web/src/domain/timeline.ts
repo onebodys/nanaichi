@@ -8,6 +8,7 @@ import {
 import { JsonDateSchema } from "./json-date.ts";
 import { localDateIn, type LocalDate } from "./local-date.ts";
 import { Session, SessionJsonSchema, type SessionId } from "./session.ts";
+import type { DeletedTag } from "./tag.ts";
 
 /** 1ページに含めるセッションの数（ADR 0011） */
 export const TIMELINE_PAGE_SIZE = 10;
@@ -283,6 +284,19 @@ export const Timeline = {
     id: JournalEntryId,
   ): ReadonlyArray<TimelineSession> =>
     sessions.map((item) => ({ ...item, entries: item.entries.filter((entry) => entry.id !== id) })),
+
+  /**
+   * 削除したタグを、読み込んだすべての記入から外す（付け替えるなら付け替え先に置き換える）。
+   * サーバーが記録に当てたのと同じ関数で、手元の記入にも当てる（ADR 0017）
+   */
+  deleteTag: (
+    sessions: ReadonlyArray<TimelineSession>,
+    deleted: DeletedTag,
+  ): ReadonlyArray<TimelineSession> =>
+    sessions.map((item) => ({
+      ...item,
+      entries: item.entries.map((entry) => JournalEntry.deleteTag(entry, deleted)),
+    })),
 
   /**
    * 記録から読んだセッションを1ページにする。`found` は `limit + 1` 件まで読んだもので、

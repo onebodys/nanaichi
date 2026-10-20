@@ -1,11 +1,12 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { SessionId } from "../domain/session.ts";
-import type { TagName } from "../domain/tag.ts";
+import type { DeletedTag, TagName } from "../domain/tag.ts";
 import {
   attachedTagsIn,
   attachTags,
   parseAttachedTags,
   serializeAttachedTags,
+  withTagDeleted,
 } from "./attached-tags.ts";
 
 /**
@@ -87,4 +88,16 @@ export const useAttachedTags = (
   }, [sessionId]);
 
   return [tags, (next) => write(serializeAttachedTags(attachTags(sessionId, next)))];
+};
+
+/**
+ * 削除したタグを、この端末でつけたままのタグからも外す（付け替えたなら付け替え先に置き換える、ADR 0017）。
+ * 削除したタグをつけていなければ何もしない
+ */
+export const applyTagDeletionToAttached = (deleted: DeletedTag): void => {
+  const stored = readStored();
+  const next = serializeAttachedTags(withTagDeleted(parseAttachedTags(stored), deleted));
+  if (stored !== null && next !== stored) {
+    write(next);
+  }
 };

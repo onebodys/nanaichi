@@ -3,7 +3,7 @@ import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
 import type { Session } from "../domain/session.ts";
-import { TAG_KINDS_MAX, type TagName } from "../domain/tag.ts";
+import { TAG_KINDS_MAX, type DeletedTag, type TagName } from "../domain/tag.ts";
 import {
   Timeline,
   type DayCompletedSets,
@@ -106,6 +106,8 @@ export const useTimeline = (
   receiveEntry: (entry: JournalEntry) => void;
   /** 同期メッセージで届いた、削除した記入を取り除く */
   receiveDeletion: (id: JournalEntryId) => void;
+  /** 削除したタグを、読み込んだ記入から外す（自分で削除したときも、同期メッセージで届いたときも） */
+  receiveTagDeletion: (deleted: DeletedTag) => void;
 }> => {
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [loadingMore, setLoadingMore] = useState(false);
@@ -272,6 +274,9 @@ export const useTimeline = (
     },
     receiveDeletion: (id) => {
       apply((sessions) => Timeline.removeEntry(sessions, id));
+    },
+    receiveTagDeletion: (deleted) => {
+      apply((sessions) => Timeline.deleteTag(sessions, deleted));
     },
   };
 };

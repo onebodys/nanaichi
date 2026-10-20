@@ -5,9 +5,11 @@ import {
   type DeleteJournalEntry,
   type FindJournalEntry,
   type JournalEntry,
+  type ListJournalEntriesTaggedWith,
   type ListTagsOfOtherEntries,
   type SaveEditedJournalEntry,
   type SaveJournalEntry,
+  type SaveJournalEntryTags,
   type StoredJournalEntry,
   type WrittenDuring,
 } from "../domain/journal-entry.ts";
@@ -16,7 +18,7 @@ import type {
   FindJournalEntriesWrittenIn,
 } from "../domain/journal-calendar.ts";
 import { SessionId } from "../domain/session.ts";
-import { TagName, Tags, type ListTagsInUse } from "../domain/tag.ts";
+import { TagName, Tags, type ListTagsInUse, type ListTagUsage } from "../domain/tag.ts";
 import type { FindJournalEntriesWithTag } from "../domain/tagged-entries.ts";
 import type { FindTimelineSessions, TimelineSession } from "../domain/timeline.ts";
 import { epochMs, parseRow, sessionLoader } from "./session-sqlite.ts";
@@ -109,6 +111,17 @@ const TagNameRowsSchema = v.pipe(
 );
 const parseTagNameRows = parseRow(TagNameRowsSchema, "journal_entry_tags");
 
+const TagUsageRowsSchema = v.pipe(
+  v.array(
+    v.object({
+      name: TagName.schema,
+      entry_count: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    }),
+  ),
+  v.transform((rows) => rows.map(({ name, entry_count }) => ({ name, entryCount: entry_count }))),
+);
+const parseTagUsageRows = parseRow(TagUsageRowsSchema, "journal_entry_tags");
+
 /** 紐付きを列に書く形にする */
 const columnsOf = (writtenDuring: WrittenDuring) => {
   switch (writtenDuring.kind) {
@@ -130,8 +143,11 @@ export type JournalSqlite = Readonly<{
   findJournalEntry: FindJournalEntry;
   listTagsOfOtherEntries: ListTagsOfOtherEntries;
   listTagsInUse: ListTagsInUse;
+  listTagUsage: ListTagUsage;
+  listJournalEntriesTaggedWith: ListJournalEntriesTaggedWith;
   saveJournalEntry: SaveJournalEntry;
   saveEditedJournalEntry: SaveEditedJournalEntry;
+  saveJournalEntryTags: SaveJournalEntryTags;
   deleteJournalEntry: DeleteJournalEntry;
   findTimelineSessions: FindTimelineSessions;
   findEntryTimesWrittenIn: FindEntryTimesWrittenIn;
@@ -234,6 +250,33 @@ export const journalSqlite = (sql: SqlStorage): JournalSqlite => {
           )
           .toArray(),
       ),
+
+    // 1件の記入に同じタグは1つしかつかない（`Tags`）ので、行の数がそのまま記入の数になる
+    listTagUsage: () =>
+      parseTagUsageRows(
+        sql
+          .exec(
+            `SELECT t.name, COUNT(*) AS entry_count FROM journal_entry_tags t
+             JOIN journal_entries e ON e.id = t.entry_id
+             WHERE e.deleted_at IS NULL
+             GROUP BY t.name ORDER BY MAX(e.written_at) DESC, t.name`,
+          )
+          .toArray(),
+      ),
+
+    listJournalEntriesTaggedWith: (name) =>
+      sql
+        .exec(
+          `SELECT ${JOURNAL_ENTRY_COLUMNS} FROM journal_entries
+           WHERE deleted_at IS NULL
+             AND id IN (SELECT entry_id FROM journal_entry_tags WHERE name = ?)`,
+          name,
+        )
+        .toArray()
+        .map(parseJournalEntryRow)
+        .flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : [])),
+
+    saveJournalEntryTags: saveTags,
 
     deleteJournalEntry: (deleted) => {
       sql.exec(

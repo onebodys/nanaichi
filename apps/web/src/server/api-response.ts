@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { Result } from "@praha/byethrow";
 import type { ApiErrorBody } from "../domain/api-error.ts";
 import type { DeleteJournalEntryError } from "../workflows/delete-journal-entry.ts";
+import type { DeleteTagError } from "../workflows/delete-tag.ts";
 import type { EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import type { GetTimelineError } from "../workflows/get-timeline.ts";
 import type { OperateSessionError } from "../workflows/operate-session.ts";
@@ -24,6 +25,7 @@ type WorkflowError =
   | WriteJournalEntryError
   | EditJournalEntryError
   | DeleteJournalEntryError
+  | DeleteTagError
   | GetTimelineError;
 
 /** 想定内の失敗を HTTP の応答にする。どれもクライアントが直せる失敗なので 4xx */
@@ -49,6 +51,11 @@ const errorResponseOf = (
       return { status: 409, body: { error: "TAG_LIMIT_EXCEEDED", limit: error.limit } };
     case "JournalEntryNotFound":
       return { status: 404, body: { error: "JOURNAL_ENTRY_NOT_FOUND" } };
+    case "TagNotFound":
+      return { status: 404, body: { error: "TAG_NOT_FOUND" } };
+    case "ReassignToSameTag":
+      // 付け替え先の指定が不正。入力の検証と同じく、どの項目かだけを返す
+      return { status: 400, body: { error: "INVALID_REQUEST", paths: ["to"] } };
   }
 };
 
