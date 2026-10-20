@@ -4,7 +4,7 @@ import { cn } from "./lib/utils.ts";
 import { linkify } from "./linkify.ts";
 import { TagList } from "./tag-input.tsx";
 
-/** ジャーナル記入の表示の部品。タイムラインと、スタッツの記入の見返しで使う */
+/** ジャーナル記入の表示の部品。タイムラインと、スタッツのジャーナル記入の見返しで使う */
 
 /** 本文をプレーンテキストで出し、URL だけをリンクにする。改行はそのまま出す */
 export const EntryBody = ({ text }: Readonly<{ text: string }>) => (
@@ -52,7 +52,7 @@ export const WrittenDuringBadge = ({
   </span>
 );
 
-/** 読むだけの記入（スタッツの記入の見返し）。編集・削除はタイムラインでする */
+/** 読むだけの記入（スタッツのジャーナル記入の見返し）。編集・削除はタイムラインでする */
 export const ReadOnlyEntry = ({ entry }: Readonly<{ entry: JournalEntry }>) => (
   <li aria-label="ジャーナル記入" className="flex flex-col gap-1.5 py-3.5">
     <p className="flex items-center gap-2 text-xs text-muted-foreground">

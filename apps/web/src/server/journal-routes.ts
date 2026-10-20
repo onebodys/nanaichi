@@ -3,7 +3,7 @@ import { bodyOf, respond, userDOOf } from "./api-response.ts";
 import type { AppEnv } from "./hono-context.ts";
 
 /**
- * ジャーナル記入・タグ・タイムライン・記入の見返し・スタッツの API。`requireSession` の後ろにつなぐ（app.ts）。
+ * ジャーナル記入・タグ・タイムライン・ジャーナル記入の見返し・スタッツの API。`requireSession` の後ろにつなぐ（app.ts）。
  *
  * 判断と記録はユーザーの UserDO が行い、ここは本文の受け渡しと HTTP への変換だけをする。
  * 書いた時刻はサーバー（UserDO）が受け付けた時刻で記録する（ADR 0010）。
@@ -23,7 +23,7 @@ export const journalRoutes = new Hono<AppEnv>()
   .get("/timeline", async (c) =>
     respond(c, await userDOOf(c).getTimeline({ before: c.req.query("before") })),
   )
-  // 記入を見返す（Issue #83）。日付は端末のタイムゾーンで区切るので、画面がタイムゾーンを送る
+  // ジャーナル記入を見返す（Issue #83）。日付は端末のタイムゾーンで区切るので、画面がタイムゾーンを送る
   .get("/journal-calendar", async (c) =>
     respond(
       c,

@@ -307,7 +307,7 @@ const ByTag = ({ knownTags }: Readonly<{ knownTags: ReadonlyArray<TagName> }>) =
 };
 
 /**
- * スタッツの記入の見返し（Issue #83）。ジャーナルのカレンダーで選んだ日の記入か、選んだタグのついた記入を
+ * スタッツのジャーナル記入の見返し（Issue #83）。ジャーナルのカレンダーで選んだ日の記入か、選んだタグのついた記入を
  * 読むだけで出す（編集・削除はタイムラインで）。スタッツの期間には関わらない
  */
 export const JournalLookup = ({
