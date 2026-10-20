@@ -3,6 +3,8 @@ import type { SyncMessage } from "../domain/sync-message.ts";
 import { connectSync, openBrowserSocket } from "./sync-connection.ts";
 import type { AdvanceModeState } from "./use-advance-mode.ts";
 import type { SessionTimer } from "./use-session-timer.ts";
+import { applyTagDeletionToAttached } from "./use-attached-tags.ts";
+import type { TagUsageState } from "./use-tag-usage.ts";
 import type { TagsState } from "./use-tags.ts";
 import type { TimelineState } from "./use-timeline.ts";
 
@@ -16,23 +18,35 @@ type Receivers = Readonly<{
   timer: SessionTimer;
   timeline: TimelineState;
   tags: TagsState;
+  tagUsage: TagUsageState;
   advanceMode: AdvanceModeState;
 }>;
 
 /**
  * 同期メッセージを、タイマーとタイムラインのどちらに反映するか振り分ける。
- * 記入が変わるとタグの使われ方も変わるので、タグの候補を読み込み直す
+ * 記入が変わるとタグの使われ方も変わるので、タグの候補と設定画面のタグの一覧を読み込み直す
  */
-const deliver = (message: SyncMessage, { timer, timeline, tags, advanceMode }: Receivers): void => {
+const deliver = (
+  message: SyncMessage,
+  { timer, timeline, tags, tagUsage, advanceMode }: Receivers,
+): void => {
   switch (message.kind) {
     case "SessionChanged":
       return timer.receive(message.snapshot);
     case "JournalEntrySaved":
       timeline.receiveEntry(message.entry);
-      return tags.refresh();
+      tags.refresh();
+      return tagUsage.refresh();
     case "JournalEntryDeleted":
       timeline.receiveDeletion(message.deleted.id);
-      return tags.refresh();
+      tags.refresh();
+      return tagUsage.refresh();
+    case "TagDeleted":
+      // 書き換えた記入は届かないので、読み込んだ記入とつけたままのタグに同じ削除を当てる（ADR 0017）
+      timeline.receiveTagDeletion(message.deleted);
+      applyTagDeletionToAttached(message.deleted);
+      tags.refresh();
+      return tagUsage.refresh();
     case "AdvanceModeChanged":
       return advanceMode.receive(message.mode);
   }
@@ -60,6 +74,7 @@ export const useSync = (receivers: Receivers): void => {
           latest.current.timer.refresh();
           latest.current.timeline.refresh();
           latest.current.tags.refresh();
+          latest.current.tagUsage.refresh();
           latest.current.advanceMode.refresh();
         },
         onMessage: (message) => deliver(message, latest.current),

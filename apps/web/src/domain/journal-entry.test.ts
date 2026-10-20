@@ -118,6 +118,19 @@ describe("ジャーナル記入の編集", () => {
   });
 });
 
+describe("タグの削除", () => {
+  test("記入からタグを外しても、本文・書いた時刻・更新時刻は変わらない（編集済みにならない）", () => {
+    const written = writeAt(at(3));
+    if (Result.isFailure(written)) throw new Error("書けなかった");
+    const reading = v.parse(TagName.schema, "読書");
+    const entry = { ...written.value, tags: [reading] };
+
+    const deleted = JournalEntry.deleteTag(entry, { name: reading, deletion: { kind: "Detach" } });
+
+    expect(deleted).toEqual({ ...entry, tags: [] });
+  });
+});
+
 describe("本文", () => {
   test("前後の空白を落とし、改行は残す", () => {
     expect(body("  1行目\n2行目\n ").unwrap()).toBe("1行目\n2行目");

@@ -7,6 +7,7 @@ import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
 import { Session, SessionId } from "./session.ts";
 import { SyncMessage, SyncMessageJsonSchema } from "./sync-message.ts";
+import { TagName } from "./tag.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -62,6 +63,18 @@ describe("同期メッセージの送受信", () => {
     const message: SyncMessage = {
       kind: "JournalEntryDeleted",
       deleted: { id: written.id, deletedAt: at(4) },
+    };
+
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
+  test("タグを削除したら、削除したタグと付け替え先を受け取れる", () => {
+    const message: SyncMessage = {
+      kind: "TagDeleted",
+      deleted: {
+        name: v.parse(TagName.schema, "読書"),
+        deletion: { kind: "Reassign", to: v.parse(TagName.schema, "本") },
+      },
     };
 
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));

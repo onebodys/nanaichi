@@ -83,8 +83,120 @@ export const TagListJsonSchema: v.GenericSchema<unknown, TagList> = v.object({
 });
 
 // ---------------------------------------------------------------------------
+// 設定画面のタグの一覧（`GET /api/tags/usage`）
+// ---------------------------------------------------------------------------
+
+/** 使っているタグと、それがついている削除していない記入の数 */
+export type TagUsage = Readonly<{ name: TagName; entryCount: number }>;
+
+/** 使っているタグとその記入の数の一覧。最近使った順（ADR 0013） */
+export type TagUsageList = Readonly<{ tags: ReadonlyArray<TagUsage> }>;
+
+export const TagUsageListJsonSchema: v.GenericSchema<unknown, TagUsageList> = v.object({
+  tags: v.array(
+    v.object({
+      name: TagNameSchema,
+      entryCount: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    }),
+  ),
+});
+
+// ---------------------------------------------------------------------------
+// タグの削除（`DELETE /api/tags/:name`、GLOSSARY の「タグの削除」、ADR 0017）
+// ---------------------------------------------------------------------------
+
+/**
+ * タグを削除するときに、そのタグがついている記入をどうするか。
+ *
+ * - `Detach`: タグを外すだけ
+ * - `Reassign`: 使っている別のタグ `to` に付け替える
+ */
+export type TagDeletion =
+  | Readonly<{ kind: "Detach" }>
+  | Readonly<{ kind: "Reassign"; to: TagName }>;
+
+const TagDeletionSchema = v.variant("kind", [
+  v.object({ kind: v.literal("Detach") }),
+  v.object({ kind: v.literal("Reassign"), to: TagNameSchema }),
+]);
+
+export const TagDeletion = {
+  schema: TagDeletionSchema,
+} as const;
+
+/** 削除したタグ `name` と、ついていた記入をどうしたか */
+export type DeletedTag = Readonly<{ name: TagName; deletion: TagDeletion }>;
+
+/** JSON にした削除したタグ（`DELETE /api/tags/:name` の応答、同期メッセージ）を検証して戻す */
+export const DeletedTagJsonSchema: v.GenericSchema<unknown, DeletedTag> = v.object({
+  name: TagNameSchema,
+  deletion: TagDeletionSchema,
+});
+
+/** 削除するタグか付け替え先のタグが、削除していない記入のどれにもついていない（存在しない） */
+export type TagNotFound = Readonly<{ kind: "TagNotFound"; name: TagName }>;
+
+/** 付け替え先が、削除するタグ自身 */
+export type ReassignToSameTag = Readonly<{ kind: "ReassignToSameTag" }>;
+
+/** 使っているタグ `inUse` に `name` があるか */
+const ensureInUse = (
+  inUse: ReadonlyArray<TagName>,
+  name: TagName,
+): Result.Result<TagName, TagNotFound> =>
+  inUse.includes(name) ? Result.succeed(name) : Result.fail({ kind: "TagNotFound", name });
+
+export const DeletedTag = {
+  /**
+   * タグ `deleted.name` を削除できるかを確かめる。削除するタグも付け替え先も、使っているタグ `inUse` の
+   * どれかでなければならない（付け替え先は使っているタグから選ぶ。GLOSSARY の「タグの削除」）
+   */
+  ensureDeletable: (
+    inUse: ReadonlyArray<TagName>,
+    deleted: DeletedTag,
+  ): Result.Result<DeletedTag, TagNotFound | ReassignToSameTag> => {
+    switch (deleted.deletion.kind) {
+      case "Detach":
+        return Result.pipe(
+          ensureInUse(inUse, deleted.name),
+          Result.map(() => deleted),
+        );
+      case "Reassign": {
+        const { to } = deleted.deletion;
+        if (to === deleted.name) {
+          return Result.fail({ kind: "ReassignToSameTag" });
+        }
+        return Result.pipe(
+          ensureInUse(inUse, deleted.name),
+          Result.andThen(() => ensureInUse(inUse, to)),
+          Result.map(() => deleted),
+        );
+      }
+    }
+  },
+
+  /**
+   * 1件の記入のタグ `tags` から、削除したタグを外す（付け替えるなら付け替え先に置き換える）。
+   * 付け替え先がすでについていれば、先にあった位置の1つにまとめる
+   */
+  applyTo: (tags: ReadonlyArray<TagName>, deleted: DeletedTag): ReadonlyArray<TagName> => {
+    switch (deleted.deletion.kind) {
+      case "Detach":
+        return tags.filter((name) => name !== deleted.name);
+      case "Reassign": {
+        const { to } = deleted.deletion;
+        return [...new Set(tags.map((name) => (name === deleted.name ? to : name)))];
+      }
+    }
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
 // ワークフローが使う読み書きの契約（kamae: 概念の隣に置き、1つの契約に1つの操作）
 // ---------------------------------------------------------------------------
 
 /** 削除していない記入についているタグを、最近使った順に読む */
 export type ListTagsInUse = () => ReadonlyArray<TagName>;
+
+/** 削除していない記入についているタグと、その記入の数を、最近使った順に読む */
+export type ListTagUsage = () => ReadonlyArray<TagUsage>;

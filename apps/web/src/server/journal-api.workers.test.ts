@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { Result } from "@praha/byethrow";
 import { DeletedJournalEntryJsonSchema, JournalEntryJsonSchema } from "../domain/journal-entry.ts";
 import { schemaResult } from "../domain/schema-result.ts";
-import { TagListJsonSchema } from "../domain/tag.ts";
+import { DeletedTagJsonSchema, TagListJsonSchema, TagUsageListJsonSchema } from "../domain/tag.ts";
 import { TimelinePageJsonSchema } from "../domain/timeline.ts";
 import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
 
@@ -49,6 +49,13 @@ const edit = (id: string, body: unknown, tags: unknown = []) =>
 const tags = () => request("/api/tags", { headers });
 const tagsJson = async () => (await tags()).json<{ tags: Array<string> }>();
 const remove = (id: string) => request(`/api/journal-entries/${id}`, { method: "DELETE", headers });
+const tagUsage = () => request("/api/tags/usage", { headers });
+const tagUsageJson = async () =>
+  (await tagUsage()).json<{ tags: Array<{ name: string; entryCount: number }> }>();
+/** 名前は画面と同じく URL にエンコードして送る */
+const deleteTag = (name: string, deletion: unknown) =>
+  request(`/api/tags/${encodeURIComponent(name)}`, withBody("DELETE", deletion));
+const entriesJson = async () => (await timelineJson()).sessions.flatMap(({ entries }) => entries);
 const timeline = (before?: string) =>
   request(
     before === undefined ? "/api/timeline" : `/api/timeline?before=${encodeURIComponent(before)}`,
@@ -56,7 +63,10 @@ const timeline = (before?: string) =>
   );
 
 type TimelineJson = {
-  sessions: Array<{ session: { id: string }; entries: Array<{ id: string; body: string }> }>;
+  sessions: Array<{
+    session: { id: string };
+    entries: Array<{ id: string; body: string; tags: Array<string> }>;
+  }>;
   next: { kind: "More"; before: string } | { kind: "End" };
 };
 const timelineJson = async (before?: string) => (await timeline(before)).json<TimelineJson>();
@@ -71,6 +81,8 @@ describe("ログインしていないとき", () => {
     ["DELETE", `/api/journal-entries/${crypto.randomUUID()}`],
     ["GET", "/api/timeline"],
     ["GET", "/api/tags"],
+    ["GET", "/api/tags/usage"],
+    ["DELETE", `/api/tags/${encodeURIComponent("読書")}`],
   ])("%s %s は 401 を返す", async (method, path) => {
     const res = await request(path, { method });
 
@@ -578,7 +590,177 @@ describe("タイムライン", () => {
   });
 });
 
+describe("タグの削除", () => {
+  test("設定画面の一覧には、使っているタグと、ついている削除していない記入の数を最近使った順に返す", async () => {
+    await start();
+    await write("1", undefined, ["設計"]);
+    await write("2", undefined, ["設計"]);
+    passTo(minutes(1));
+    await write("3", undefined, ["読書"]);
+    const removed = crypto.randomUUID();
+    await write("消す", removed, ["読書"]);
+    await remove(removed);
+
+    expect(await tagUsageJson()).toEqual({
+      tags: [
+        { name: "読書", entryCount: 1 },
+        { name: "設計", entryCount: 2 },
+      ],
+    });
+  });
+
+  test("外すだけで削除すると、記入は残ってタグだけが外れ、一覧からも消える", async () => {
+    await start();
+    await write("1", undefined, ["読書", "設計"]);
+    await write("2", undefined, ["読書"]);
+
+    const res = await deleteTag("読書", { kind: "Detach" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ name: "読書", deletion: { kind: "Detach" } });
+    expect((await entriesJson()).map(({ body, tags }) => ({ body, tags }))).toEqual([
+      { body: "1", tags: ["設計"] },
+      { body: "2", tags: [] },
+    ]);
+    expect(await tagsJson()).toEqual({ tags: ["設計"] });
+  });
+
+  test("別のタグに付け替えて削除すると、付け替え先がすでについている記入では1つにまとまる", async () => {
+    await start();
+    await write("1", undefined, ["読書", "設計"]);
+    await write("2", undefined, ["本", "読書"]);
+
+    const res = await deleteTag("読書", { kind: "Reassign", to: "本" });
+
+    expect(res.status).toBe(200);
+    expect((await entriesJson()).map(({ tags }) => tags)).toEqual([["本", "設計"], ["本"]]);
+    expect(await tagUsageJson()).toEqual({
+      tags: [
+        { name: "本", entryCount: 2 },
+        { name: "設計", entryCount: 1 },
+      ],
+    });
+  });
+
+  test("記入を編集するのではないので、更新時刻は変わらず、セッションが終わったあとでもできる", async () => {
+    await start();
+    await write("メモ", undefined, ["読書"]);
+    await operate("End");
+    passTo(minutes(60));
+
+    const res = await deleteTag("読書", { kind: "Detach" });
+
+    expect(res.status).toBe(200);
+    expect(await entriesJson()).toMatchObject([
+      { tags: [], writtenAt: iso(minutes(0)), updatedAt: iso(minutes(0)) },
+    ]);
+  });
+
+  test("削除の記入とタグの名前は、表記ゆれを寄せて同じタグとして扱う", async () => {
+    await start();
+    await write("メモ", undefined, ["reading"]);
+
+    const res = await deleteTag("＃Ｒｅａｄｉｎｇ", { kind: "Detach" });
+
+    expect(res.status).toBe(200);
+    expect(await tagsJson()).toEqual({ tags: [] });
+  });
+
+  test("上限の20種類を使っていても、タグを削除すれば空いた枠で新しいタグをつけられる", async () => {
+    await start();
+    await write(
+      "20種類",
+      undefined,
+      Array.from({ length: 20 }, (_, i) => `tag${i + 1}`),
+    );
+
+    await deleteTag("tag1", { kind: "Reassign", to: "tag2" });
+    const res = await write("新しいタグ", undefined, ["読書"]);
+
+    expect(res.status).toBe(200);
+  });
+
+  test("どの記入にもついていないタグや、削除した記入にだけついていたタグは 404 を返す", async () => {
+    await start();
+    const id = crypto.randomUUID();
+    await write("消す", id, ["読書"]);
+    await remove(id);
+
+    const res = await deleteTag("読書", { kind: "Detach" });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "TAG_NOT_FOUND" });
+  });
+
+  test("使っていないタグには付け替えられず 404 を返し、記入は変わらない", async () => {
+    await start();
+    await write("メモ", undefined, ["読書"]);
+
+    const res = await deleteTag("読書", { kind: "Reassign", to: "本" });
+
+    expect(res.status).toBe(404);
+    expect((await entriesJson()).map(({ tags }) => tags)).toEqual([["読書"]]);
+  });
+
+  test("削除するタグ自身には付け替えられず 400 を返す", async () => {
+    await start();
+    await write("メモ", undefined, ["読書"]);
+
+    const res = await deleteTag("読書", { kind: "Reassign", to: "#読書" });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "INVALID_REQUEST", paths: ["to"] });
+  });
+
+  test("外すか付け替えるかを送らなければ 400 を返し、記入は変わらない", async () => {
+    await start();
+    await write("メモ", undefined, ["読書"]);
+
+    const res = await deleteTag("読書", {});
+
+    expect(res.status).toBe(400);
+    expect((await entriesJson()).map(({ tags }) => tags)).toEqual([["読書"]]);
+  });
+
+  test("他のユーザーのタグは削除できず、自分の記入のタグも変わらない", async () => {
+    await start();
+    await write("自分のメモ", undefined, ["読書"]);
+    const other = await signInAs("someone@example.com");
+
+    const res = await request(`/api/tags/${encodeURIComponent("読書")}`, {
+      method: "DELETE",
+      headers: { cookie: other.headers.get("cookie") ?? "", "content-type": "application/json" },
+      body: JSON.stringify({ kind: "Detach" }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(await tagsJson()).toEqual({ tags: ["読書"] });
+  });
+});
+
 describe("応答はクライアントが検証するスキーマ（domain/）に合う", () => {
+  test("設定画面のタグの一覧の応答は、そのスキーマに合う", async () => {
+    await start();
+    await write("メモ", undefined, ["読書"]);
+
+    const parsed = schemaResult(TagUsageListJsonSchema)(await (await tagUsage()).json());
+
+    expect(parsed).toEqual(Result.succeed({ tags: [{ name: "読書", entryCount: 1 }] }));
+  });
+
+  test("タグの削除の応答は、削除したタグのスキーマに合う", async () => {
+    await start();
+    await write("メモ", undefined, ["読書", "本"]);
+
+    const parsed = schemaResult(DeletedTagJsonSchema)(
+      await (await deleteTag("読書", { kind: "Reassign", to: "本" })).json(),
+    );
+
+    expect(parsed).toEqual(
+      Result.succeed({ name: "読書", deletion: { kind: "Reassign", to: "本" } }),
+    );
+  });
+
   test("書いた記入の応答は、記入のスキーマで本文を Sensitive に包んで戻せる", async () => {
     await start();
 

@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { SessionId } from "../domain/session.ts";
-import { Tags, type TagName } from "../domain/tag.ts";
+import { DeletedTag, Tags, type TagName } from "../domain/tag.ts";
 
 /**
  * 入力欄でつけたままのタグ（GLOSSARY の「タグ」）。外すかセッションが終わるまで、続けて書く記入につく。
@@ -56,6 +56,15 @@ export const attachTags = (
   tags: ReadonlyArray<TagName>,
 ): AttachedTags =>
   sessionId === undefined ? { kind: "Prepared", tags } : { kind: "InSession", sessionId, tags };
+
+/**
+ * タグを削除したら、つけたままのタグからも外す（付け替えたなら付け替え先に置き換える）。
+ * そのまま続けて書くと、削除したタグがまた記入につき、使っているタグに戻ってしまうため（ADR 0017）
+ */
+export const withTagDeleted = (attached: AttachedTags, deleted: DeletedTag): AttachedTags => ({
+  ...attached,
+  tags: DeletedTag.applyTo(attached.tags, deleted),
+});
 
 /** localStorage に覚える値 */
 export const serializeAttachedTags = (attached: AttachedTags): string => JSON.stringify(attached);

@@ -10,6 +10,7 @@ import {
   type AlertTone,
 } from "./alert-settings.ts";
 import { AdvanceMode } from "../domain/advance-mode.ts";
+import { TagName, type TagDeletion, type TagUsage } from "../domain/tag.ts";
 import { authClient, signOut } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import {
@@ -27,7 +28,11 @@ import {
 } from "./phase-alert.ts";
 import {
   advanceChoiceLabelOf,
+  entryCountLabelOf,
   permissionNoteOf,
+  tagDeletionActionOf,
+  tagKindsNoteOf,
+  tagLabelOf,
   themeLabelOf,
   TONE_TARGETS,
   toneLabelOf,
@@ -42,6 +47,7 @@ import { THEME_PREFERENCES, useThemePreference } from "./theme.ts";
 import type { AdvanceModeState } from "./use-advance-mode.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
 import type { TimerView } from "./use-session-timer.ts";
+import type { TagUsageState } from "./use-tag-usage.ts";
 
 const modifierLabel = modifierLabelOf(navigator.userAgent);
 
@@ -267,6 +273,167 @@ const WriteSection = () => {
   );
 };
 
+const DELETION_CHOICES = ["Detach", "Reassign"] as const;
+
+/**
+ * 1つのタグを削除する前に、ついている記入のタグを外すか付け替えるかを選ぶ（GLOSSARY の「タグの削除」）。
+ * 付け替え先は使っている他のタグ `others` から選ぶ
+ */
+const TagDeletionForm = ({
+  usage,
+  others,
+  remove,
+  cancel,
+}: Readonly<{
+  usage: TagUsage;
+  others: ReadonlyArray<TagName>;
+  remove: (deletion: TagDeletion) => Promise<void>;
+  cancel: () => void;
+}>) => {
+  const [deletion, setDeletion] = useState<TagDeletion>({ kind: "Detach" });
+  const [pending, setPending] = useState(false);
+  const [firstOther] = others;
+  const targetItems = others.map((name) => ({ value: name, label: tagLabelOf(name) }));
+  const label = tagLabelOf(usage.name);
+
+  const choose = (choice: TagDeletion["kind"]) => {
+    switch (choice) {
+      case "Detach":
+        return setDeletion({ kind: "Detach" });
+      case "Reassign":
+        // 付け替える選択肢は、他のタグがあるときにだけ出している
+        if (firstOther !== undefined) {
+          setDeletion({ kind: "Reassign", to: firstOther });
+        }
+        return;
+    }
+  };
+
+  return (
+    <div
+      role="group"
+      aria-label={`${label}の削除`}
+      className="flex flex-col gap-3 bg-muted/40 px-5 py-4"
+    >
+      <p className="text-sm">
+        {label} を削除します。ついている{entryCountLabelOf(usage.entryCount)}は消えず、タグだけを
+        {deletion.kind === "Detach" ? "外します。" : "付け替えます。"}
+      </p>
+      {firstOther !== undefined && (
+        <Segmented
+          name="tag-deletion"
+          legend="ついている記入のタグ"
+          options={DELETION_CHOICES.map((choice) => ({
+            value: choice,
+            label: choice === "Detach" ? "外すだけ" : "別のタグに付け替える",
+          }))}
+          value={deletion.kind}
+          onChange={choose}
+        />
+      )}
+      {deletion.kind === "Reassign" && (
+        <Select
+          value={deletion.to}
+          items={targetItems}
+          onValueChange={(value) => {
+            const parsed = v.safeParse(TagName.schema, value);
+            if (parsed.success && others.includes(parsed.output)) {
+              setDeletion({ kind: "Reassign", to: parsed.output });
+            }
+          }}
+        >
+          <SelectTrigger aria-label="付け替え先のタグ" className="min-w-40 self-start">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {targetItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" onClick={cancel} disabled={pending}>
+          やめる
+        </Button>
+        <Button
+          variant="destructive"
+          disabled={pending}
+          onClick={() => {
+            setPending(true);
+            void remove(deletion).finally(() => setPending(false));
+          }}
+        >
+          {tagDeletionActionOf(deletion)}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * タグ（GLOSSARY の「タグの削除」、ADR 0017）。使っているタグとついている記入の数を出し、
+ * 使わないタグを削除できる。記録はアカウントのものなので「この端末」の印はつけない
+ */
+const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
+  const { view, errorMessage, remove } = tagUsage;
+  const [deleting, setDeleting] = useState<TagName | undefined>(undefined);
+  return (
+    <Section id="settings-tags" title="タグ" perDevice={false}>
+      <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
+        {view.kind === "Loaded" && tagKindsNoteOf(view.tags.length)}
+        削除しても記入は消えず、タグだけを外すか、別のタグに付け替えます。どの端末でも同じです。
+      </p>
+      {view.kind === "Loaded" ? (
+        view.tags.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-muted-foreground">まだタグを使っていません</p>
+        ) : (
+          view.tags.map((usage) =>
+            usage.name === deleting ? (
+              <TagDeletionForm
+                key={usage.name}
+                usage={usage}
+                others={view.tags.map(({ name }) => name).filter((name) => name !== usage.name)}
+                remove={async (deletion) => {
+                  if (await remove(usage.name, deletion)) {
+                    setDeleting(undefined);
+                  }
+                }}
+                cancel={() => setDeleting(undefined)}
+              />
+            ) : (
+              <Row
+                key={usage.name}
+                label={tagLabelOf(usage.name)}
+                description={entryCountLabelOf(usage.entryCount)}
+              >
+                <Button
+                  variant="outline"
+                  aria-label={`${tagLabelOf(usage.name)}を削除`}
+                  onClick={() => setDeleting(usage.name)}
+                >
+                  削除
+                </Button>
+              </Row>
+            ),
+          )
+        )
+      ) : (
+        <p className="px-5 py-4 text-sm text-muted-foreground">
+          {view.kind === "Loading" ? "読み込み中…" : "読み込めませんでした"}
+        </p>
+      )}
+      {errorMessage !== undefined && (
+        <p role="alert" className="px-5 py-3 text-sm text-destructive">
+          {errorMessage}
+        </p>
+      )}
+    </Section>
+  );
+};
+
 const AccountSection = () => {
   const { data: session } = authClient.useSession();
   const name = session?.user.name;
@@ -286,6 +453,7 @@ const SECTIONS = [
   { id: "settings-alert", title: "知らせ方" },
   { id: "settings-look", title: "表示" },
   { id: "settings-write", title: "記入" },
+  { id: "settings-tags", title: "タグ" },
   { id: "settings-account", title: "アカウント" },
 ] as const;
 
@@ -295,11 +463,13 @@ const SECTIONS = [
 export const SettingsScreen = ({
   phaseAlert,
   advanceMode,
+  tagUsage,
   timer,
   close,
 }: Readonly<{
   phaseAlert: PhaseAlert;
   advanceMode: AdvanceModeState;
+  tagUsage: TagUsageState;
   timer: TimerView;
   close: () => void;
 }>) => (
@@ -330,6 +500,7 @@ export const SettingsScreen = ({
         <AlertSection phaseAlert={phaseAlert} />
         <LookSection />
         <WriteSection />
+        <TagSection tagUsage={tagUsage} />
         <AccountSection />
       </div>
     </div>
