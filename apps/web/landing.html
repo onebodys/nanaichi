@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      ログインしていない人に `/` で見せる LP（Issue #90、ADR 0018）。どちらの画面かは Worker が cookie で決める。
+      一般向けに公開するまでは検索エンジンに載せない
+    -->
+    <meta name="robots" content="noindex" />
+    <title>nanaichi — 7分集中して、1分書くタイマー</title>
+    <meta
+      name="description"
+      content="nanaichi は、7分の集中と1分のジャーナルをくり返すタイマーです。1分のあいだに、やったことと次にやることを一言だけ書きます。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="nanaichi — 7分集中して、1分書くタイマー" />
+    <meta
+      property="og:description"
+      content="7分の集中と1分のジャーナルをくり返すタイマー。3セットごとに5分の休憩。"
+    />
+    <meta property="og:image" content="/landing/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#fafaf9" />
+    <script>
+      // ホーム画面に追加した nanaichi（PWA）は `/` から開く。ログインが切れていたら LP ではなくログイン画面へ送る。
+      // LP にはログインへの導線を置かないので、ここで送らないと PWA から戻れなくなる
+      (function () {
+        var standalone =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true;
+        if (standalone) {
+          window.location.replace("/login");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="bar">
+      <a class="wordmark" href="#top" aria-label="nanaichi">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="8" />
+          <text x="16" y="21" text-anchor="middle">7·1</text>
+        </svg>
+        <span>nanaichi</span>
+      </a>
+      <nav aria-label="ページの中">
+        <a href="#flow">流れ</a>
+        <a href="#screens">画面</a>
+        <a href="#advance">進め方</a>
+        <a href="#faq">質問</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 id="hero-title" class="display" data-reveal>7分集中して、<br />1分書く</h1>
+          <p class="lede" data-reveal>
+            nanaichi
+            は、7分の集中と1分のジャーナルをくり返すタイマーです。1分のあいだに、やったことと次にやることを一言だけ書きます。
+          </p>
+          <div class="hero-actions" data-reveal data-hero-actions>
+            <button type="button" class="button" data-try="1">1セットやってみる</button>
+            <button type="button" class="text-link" data-try="60">60倍速で1ラウンドを見る</button>
+          </div>
+          <p class="hero-status" aria-live="polite" data-hero-status hidden></p>
+        </div>
+
+        <div class="app" data-ui data-app data-reveal>
+          <section class="app-timer" aria-label="タイマー">
+            <p class="app-position" data-position>1ラウンド目・1セット目</p>
+            <p class="app-phase" data-phase="Focus">
+              <span class="app-phase-dot" aria-hidden="true"></span>
+              <span data-phase-label>集中</span>
+            </p>
+            <div class="app-ring">
+              <svg viewBox="0 0 200 200" aria-hidden="true">
+                <circle class="app-ring-track" cx="100" cy="100" r="92" />
+                <circle class="app-ring-arc" cx="100" cy="100" r="92" pathLength="1" data-arc />
+              </svg>
+              <div class="app-ring-text">
+                <p class="app-countdown" role="timer" aria-label="残り時間" data-countdown>7:00</p>
+                <p class="app-upcoming" data-upcoming>集中 7分 → ジャーナル 1分</p>
+              </div>
+            </div>
+            <div class="app-round" aria-hidden="true" data-round>
+              <span class="app-seg"><i></i></span><span class="app-seg"><i></i></span
+              ><span class="app-seg"><i></i></span
+              ><span class="app-seg app-seg-break"><i></i></span>
+            </div>
+            <div class="app-ops" data-ops>
+              <button type="button" class="app-button app-button-primary" data-start>開始</button>
+            </div>
+            <p class="app-note" data-note>3セットごとに 5分の休憩が入ります</p>
+          </section>
+
+          <section class="app-journal" aria-label="ジャーナル">
+            <form class="app-composer" data-composer>
+              <label class="sr-only" for="demo-body">ジャーナル記入の本文</label>
+              <textarea
+                id="demo-body"
+                rows="3"
+                disabled
+                placeholder="セッションを始めると書けます"
+                data-body
+              ></textarea>
+              <div class="app-composer-foot">
+                <span class="app-hint">⌘+Enter で送信</span>
+                <button
+                  type="submit"
+                  class="app-button app-button-primary app-button-small"
+                  disabled
+                  data-send
+                >
+                  送信
+                </button>
+              </div>
+            </form>
+            <div class="app-timeline">
+              <div class="app-day" data-current-day hidden>
+                <p class="app-day-head">
+                  <span data-today>今日</span>
+                  <span class="app-quiet" data-current-sets>完了 0セット · 集中 0分</span>
+                </p>
+                <p class="app-session-head" data-current-head>このページで始めたセッション</p>
+                <ol class="app-entries" data-entries></ol>
+              </div>
+              <div class="app-day">
+                <p class="app-day-head">
+                  <span data-yesterday>昨日</span>
+                  <span class="app-quiet">完了 4セット · 集中 28分</span>
+                </p>
+                <p class="app-session-head">9:12 からのセッション</p>
+                <ol class="app-entries">
+                  <li>
+                    <p class="app-meta">
+                      <time>9:48</time
+                      ><span class="app-badge app-badge-Journal">2-1 ジャーナル</span>
+                    </p>
+                    <p>レビュー2件返した。残り1件は仕様の確認が要るので、質問を書いて送った</p>
+                  </li>
+                  <li>
+                    <p class="app-meta">
+                      <time>9:46</time><span class="app-badge app-badge-Focus">2-1 集中</span>
+                    </p>
+                    <p>Slack を見に行きたくなった。あと3分</p>
+                  </li>
+                  <li>
+                    <p class="app-meta">
+                      <time>9:35</time
+                      ><span class="app-badge app-badge-Journal">1-3 ジャーナル</span>
+                    </p>
+                    <p>分けたほうをチケットにした。休憩のあとはレビューの返信から</p>
+                  </li>
+                  <li>
+                    <p class="app-meta">
+                      <time>9:27</time
+                      ><span class="app-badge app-badge-Journal">1-2 ジャーナル</span>
+                    </p>
+                    <p>
+                      根拠を足していたら範囲が広すぎると気づいた。API 連携は別の見積もりに分ける
+                    </p>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="intro" aria-labelledby="intro-title">
+        <div class="intro-lead">
+          <h2 id="intro-title" class="heading" data-reveal>25分が長い人のために</h2>
+          <p class="statement" data-reveal>
+            手元のポモドーロタイマーを7分と1分にセットして、1分のあいだにメモを書く。毎日そうしていた使い方を、タイマーとメモがひとつになったアプリにしました。
+          </p>
+        </div>
+        <figure class="intro-figure" data-reveal>
+          <div class="intro-frame">
+            <img
+              src="/landing/kitchen-timer.jpg"
+              width="1200"
+              height="900"
+              alt="机に置いた白いデジタルのキッチンタイマー。分・秒・スタートとストップのボタンが並ぶ"
+              loading="lazy"
+              decoding="async"
+              data-drift
+            />
+          </div>
+          <figcaption>
+            分と秒をセットするキッチンタイマー。こういうタイマーを、7分と1分にくり返しセットしていた。
+          </figcaption>
+        </figure>
+        <div class="intro-columns">
+          <p data-reveal>
+            <strong>集中は7分。</strong
+            >25分は長くても、7分なら手をつけられる。終わりが見えているので、気がそれても戻ってこられる。迷ったら、まず1セットだけやってみる。
+          </p>
+          <p data-reveal>
+            <strong>ジャーナルは1分。</strong
+            >集中が終わると音が鳴り、1分のジャーナルに入る。やったこと、次にやること、気づいたことを一言。書かなくても、セットはそのまま進む。
+          </p>
+          <p data-reveal>
+            <strong>3セットで休憩5分。</strong
+            >集中とジャーナルの8分が1セット。3セットのあとに5分の休憩が入り、ここまでの29分が1ラウンド。開始を押せば、あとは自動で進む。
+          </p>
+          <p data-reveal>
+            <strong>時間は変えられない。</strong
+            >7分と1分と5分は決まっている。設定で迷う時間を集中に回すため。選べるのは、切り替わりで止まるかどうかと、知らせ方だけ。
+          </p>
+        </div>
+      </section>
+
+      <section class="tools" aria-labelledby="tools-title">
+        <div class="tools-head">
+          <h2 id="tools-title" class="heading" data-reveal>決まった長さを、くり返す</h2>
+          <p data-reveal>
+            砂時計もキッチンタイマーも、決まった長さを計って、また最初から計る。nanaichi
+            も同じで、7分・1分・5分は変えられない。そのぶん、始めるか始めないかだけを決めればいい。
+          </p>
+        </div>
+        <figure class="tools-clip" data-reveal>
+          <video
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            poster="/landing/hourglass-tokyo.jpg"
+            width="854"
+            height="480"
+            aria-hidden="true"
+            data-loop
+          >
+            <source src="/landing/hourglass-tokyo.webm" type="video/webm" />
+          </video>
+          <figcaption>木の枠の砂時計。東京の喫茶店で、2015年。</figcaption>
+        </figure>
+        <figure class="tools-sandglass" data-reveal>
+          <img
+            src="/landing/sandglass.jpg"
+            width="1145"
+            height="1400"
+            alt="金色の金具に囲まれたガラスの砂時計。下の球に赤茶色の砂がたまっている"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>30分を計る砂時計。1500〜25年ごろ。</figcaption>
+        </figure>
+        <figure class="tools-minder" data-reveal>
+          <img
+            src="/landing/minute-minder.jpg"
+            width="1000"
+            height="985"
+            alt="深緑のダイヤル式キッチンタイマー。0から55までの目盛りがある"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>60分まで回せるダイヤルのタイマー。</figcaption>
+        </figure>
+      </section>
+
+      <section class="flow" id="flow" aria-labelledby="flow-title">
+        <div class="flow-field flow-focus">
+          <h2 id="flow-title" class="heading" data-reveal>1ラウンドの流れ</h2>
+          <div class="card" data-ui data-reveal>
+            <p class="card-position">1ラウンド目・1セット目</p>
+            <p class="card-phase card-phase-Focus">集中</p>
+            <p class="card-time">4:12</p>
+            <p class="card-quiet">次は ジャーナル 1分</p>
+            <div class="card-round" aria-hidden="true">
+              <span class="is-current"><i style="--done: 0.4"></i></span><span></span><span></span
+              ><span class="is-break"></span>
+            </div>
+          </div>
+          <p class="flow-clause" data-reveal>開始を押すと、7分の集中が始まる。</p>
+        </div>
+        <div class="flow-field flow-journal">
+          <div class="card" data-ui data-reveal>
+            <p class="card-position">1ラウンド目・1セット目</p>
+            <p class="card-phase card-phase-Journal">ジャーナル</p>
+            <p class="card-time">0:38</p>
+            <p class="card-entry">見積もりの前提を3つ書き出した。次は工数の根拠を足す</p>
+            <div class="card-round" aria-hidden="true">
+              <span class="is-done"></span><span></span><span></span><span class="is-break"></span>
+            </div>
+          </div>
+          <p class="flow-clause" data-reveal>7分たつと音が鳴り、1分のジャーナルへ。</p>
+        </div>
+        <div class="flow-field flow-break">
+          <div class="card" data-ui data-reveal>
+            <p class="card-position">1ラウンド目</p>
+            <p class="card-phase card-phase-Break">休憩</p>
+            <p class="card-time">3:05</p>
+            <p class="card-quiet">次は 2ラウンド目の集中</p>
+            <div class="card-round" aria-hidden="true">
+              <span class="is-done"></span><span class="is-done"></span><span class="is-done"></span
+              ><span class="is-break is-current"><i style="--done: 0.38"></i></span>
+            </div>
+            <span class="card-button">休憩をスキップ</span>
+          </div>
+          <p class="flow-clause" data-reveal>3セットごとに、5分の休憩。</p>
+        </div>
+        <div class="flow-field flow-end">
+          <div class="card" data-ui data-reveal>
+            <p class="card-position">セッションのまとめ</p>
+            <p class="card-span">9:12 〜 10:13</p>
+            <dl class="card-stats">
+              <div>
+                <dt>集中</dt>
+                <dd>42分</dd>
+              </div>
+              <div>
+                <dt>完了セット</dt>
+                <dd>6</dd>
+              </div>
+              <div>
+                <dt>記入</dt>
+                <dd>9</dd>
+              </div>
+            </dl>
+            <div class="card-sets" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span
+              ><span class="is-aborted"></span>
+            </div>
+            <p class="card-quiet">点線は不成立セット（1セット）</p>
+          </div>
+          <p class="flow-clause" data-reveal>終了を押すと、セッションのまとめが残る。</p>
+        </div>
+      </section>
+
+      <section class="screens" id="screens" aria-labelledby="screens-title">
+        <div class="screens-head">
+          <h2 id="screens-title" class="heading" data-reveal>書いたものを見返す</h2>
+          <p class="screens-hint" data-reveal>
+            タイムライン、タグ、スタッツ、カレンダー、知らせ方。横にスクロールするか、矢印で送ると、ほかの画面が出ます。
+          </p>
+          <div class="screens-controls" data-reveal>
+            <button type="button" class="round-button" data-shot-step="-1" aria-label="前の画面">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7" /></svg>
+            </button>
+            <button type="button" class="round-button" data-shot-step="1" aria-label="次の画面">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+            </button>
+          </div>
+        </div>
+        <div class="screens-stage">
+          <div class="screens-row" data-screens tabindex="0" aria-label="nanaichi の画面">
+            <div class="shot" data-shot="timeline">
+              <div class="panel" data-ui>
+                <p class="panel-day">
+                  <span>10月20日（火）</span
+                  ><span class="panel-quiet">完了 10セット · 集中 1時間10分</span>
+                </p>
+                <p class="panel-session">
+                  14:02 からのセッション <span class="panel-quiet">完了 6セット · 集中 42分</span>
+                </p>
+                <ul class="panel-entries">
+                  <li>
+                    <p class="app-meta">
+                      <time>14:55</time
+                      ><span class="app-badge app-badge-Journal">2-3 ジャーナル</span>
+                    </p>
+                    <p>図の差し替え終わり。明日は本文の言い回しを見直す</p>
+                    <p class="panel-tags"><span>#資料</span></p>
+                  </li>
+                  <li>
+                    <p class="app-meta">
+                      <time>14:31</time><span class="app-badge app-badge-Break">休憩</span>
+                    </p>
+                    <p>https://example.com/style-guide の表記ルールを確認した</p>
+                  </li>
+                  <li>
+                    <p class="app-meta">
+                      <time>14:25</time
+                      ><span class="app-badge app-badge-Journal">1-3 ジャーナル</span>
+                    </p>
+                    <p>構成を3章から2章に減らした。そのほうが話が通る</p>
+                    <p class="panel-tags"><span>#資料</span><span>#構成</span></p>
+                  </li>
+                </ul>
+                <p class="panel-session">
+                  9:30 からのセッション <span class="panel-quiet">完了 4セット · 集中 28分</span>
+                </p>
+              </div>
+            </div>
+            <div class="shot" data-shot="tags">
+              <div class="panel" data-ui>
+                <div class="panel-taginput">
+                  <span class="panel-chip">#見積もり</span>
+                  <span class="panel-typed">レ</span
+                  ><span class="panel-caret" aria-hidden="true"></span>
+                </div>
+                <ul class="panel-options">
+                  <li class="is-active">#レビュー</li>
+                  <li>#レポート</li>
+                  <li class="panel-new">「レ」を新しいタグにする</li>
+                </ul>
+                <div class="panel-composer">
+                  <p>API 連携の見積もりをレビューに出した</p>
+                  <span class="app-button app-button-primary app-button-small">送信</span>
+                </div>
+                <p class="panel-quiet">
+                  使えるタグは20種類まで。つけたタグは、外すまで次の記入にもつく。
+                </p>
+              </div>
+            </div>
+            <div class="shot" data-shot="stats">
+              <div class="panel panel-wide" data-ui>
+                <p class="panel-title">
+                  スタッツ<span class="panel-quiet">10月12日（月）〜 10月18日（日）</span>
+                </p>
+                <div class="panel-tiles">
+                  <div>
+                    <span>集中した時間</span><strong>4時間54分</strong
+                    ><em>42セット · 先週の同じ時点より 35分多い</em>
+                  </div>
+                  <div><span>セットの完了率</span><strong>89%</strong><em>不成立 5セット</em></div>
+                  <div><span>ジャーナル記入</span><strong>61</strong><em>記入率 88%</em></div>
+                </div>
+                <p class="panel-sub">
+                  日ごとの集中<span class="panel-quiet">完了セット × 7分</span>
+                </p>
+                <div class="panel-bars">
+                  <div style="--v: 9"><i></i><span>月</span></div>
+                  <div style="--v: 6"><i></i><span>火</span></div>
+                  <div style="--v: 12"><i></i><span>水</span></div>
+                  <div style="--v: 4"><i></i><span>木</span></div>
+                  <div style="--v: 8"><i></i><span>金</span></div>
+                  <div style="--v: 0"><i></i><span>土</span></div>
+                  <div style="--v: 3"><i></i><span>日</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="shot" data-shot="calendar">
+              <div class="panel" data-ui>
+                <p class="panel-title">2026年10月</p>
+                <div class="panel-calendar" data-calendar>
+                  <span class="panel-dow">月</span><span class="panel-dow">火</span
+                  ><span class="panel-dow">水</span><span class="panel-dow">木</span
+                  ><span class="panel-dow">金</span><span class="panel-dow">土</span
+                  ><span class="panel-dow">日</span>
+                </div>
+                <p class="panel-sub">10月14日（水）<span class="panel-quiet">記入 11件</span></p>
+                <ul class="panel-entries panel-entries-tight">
+                  <li>
+                    <p class="app-meta"><time>10:07</time></p>
+                    <p>朝会のメモを整理して、今日の3つを決めた</p>
+                  </li>
+                  <li>
+                    <p class="app-meta"><time>10:15</time></p>
+                    <p>1つ目のバグ、再現手順まで書けた</p>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="shot" data-shot="alerts">
+              <div class="panel" data-ui>
+                <p class="panel-title">知らせ方<span class="panel-pill">この端末</span></p>
+                <div class="panel-row">
+                  <p>
+                    ジャーナルに入るとき<span class="panel-quiet"
+                      >集中が終わり、書く時間になる合図</span
+                    >
+                  </p>
+                  <span class="panel-select">鐘</span>
+                  <button
+                    type="button"
+                    class="app-button app-button-small"
+                    data-chime="Journal:Bell"
+                  >
+                    ▶ 試す
+                  </button>
+                </div>
+                <div class="panel-row">
+                  <p>集中に入るとき<span class="panel-quiet">次のセットが始まる合図</span></p>
+                  <span class="panel-select">木琴</span>
+                  <button
+                    type="button"
+                    class="app-button app-button-small"
+                    data-chime="Focus:Marimba"
+                  >
+                    ▶ 試す
+                  </button>
+                </div>
+                <div class="panel-row">
+                  <p>休憩に入るとき<span class="panel-quiet">3セットが終わった合図</span></p>
+                  <span class="panel-select">やわらか</span>
+                  <button type="button" class="app-button app-button-small" data-chime="Break:Soft">
+                    ▶ 試す
+                  </button>
+                </div>
+                <div class="panel-row">
+                  <p>ブラウザ通知も出す</p>
+                  <span class="panel-switch is-on" aria-hidden="true"><i></i></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="screens-caption" aria-live="polite">
+            <h3 data-shot-name>タイムラインは1本</h3>
+            <p data-shot-text>
+              新しい記入が上。日付とセッションの区切りに、完了セットと集中時間が出る。スクロールすれば、そのまま過去へさかのぼれる。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="advance" id="advance" aria-labelledby="advance-title">
+        <div class="advance-head">
+          <h2 id="advance-title" class="heading" data-reveal>自動で進むか、止めて待つか</h2>
+          <p data-reveal>
+            フェーズの切り替わりごとに選べます。ここで変えると、いちばん上のタイマーにもそのまま効きます。
+          </p>
+        </div>
+        <ul class="bands" data-bands>
+          <li class="band band-journal" data-transition="FocusToJournal">
+            <div class="band-text">
+              <h3>集中の7分が過ぎたら、ジャーナルへ</h3>
+              <p class="band-on">音が鳴って、1分のジャーナルがすぐに始まる。</p>
+              <p class="band-off">
+                0:00 で止まって音で知らせ、「ジャーナルを始める」を押すまで待つ。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              aria-checked="true"
+              aria-label="集中 → ジャーナルを自動で進める"
+              data-ui
+            >
+              <i></i>
+            </button>
+          </li>
+          <li class="band band-focus" data-transition="JournalToFocus">
+            <div class="band-text">
+              <h3>ジャーナルの1分が過ぎたら、次の集中へ</h3>
+              <p class="band-on">書き終わっていなくても、次のセットの7分が始まる。</p>
+              <p class="band-off">0:00 で止まって待つ。書き切ってから「集中を始める」を押す。</p>
+            </div>
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              aria-checked="true"
+              aria-label="ジャーナル → 集中を自動で進める"
+              data-ui
+            >
+              <i></i>
+            </button>
+          </li>
+          <li class="band band-break" data-transition="JournalToBreak">
+            <div class="band-text">
+              <h3>3セット目のあとは、休憩へ</h3>
+              <p class="band-on">3セット目のジャーナルが終わると、5分の休憩が始まる。</p>
+              <p class="band-off">
+                止まって待つ。休憩をスキップして、次のラウンドの集中にも進める。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              aria-checked="true"
+              aria-label="ジャーナル → 休憩を自動で進める"
+              data-ui
+            >
+              <i></i>
+            </button>
+          </li>
+          <li class="band band-focus" data-transition="BreakToFocus">
+            <div class="band-text">
+              <h3>休憩の5分が過ぎたら、次のラウンドへ</h3>
+              <p class="band-on">2ラウンド目の1セット目の集中が始まる。</p>
+              <p class="band-off">止まって待つ。待っている時間は、集中時間に数えない。</p>
+            </div>
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              aria-checked="true"
+              aria-label="休憩 → 集中を自動で進める"
+              data-ui
+            >
+              <i></i>
+            </button>
+          </li>
+          <li class="band band-sound" data-sound>
+            <div class="band-text">
+              <h3>切り替わりは音で知らせる</h3>
+              <p class="band-on">鐘・木琴・電子音・やわらかから、フェーズごとに音色を選べる。</p>
+              <p class="band-off">音は鳴らさない。ブラウザ通知だけにもできる。</p>
+            </div>
+            <button
+              type="button"
+              class="switch"
+              role="switch"
+              aria-checked="true"
+              aria-label="切り替わりを音で知らせる"
+              data-ui
+            >
+              <i></i>
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section class="faq" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title" class="heading faq-title" data-reveal>よくある質問</h2>
+        <div class="faq-list">
+          <details name="faq" data-reveal open>
+            <summary>ジャーナルは書かないといけませんか？</summary>
+            <p>
+              いいえ。1分のあいだに何も書かなくても、集中を最後まで終えたセットは完了セットとして数えます。書きたいことがあれば、集中の途中でも書けます。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>7分や1分は変えられますか？</summary>
+            <p>
+              変えられません。集中7分、ジャーナル1分、休憩5分、3セットで1ラウンドと決まっています。選べるのは、切り替わりで止まるかどうかと、知らせ方です。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>途中で呼ばれたらどうしますか？</summary>
+            <p>
+              一時停止はどのフェーズでもできます。集中をやめるなら中断します。中断したセットは不成立セットになり、次は同じセットの集中をはじめからやり直します。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>止め忘れたらどうなりますか？</summary>
+            <p>
+              記入も操作もないまま2ラウンド分（58分）が過ぎると、最後に書いたか操作した時刻でセッションが自動で終わります。それより後のセットは記録に残りません。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>スマホでも使えますか？</summary>
+            <p>
+              ブラウザで使えます。ホーム画面に追加すれば、アプリのように開けます。セッションのあいだは、画面が自動で消えないようにしています。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>パソコンとスマホで同時に開いたら？</summary>
+            <p>
+              どちらにも同じタイマーが出ます。タイマーの状態とジャーナル記入は、タブや端末をまたいでリアルタイムに同期します。パソコンで始めて、スマホで書くこともできます。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>書いたものはあとから直せますか？</summary>
+            <p>
+              記入はあとから編集・削除できます。タグもつけ直せます。見返すときは、タイムラインをさかのぼるか、スタッツから日付やタグで読み返します。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>どうやって知らせてくれますか？</summary>
+            <p>
+              切り替わりを音とブラウザ通知で知らせます。音を鳴らすか、音量、フェーズごとの音色、通知を出すかは、端末ごとに選べます。音はブラウザの中で作るので、音源のファイルは読み込みません。
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="board" aria-labelledby="footer-title">
+      <div class="tile tile-statement">
+        <h2 id="footer-title">7分集中して、1分書く。それをくり返すためのタイマーです。</h2>
+        <p class="tile-small">
+          写真と映像: “Small kitchen timer” Douglas Paul Perkins（CC BY 3.0）、“Half-hour sandglass”
+          The Metropolitan Museum of Art（CC0）、“Lux Minute Minder timer”
+          Retro00064（パブリックドメイン）、“Hourglass - tokyo - 2015 11 17” Nesnad（CC BY-SA
+          4.0）。いずれも Wikimedia Commons とメトロポリタン美術館から。
+        </p>
+      </div>
+      <nav class="tile tile-nav" aria-label="ページの中">
+        <a href="#flow">1ラウンドの流れ</a>
+        <a href="#screens">書いたものを見返す</a>
+        <a href="#advance">進め方</a>
+        <a href="#faq">よくある質問</a>
+      </nav>
+      <div class="tile tile-clock" data-clock>
+        <p class="tile-label">いま始めると</p>
+        <dl>
+          <div>
+            <dt>最初のジャーナル</dt>
+            <dd data-clock-journal>7分後</dd>
+          </div>
+          <div>
+            <dt>休憩</dt>
+            <dd data-clock-break>24分後</dd>
+          </div>
+          <div>
+            <dt>1ラウンドの終わり</dt>
+            <dd data-clock-round>29分後</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="tile tile-device">
+        <p>ブラウザで動きます。スマホはホーム画面に追加すると、アプリのように開けます。</p>
+      </div>
+      <div class="tile tile-wordmark" aria-hidden="true"><span>nanaichi</span></div>
+      <a class="tile tile-action" href="#top" data-try-link>
+        <span>1セットやってみる</span>
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 38 38 10M16 10h22v22" /></svg>
+      </a>
+    </footer>
+
+    <script type="module" src="/src/client/landing/main.ts"></script>
+  </body>
+</html>
