@@ -11,13 +11,13 @@
     <title>nanaichi — 7分集中して、1分書くタイマー</title>
     <meta
       name="description"
-      content="nanaichi は、7分の集中と1分のジャーナルをくり返すタイマーです。1分のあいだに、やったことと次にやることを一言だけ書きます。"
+      content="nanaichi は、7分の集中と1分のジャーナルをくり返すタイマーです。7分ごとに、いまやったことを一言でふり返り、次の一手を選び直します。"
     />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="nanaichi — 7分集中して、1分書くタイマー" />
     <meta
       property="og:description"
-      content="7分の集中と1分のジャーナルをくり返すタイマー。3セットごとに5分の休憩。"
+      content="7分の集中と1分のジャーナルをくり返すタイマー。経験をふり返ることから学ぶための、小さな仕掛け。"
     />
     <meta property="og:image" content="/landing/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -60,7 +60,7 @@
           <h1 id="hero-title" class="display" data-reveal>7分集中して、<br />1分書く</h1>
           <p class="lede" data-reveal>
             nanaichi
-            は、7分の集中と1分のジャーナルをくり返すタイマーです。1分のあいだに、やったことと次にやることを一言だけ書きます。
+            は、7分の集中と1分のジャーナルをくり返すタイマーです。7分ごとに、いまやったことを一言でふり返る。その小さなふり返りで、次の一手を選び直せます。
           </p>
           <div class="hero-actions" data-reveal data-hero-actions>
             <button type="button" class="button" data-try="1">1セットやってみる</button>
@@ -153,16 +153,17 @@
                       <time>9:35</time
                       ><span class="app-badge app-badge-Journal">1-3 ジャーナル</span>
                     </p>
-                    <p>分けたほうをチケットにした。休憩のあとはレビューの返信から</p>
+                    <p>
+                      見積もりの範囲が広すぎると気づいた。API
+                      連携は別に分ける。休憩のあとはレビューから
+                    </p>
                   </li>
                   <li>
                     <p class="app-meta">
-                      <time>9:27</time
-                      ><span class="app-badge app-badge-Journal">1-2 ジャーナル</span>
+                      <time>9:19</time
+                      ><span class="app-badge app-badge-Journal">1-1 ジャーナル</span>
                     </p>
-                    <p>
-                      根拠を足していたら範囲が広すぎると気づいた。API 連携は別の見積もりに分ける
-                    </p>
+                    <p>何も手につかなかった。まず今日やることを3つ書き出す</p>
                   </li>
                 </ol>
               </div>
@@ -173,9 +174,14 @@
 
       <section class="intro" aria-labelledby="intro-title">
         <div class="intro-lead">
-          <h2 id="intro-title" class="heading" data-reveal>25分が長い人のために</h2>
-          <p class="statement" data-reveal>
-            手元のポモドーロタイマーを7分と1分にセットして、1分のあいだにメモを書く。毎日そうしていた使い方を、タイマーとメモがひとつになったアプリにしました。
+          <h2 id="intro-title" class="heading" data-reveal>経験ではなく、ふり返りから学ぶ</h2>
+          <blockquote class="statement intro-quote" data-reveal>
+            <p>「私たちは経験から学ぶのではない。経験をふり返ることから学ぶのだ」</p>
+            <footer>ジョン・デューイの言葉として知られる一節</footer>
+          </blockquote>
+          <p data-reveal>
+            同じ時間を過ごしても、学びになるかどうかは、どれだけふり返ったかで決まる。仕事でも、読書でも。nanaichi
+            は、そのふり返りを7分ごとに挟むための仕掛けです。ただのポモドーロタイマーではなく、ジャーナルを書く1分がセットになっています。
           </p>
         </div>
         <figure class="intro-figure" data-reveal>
@@ -191,36 +197,40 @@
             />
           </div>
           <figcaption>
-            分と秒をセットするキッチンタイマー。こういうタイマーを、7分と1分にくり返しセットしていた。
+            分と秒をセットするキッチンタイマー。はじめは、こういうタイマーを7分と1分にくり返しセットして、メモを書いていた。
           </figcaption>
         </figure>
         <div class="intro-columns">
           <p data-reveal>
-            <strong>集中は7分。</strong
-            >25分は長くても、7分なら手をつけられる。終わりが見えているので、気がそれても戻ってこられる。迷ったら、まず1セットだけやってみる。
+            <strong>7分ごとに、ふり返る。</strong
+            >集中が終わると音が鳴り、1分のジャーナルに入る。やったこと、気づいたこと、次にやることを一言。手を止めて書くと、作業から一歩引いて、いまの進め方でいいかを見直せる。
           </p>
           <p data-reveal>
-            <strong>ジャーナルは1分。</strong
-            >集中が終わると音が鳴り、1分のジャーナルに入る。やったこと、次にやること、気づいたことを一言。書かなくても、セットはそのまま進む。
+            <strong>決めずに、始めていい。</strong
+            >やることが決まっていなくても、とりあえず開始を押す。音が鳴って「何もできなかった」と書けば、「じゃあ次は計画を立てよう」と次の7分が決まる。それもひとつのふり返り。
+          </p>
+          <p data-reveal>
+            <strong>小さなふり返りで、道筋を直す。</strong
+            >7分ごとの一言が積み重なると、1日の進み方が見えてくる。遠回りに気づくのは、たいてい書いているとき。
           </p>
           <p data-reveal>
             <strong>3セットで休憩5分。</strong
             >集中とジャーナルの8分が1セット。3セットのあとに5分の休憩が入り、ここまでの29分が1ラウンド。開始を押せば、あとは自動で進む。
-          </p>
-          <p data-reveal>
-            <strong>時間は変えられない。</strong
-            >7分と1分と5分は決まっている。設定で迷う時間を集中に回すため。選べるのは、切り替わりで止まるかどうかと、知らせ方だけ。
           </p>
         </div>
       </section>
 
       <section class="tools" aria-labelledby="tools-title">
         <div class="tools-head">
-          <h2 id="tools-title" class="heading" data-reveal>決まった長さを、くり返す</h2>
-          <p data-reveal>
-            砂時計もキッチンタイマーも、決まった長さを計って、また最初から計る。nanaichi
-            も同じで、7分・1分・5分は変えられない。そのぶん、始めるか始めないかだけを決めればいい。
-          </p>
+          <h2 id="tools-title" class="heading" data-reveal>くり返すと、リズムになる</h2>
+          <div class="tools-text" data-reveal>
+            <p>
+              砂時計を返すように、7分と1分をくり返す。続けていると、書く1分が息継ぎになり、自然とリズムができる。リズムに乗っているあいだは、集中の流れが途切れにくい。
+            </p>
+            <p>
+              だから7分・1分・5分は変えられないようにした。長さで迷わず、始めるか始めないかだけを決めればいい。
+            </p>
+          </div>
         </div>
         <figure class="tools-clip" data-reveal>
           <video
@@ -334,9 +344,9 @@
 
       <section class="screens" id="screens" aria-labelledby="screens-title">
         <div class="screens-head">
-          <h2 id="screens-title" class="heading" data-reveal>書いたものを見返す</h2>
+          <h2 id="screens-title" class="heading" data-reveal>ふり返りを、見返す</h2>
           <p class="screens-hint" data-reveal>
-            タイムライン、タグ、スタッツ、カレンダー、知らせ方。横にスクロールするか、矢印で送ると、ほかの画面が出ます。
+            1分の記入を、1日、1週間の単位で読み返す。タイムライン、タグ、スタッツ、カレンダー、知らせ方。横にスクロールするか、矢印で送ると、ほかの画面が出ます。
           </p>
           <div class="screens-controls" data-reveal>
             <button type="button" class="round-button" data-shot-step="-1" aria-label="前の画面">
@@ -613,6 +623,19 @@
         <h2 id="faq-title" class="heading faq-title" data-reveal>よくある質問</h2>
         <div class="faq-list">
           <details name="faq" data-reveal open>
+            <summary>ポモドーロ・テクニックと何が違いますか？</summary>
+            <p>
+              ポモドーロ・テクニックは、25分の集中と5分の休憩で作業を区切ります。nanaichi
+              は区切りを7分と短くし、そのたびに1分のジャーナルを挟みます。区切ることより、こまめにふり返ることを大事にしています。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
+            <summary>やることが決まっていなくても使えますか？</summary>
+            <p>
+              使えます。とりあえず開始を押して、音が鳴ったら「何もできなかった」と書くだけでも、次の7分で何をするかを考えるきっかけになります。
+            </p>
+          </details>
+          <details name="faq" data-reveal>
             <summary>ジャーナルは書かないといけませんか？</summary>
             <p>
               いいえ。1分のあいだに何も書かなくても、集中を最後まで終えたセットは完了セットとして数えます。書きたいことがあれば、集中の途中でも書けます。
@@ -666,7 +689,7 @@
 
     <footer class="board" aria-labelledby="footer-title">
       <div class="tile tile-statement">
-        <h2 id="footer-title">7分集中して、1分書く。それをくり返すためのタイマーです。</h2>
+        <h2 id="footer-title">経験をふり返ることから学ぶ。そのための、7分と1分のタイマーです。</h2>
         <p class="tile-small">
           写真と映像: “Small kitchen timer” Douglas Paul Perkins（CC BY 3.0）、“Half-hour sandglass”
           The Metropolitan Museum of Art（CC0）、“Lux Minute Minder timer”
@@ -676,7 +699,7 @@
       </div>
       <nav class="tile tile-nav" aria-label="ページの中">
         <a href="#flow">1ラウンドの流れ</a>
-        <a href="#screens">書いたものを見返す</a>
+        <a href="#screens">ふり返りを、見返す</a>
         <a href="#advance">進め方</a>
         <a href="#faq">よくある質問</a>
       </nav>
