@@ -4,7 +4,7 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { JOURNAL_PERIOD_MAX_DAYS } from "../domain/journal-period.ts";
 import type { ValidationError } from "../domain/schema-result.ts";
-import { STATS_PERIODS } from "../domain/stats.ts";
+import { CompactStats, STATS_PERIODS } from "../domain/stats.ts";
 import type { UserDO } from "./user-do.ts";
 import { describeIssuePaths } from "./validation-error.ts";
 
@@ -35,6 +35,12 @@ const StatsArgs = toStandardJsonSchema(
       v.description("期間。Today は今日、Week は今週（月曜から）、Month は今月、All はすべて"),
     ),
     timeZone: TimeZoneArg,
+    includeCalendar: v.pipe(
+      v.optional(v.boolean(), false),
+      v.description(
+        "true なら、この12週間の日ごとの完了セット数（今日まで）も返す。週ごとの習慣を見るときだけ求める",
+      ),
+    ),
   }),
 );
 
@@ -87,14 +93,23 @@ export const createMcpServer = (userDO: DurableObjectStub<UserDO>): McpServer =>
     {
       title: "スタッツ",
       description: [
-        "nanaichi の期間ごとのスタッツを返す。",
-        "完了セット数（1セットは7分の集中）・不成立セット数・ジャーナル記入の数・記入のある完了セットの数・前の期間の同じ時点までの完了セット数・",
-        "日ごと（または月ごと）の完了セット数・タグごとの完了セット数（多い順に5つ）・時間帯ごとの完了セット数・連続日数・この12週間の日ごとの完了セット数を含む。",
+        "nanaichi の期間ごとのスタッツを返す。日付は YYYY-MM-DD。",
+        "期間（range）・完了セット数（1セットは7分の集中）・不成立セット数・ジャーナル記入の数・記入のある完了セットの数・前の期間の同じ時点までの完了セット数（comparison）・",
+        "日ごと（今日まで。すべての期間は月ごと）の完了セット数（trend）・タグごとの完了セット数（多い順に5つ）・完了セットのある時間帯（hours）・連続日数（streak）を含む。",
+        "期間に記録がなければ activity は NoActivity。includeCalendar を true にすると、この12週間の日ごとの完了セット数（calendar）も返す。",
       ].join(""),
       inputSchema: StatsArgs,
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    async (args) => toToolResult(await userDO.getStats(args)),
+    async ({ includeCalendar, ...query }) =>
+      toToolResult(
+        Result.pipe(
+          await userDO.getStats(query),
+          Result.map((report) =>
+            includeCalendar ? CompactStats.withCalendarOf(report) : CompactStats.of(report),
+          ),
+        ),
+      ),
   );
 
   server.registerTool(
