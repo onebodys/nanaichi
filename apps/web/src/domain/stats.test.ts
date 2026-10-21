@@ -6,6 +6,7 @@ import { schemaResult } from "./schema-result.ts";
 import { SessionEventId, type SessionOperation } from "./session-event.ts";
 import { SessionId, type Session } from "./session.ts";
 import {
+  CompactStats,
   Stats,
   StatsQuerySchema,
   StatsReportJsonSchema,
@@ -414,5 +415,78 @@ describe("API の入力と応答", () => {
     const parsed = schemaResult(StatsReportJsonSchema)(JSON.parse(JSON.stringify(report)));
 
     expect(Result.isSuccess(parsed) && parsed.value).toEqual(report);
+  });
+});
+
+describe("MCP サーバーに返すスタッツ", () => {
+  test("日付は YYYY-MM-DD の文字列で、まだ来ていない日と完了セットのない時間帯は入らない", () => {
+    const session = sessionWithSets(tokyo(10, 13, 9), 2);
+    const report = statsOf({ sessions: [session] }, "Week", WEDNESDAY_NOON);
+
+    const compact = CompactStats.of(report);
+
+    expect(compact).toEqual({
+      period: "Week",
+      today: "2026-10-14",
+      range: { from: "2026-10-12", to: "2026-10-18" },
+      activity: {
+        kind: "Active",
+        completedSets: 2,
+        abortedSets: 0,
+        comparison: { kind: "Compared", previousCompletedSets: 0 },
+        entries: 0,
+        completedSetsWithEntry: 0,
+        trend: {
+          kind: "Days",
+          days: [
+            { date: "2026-10-12", completedSets: 0 },
+            { date: "2026-10-13", completedSets: 2 },
+            { date: "2026-10-14", completedSets: 0 },
+          ],
+        },
+        tags: [],
+        hours: [{ hour: 9, completedSets: 2 }],
+      },
+      streak: { current: 1, longest: 1 },
+    });
+  });
+
+  test("すべての期間の月ごとは YYYY-MM の文字列で並ぶ", () => {
+    const report = statsOf(
+      { sessions: [sessionWithSets(tokyo(9, 30, 9), 1), sessionWithSets(tokyo(10, 14, 9), 3)] },
+      "All",
+      WEDNESDAY_NOON,
+    );
+
+    const { activity } = CompactStats.of(report);
+
+    expect(activity.kind === "Active" && activity.trend).toEqual({
+      kind: "Months",
+      months: [
+        { month: "2026-09", completedSets: 1 },
+        { month: "2026-10", completedSets: 3 },
+      ],
+    });
+  });
+
+  test("期間の中に記録がなければ、記録がないことだけを返す", () => {
+    const compact = CompactStats.of(statsOf({}, "Today", WEDNESDAY_NOON));
+
+    expect(compact.activity).toEqual({ kind: "NoActivity" });
+  });
+
+  test("この12週間の日ごとを求めると、今日までの日を古い順に入れる", () => {
+    const report = statsOf(
+      { sessions: [sessionWithSets(tokyo(10, 14, 9), 2)] },
+      "Today",
+      WEDNESDAY_NOON,
+    );
+
+    const { calendar } = CompactStats.withCalendarOf(report);
+
+    // 11週前の月曜（2026-07-27）から今日（水曜）まで
+    expect(calendar).toHaveLength(11 * 7 + 3);
+    expect(calendar[0]).toEqual({ date: "2026-07-27", completedSets: 0 });
+    expect(calendar.at(-1)).toEqual({ date: "2026-10-14", completedSets: 2 });
   });
 });

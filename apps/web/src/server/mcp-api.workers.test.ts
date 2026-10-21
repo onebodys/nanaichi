@@ -394,18 +394,85 @@ describe("MCP サーバーのツール", () => {
     passTo(minutes(8));
     const accessToken = await connectClient(cookie);
 
-    const stats = v.parse(
-      v.object({
-        period: v.string(),
-        activity: v.object({ kind: v.literal("Active"), completedSets: v.number() }),
-      }),
-      await toolJson(accessToken, "get_stats", { period: "Today", timeZone: "Asia/Tokyo" }),
-    );
+    const stats = await toolJson(accessToken, "get_stats", {
+      period: "Today",
+      timeZone: "Asia/Tokyo",
+    });
     const tags = await toolJson(accessToken, "get_tags");
 
-    expect(stats.period).toBe("Today");
-    expect(stats.activity.completedSets).toBe(1);
+    expect(stats).toEqual({
+      period: "Today",
+      today: "2100-01-01",
+      range: { from: "2100-01-01", to: "2100-01-01" },
+      activity: {
+        kind: "Active",
+        completedSets: 1,
+        abortedSets: 0,
+        comparison: { kind: "Compared", previousCompletedSets: 0 },
+        entries: 1,
+        completedSetsWithEntry: 1,
+        trend: { kind: "None" },
+        tags: [{ name: "読書", completedSets: 1 }],
+        hours: [{ hour: 9, completedSets: 1 }],
+      },
+      streak: { current: 1, longest: 1 },
+    });
     expect(tags).toEqual({ tags: ["読書"] });
+  });
+
+  test("スタッツの日ごとには、まだ来ていない日もこの12週間の日ごとも入らない", async () => {
+    const { headers } = await signInAs("me@example.com");
+    const cookie = headers.get("cookie") ?? "";
+    const me = recorder(cookie);
+    await me.start();
+    passTo(minutes(8));
+    const accessToken = await connectClient(cookie);
+
+    // 2100-01-01 は金曜日。今週は 2099-12-28（月）から 2100-01-03（日）まで
+    const stats = v.parse(
+      v.object({
+        range: v.object({ from: v.string(), to: v.string() }),
+        activity: v.object({
+          trend: v.object({
+            kind: v.literal("Days"),
+            days: v.array(v.object({ date: v.string(), completedSets: v.number() })),
+          }),
+        }),
+      }),
+      await toolJson(accessToken, "get_stats", { period: "Week", timeZone: "Asia/Tokyo" }),
+    );
+
+    expect(stats).not.toHaveProperty("calendar");
+    expect(stats.range).toEqual({ from: "2099-12-28", to: "2100-01-03" });
+    expect(stats.activity.trend.days.map(({ date }) => date)).toEqual([
+      "2099-12-28",
+      "2099-12-29",
+      "2099-12-30",
+      "2099-12-31",
+      "2100-01-01",
+    ]);
+  });
+
+  test("この12週間の日ごとは、求めたときだけ今日までの日を返す", async () => {
+    const { headers } = await signInAs("me@example.com");
+    const cookie = headers.get("cookie") ?? "";
+    const me = recorder(cookie);
+    await me.start();
+    passTo(minutes(8));
+    const accessToken = await connectClient(cookie);
+
+    const { calendar } = v.parse(
+      v.object({ calendar: v.array(v.object({ date: v.string(), completedSets: v.number() })) }),
+      await toolJson(accessToken, "get_stats", {
+        period: "Today",
+        timeZone: "Asia/Tokyo",
+        includeCalendar: true,
+      }),
+    );
+
+    // 11週前の月曜から今日（金曜）まで
+    expect(calendar).toHaveLength(11 * 7 + 5);
+    expect(calendar.at(-1)).toEqual({ date: "2100-01-01", completedSets: 1 });
   });
 
   test("トークンを渡したユーザーの記録だけを読め、ほかのユーザーの記録は読めない", async () => {

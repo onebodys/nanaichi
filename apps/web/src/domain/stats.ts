@@ -486,3 +486,113 @@ export const StatsReportJsonSchema: v.GenericSchema<unknown, StatsReport> = v.ob
 
 /** スタッツを数えるもとの記録を読む。すべてのセッションと、削除していない記入（本文を除く） */
 export type FindStatsRecords = () => StatsRecords;
+
+// ---------------------------------------------------------------------------
+// MCP サーバーに返す形（Issue #89）
+// ---------------------------------------------------------------------------
+
+/** AI が読む1日の完了セット数。日付は `YYYY-MM-DD` */
+type CompactDay = Readonly<{ date: string; completedSets: number }>;
+
+/** AI が読む1か月の完了セット数。月は `YYYY-MM` */
+type CompactMonth = Readonly<{ month: string; completedSets: number }>;
+
+type CompactTrend =
+  | Readonly<{ kind: "None" }>
+  | Readonly<{ kind: "Days"; days: ReadonlyArray<CompactDay> }>
+  | Readonly<{ kind: "Months"; months: ReadonlyArray<CompactMonth> }>;
+
+type CompactActivity =
+  | Readonly<{ kind: "NoActivity" }>
+  | Readonly<{
+      kind: "Active";
+      completedSets: number;
+      abortedSets: number;
+      comparison: StatsComparison;
+      entries: number;
+      completedSetsWithEntry: number;
+      trend: CompactTrend;
+      tags: ReadonlyArray<TagCount>;
+      /** 完了セットのある時間帯だけを、0時台から順に */
+      hours: ReadonlyArray<Readonly<{ hour: number; completedSets: number }>>;
+    }>;
+
+/**
+ * MCP の `get_stats` が返すスタッツ。AI の文脈を無駄に使わないよう、`StatsReport` を小さくしたもの。
+ *
+ * - 日付は `YYYY-MM-DD` の文字列にする
+ * - まだ来ていない日と、完了セットのない時間帯は省く
+ * - この12週間の日ごとは、求めたとき（`CompactStatsReportWithCalendar`）だけ入れる
+ */
+export type CompactStatsReport = Readonly<{
+  period: StatsPeriod;
+  today: string;
+  range: Readonly<{ from: string; to: string }>;
+  activity: CompactActivity;
+  streak: Readonly<{ current: number; longest: number }>;
+}>;
+
+export type CompactStatsReportWithCalendar = CompactStatsReport &
+  Readonly<{
+    /** この12週間の日ごと（今日まで）。古い順 */
+    calendar: ReadonlyArray<CompactDay>;
+  }>;
+
+const pastDaysOf = (days: ReadonlyArray<CalendarDay>): ReadonlyArray<CompactDay> =>
+  days.flatMap((day): ReadonlyArray<CompactDay> => {
+    switch (day.kind) {
+      case "Day":
+        return [{ date: day.date.key, completedSets: day.completedSets }];
+      case "Upcoming":
+        return [];
+    }
+  });
+
+const compactTrendOf = (trend: StatsTrend): CompactTrend => {
+  switch (trend.kind) {
+    case "None":
+      return trend;
+    case "Days":
+      return { kind: "Days", days: pastDaysOf(trend.days) };
+    case "Months":
+      return {
+        kind: "Months",
+        months: trend.months.map(({ year, month, completedSets }) => ({
+          month: `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`,
+          completedSets,
+        })),
+      };
+  }
+};
+
+const compactActivityOf = (activity: StatsActivity): CompactActivity => {
+  switch (activity.kind) {
+    case "NoActivity":
+      return activity;
+    case "Active":
+      return {
+        ...activity,
+        trend: compactTrendOf(activity.trend),
+        hours: activity.hours.flatMap((completedSets, hour) =>
+          completedSets === 0 ? [] : [{ hour, completedSets }],
+        ),
+      };
+  }
+};
+
+export const CompactStats = {
+  /** スタッツを、AI が読む小さな形にする。この12週間の日ごとは入れない */
+  of: (report: StatsReport): CompactStatsReport => ({
+    period: report.period,
+    today: report.today.key,
+    range: { from: report.range.from.key, to: report.range.to.key },
+    activity: compactActivityOf(report.activity),
+    streak: report.streak,
+  }),
+
+  /** スタッツを、AI が読む小さな形にする。この12週間の日ごと（今日まで）も入れる */
+  withCalendarOf: (report: StatsReport): CompactStatsReportWithCalendar => ({
+    ...CompactStats.of(report),
+    calendar: pastDaysOf(report.calendar),
+  }),
+} as const;
