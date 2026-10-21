@@ -34,3 +34,6 @@ dist-ssr
 
 # Playwright MCP
 .playwright-mcp/
+
+# design-taste-frontend スキルの作業ファイル（方向性の抽選結果と、画面の検査のスクリーンショット）
+.taste-skill/

@@ -37,6 +37,20 @@ export default defineConfig(({ mode }) => ({
     // shadcn/ui のコンポーネントが使う import エイリアス（tsconfig.app.json の paths と同じ）
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
+  environments: {
+    // 画面は2枚。タイマーの SPA（index.html）と、ログインしていない人に `/` で見せる LP（landing.html、ADR 0018）。
+    // Worker の環境にまで入口を足すと Worker のビルドが HTML を読もうとして失敗するので、client の環境にだけ書く
+    client: {
+      build: {
+        rollupOptions: {
+          input: {
+            index: fileURLToPath(new URL("./index.html", import.meta.url)),
+            landing: fileURLToPath(new URL("./landing.html", import.meta.url)),
+          },
+        },
+      },
+    },
+  },
   server: devServerOptions(),
   // テストは実行環境ごとに設定ファイルを分ける（ルートの vite.config.ts からも同じファイルを指す）
   test: {

@@ -14,7 +14,8 @@ export default {
     "apps/web": {
       // E2E ランナー（e2e、docs/E2E.md）には knip のプラグインがないので、設定とテストを入口として教える
       // Service Worker（public/sw.js）は import されず、画面が URL で登録する（client/phase-notification.ts）
-      entry: ["e2e.config.ts", "tests/**/*.e2e.ts", "public/sw.js"],
+      // LP（landing.html）の入口は vite.config.ts の environments.client にあり、Vite+ プラグインが読まないので教える（ADR 0018）
+      entry: ["e2e.config.ts", "tests/**/*.e2e.ts", "public/sw.js", "src/client/landing/main.ts"],
       // `cloudflare:workers` は Workers ランタイムの組み込みモジュールで、npm パッケージではない
       ignoreDependencies: ["cloudflare"],
       // portless は公式の方針どおりプロジェクトの依存にせずグローバルに入れる（`dev:portless`、docs/E2E.md）
