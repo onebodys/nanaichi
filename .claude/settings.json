@@ -12,5 +12,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "pstack@pstack-claude": true
   }
 }
