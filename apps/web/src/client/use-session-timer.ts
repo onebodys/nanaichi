@@ -7,7 +7,6 @@ import { SessionEventId, type SessionOperation } from "../domain/session-event.t
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import { createApiClient, type ApiError } from "./api.ts";
-import { latenessSeconds, recordAlert } from "./alert-log.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import { startTicker } from "./ticker.ts";
 
@@ -200,18 +199,11 @@ export const useSessionTimer = (
     if (last !== undefined && last.snapshot === received.snapshot) {
       const change = phaseChangeBetween(last.state, state);
       if (change.kind === "PhaseChanged") {
-        recordAlert({
-          at: deviceNow.toISOString(),
-          to: change.to.kind,
-          lateSeconds: latenessSeconds(last.state, serverNow),
-          visibility: document.visibilityState,
-          sound: phaseAlert.soundState(),
-        });
         phaseAlert.alert(change.to);
       }
     }
     previous.current = { snapshot: received.snapshot, state };
-  }, [received, state, phaseAlert, deviceNow, serverNow]);
+  }, [received, state, phaseAlert]);
 
   const send = async (call: () => Result.ResultAsync<SessionSnapshot, ApiError>) => {
     setPending(true);
