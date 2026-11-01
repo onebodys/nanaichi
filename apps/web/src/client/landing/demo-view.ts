@@ -10,6 +10,7 @@ import {
   upcomingPhaseOf,
   type Segment,
 } from "../../domain/round-progress.ts";
+import { rhythmBeatsOf } from "./rhythm-score.ts";
 import { SessionEventId, type SessionOperation } from "../../domain/session-event.ts";
 import { SessionSummary } from "../../domain/session-summary.ts";
 import { Session, SessionId } from "../../domain/session.ts";
@@ -79,6 +80,7 @@ type Elements = Readonly<{
   upcoming: HTMLElement;
   arc: SVGCircleElement;
   segments: ReadonlyArray<HTMLElement>;
+  beats: ReadonlyArray<HTMLElement>;
   ops: HTMLElement;
   note: HTMLElement;
   composer: HTMLFormElement;
@@ -107,6 +109,7 @@ const elementsIn = (root: ParentNode): Elements => {
     upcoming: q("[data-upcoming]"),
     arc: q<SVGCircleElement>("[data-arc]"),
     segments: [...app.querySelectorAll<HTMLElement>(".app-seg i")],
+    beats: [...root.querySelectorAll<HTMLElement>("[data-beat]")],
     ops: q("[data-ops]"),
     note: q("[data-note]"),
     composer: q<HTMLFormElement>("[data-composer]"),
@@ -200,25 +203,12 @@ const EMPHASIS_CLASSES = {
   Quiet: "app-button app-button-quiet",
 } as const;
 
-export type DemoView = Readonly<{
-  /** 進め方を変える（進め方の帯から呼ぶ） */
-  changeMode: (mode: AdvanceMode) => void;
-  modeNow: () => AdvanceMode;
-  /** フェーズの切り替わりで音を鳴らすか（音の帯から切り替える） */
-  setSound: (on: boolean) => void;
-}>;
-
-export const mountDemo = (
-  root: ParentNode,
-  alert: PhaseAlert,
-  initialMode: AdvanceMode,
-): DemoView => {
+export const mountDemo = (root: ParentNode, alert: PhaseAlert, initialMode: AdvanceMode): void => {
   const el = elementsIn(root);
   let demo: Demo = Demo.initial(initialMode);
   /** 前に描いた状態。人の操作のあとは、知らせないように操作のあとの状態に置き換える */
   let previous: TimerState | undefined;
   let opsKey = "";
-  let sound = true;
 
   el.hint.textContent = `${isMac() ? "⌘" : "Ctrl"}+Enter で送信`;
   el.today.textContent = dateLabelOf(localDate(new Date()));
@@ -232,9 +222,7 @@ export const mountDemo = (
     const change = phaseChangeBetween(previous, state);
     switch (change.kind) {
       case "PhaseChanged":
-        if (sound) {
-          alert.preview({ to: change.to.kind, tone: TONES[change.to.kind], volume: "Medium" });
-        }
+        alert.preview({ to: change.to.kind, tone: TONES[change.to.kind], volume: "Medium" });
         if (change.to.kind === "Journal" && isOnScreen(el.app)) {
           el.body.focus({ preventScroll: true });
         }
@@ -282,6 +270,16 @@ export const mountDemo = (
     [...progress.sets, progress.break].forEach((segment, i) => {
       el.segments[i]?.style.setProperty("--fill", String(fillOf(segment)));
     });
+    renderBeats(rhythmBeatsOf(state));
+  };
+
+  /** ヒーローの下のリズムの帯。進めている拍に印をつける */
+  const renderBeats = (fills: ReadonlyArray<number>) => {
+    const current = fills.findIndex((fill) => fill > 0 && fill < 1);
+    el.beats.forEach((beat, i) => {
+      beat.style.setProperty("--fill", String(fills[i] ?? 0));
+      beat.toggleAttribute("data-current", i === current);
+    });
   };
 
   const renderNotStarted = () => {
@@ -296,6 +294,7 @@ export const mountDemo = (
     el.arc.style.setProperty("--ring-offset", "0");
     el.arc.style.removeProperty("--ring-color");
     el.segments.forEach((segment) => segment.style.setProperty("--fill", "0"));
+    renderBeats([]);
     el.note.textContent = rhythm.round;
     renderOps([
       { key: "Start", label: "開始", className: EMPHASIS_CLASSES.Primary, onClick: () => start(1) },
@@ -328,6 +327,7 @@ export const mountDemo = (
     el.arc.style.setProperty("--ring-offset", "0");
     el.arc.style.setProperty("--ring-color", "var(--ui-muted)");
     el.segments.forEach((segment) => segment.style.setProperty("--fill", "0"));
+    renderBeats([]);
     el.note.textContent = `完了 ${summary.completedSets}セット · 不成立 ${summary.abortedSets}セット · 記入 ${started.entries.length}件`;
     renderOps([
       {
@@ -498,17 +498,6 @@ export const mountDemo = (
   window.setInterval(() => {
     if (demo.kind === "Started" && !document.hidden) render();
   }, TICK_MS);
-
-  return {
-    changeMode: (mode) => {
-      demo = Demo.changeMode(demo, mode, new Date());
-      render();
-    },
-    modeNow: () => Demo.modeAt(demo, new Date()),
-    setSound: (on) => {
-      sound = on;
-    },
-  };
 };
 
 const isOnScreen = (element: Element): boolean => {

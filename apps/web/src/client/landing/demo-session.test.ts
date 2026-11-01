@@ -100,18 +100,9 @@ describe("LP で試せるタイマー", () => {
     });
   });
 
-  test("セッションの途中で進め方を変えると、その時刻から効く", () => {
-    const manual = { ...AdvanceMode.default, FocusToJournal: "Manual" } as const;
-    const demo = Demo.changeMode(start(1), manual, at(60));
-    if (demo.kind !== "Started") throw new Error("始めたセッションのまま");
-
-    expect(Demo.modeAt(demo, at(61))).toEqual(manual);
-    expect(Demo.stateAt(demo, at(420)).kind).toBe("AwaitingAdvance");
-  });
-
-  test("始める前に戻しても、選んだ進め方は持ち越す", () => {
+  test("始める前に戻しても、始めたときの進め方は持ち越す", () => {
     const manual = { ...AdvanceMode.default, BreakToFocus: "Manual" } as const;
-    const demo = Demo.reset(Demo.changeMode(start(1), manual, at(10)), at(20));
+    const demo = Demo.reset(start(1, manual), at(20));
 
     expect(demo).toEqual({ kind: "NotStarted", mode: manual });
   });

@@ -1,25 +1,27 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 
-// LP（Issue #90、ADR 0018）。ログインしていない人に `/` で見せる
+// LP（Issue #90、ADR 0018）。ベータ版のあいだは `/lp` で見せ、`/` はアプリのまま
 
-test("未ログインで / を開くと、URL はそのままで LP が出て、ログインへの導線はない", async ({
+test("未ログインで /lp を開くと、ベータ版の LP が出て、ログインへの導線はない", async ({
   app,
   browser,
   screen,
 }) => {
-  await app.open("/");
-  await expect(browser).toHaveURL("/");
-  await expect(screen.getByRole("heading", { name: /^7分集中して、\s*1分書く$/ })).toBeVisible();
+  await app.open("/lp");
+  await expect(browser).toHaveURL("/lp");
+  await expect(screen.getByRole("heading", { name: /^集中は、\s*リズムで続く$/ })).toBeVisible();
   await expect(screen.getByRole("button", { name: "Google でログイン" })).not.toBeVisible();
   await expect(screen.getByRole("link", { name: "ログイン" })).not.toBeVisible();
+  await expect(screen.getByRole("link", { name: "ベータ版" })).toBeVisible();
+  await expect(screen.getByRole("heading", { name: "いまできること、これから" })).toBeAttached();
 });
 
 test("LP でタイマーを始めると集中が始まり、書いた記入がそのセットの集中としてタイムラインに出る", async ({
   app,
   screen,
 }) => {
-  await app.open("/");
+  await app.open("/lp");
   await screen.getByRole("button", { name: "1セットやってみる" }).click();
   await expect(screen.getByRole("button", { name: "一時停止" })).toBeVisible();
 
@@ -29,20 +31,8 @@ test("LP でタイマーを始めると集中が始まり、書いた記入が�
   await expect(screen.getByText("1-1 集中")).toBeVisible();
 });
 
-test("LP で集中 → ジャーナルを手動にして60倍速で始めると、7分のところで切り替え待ちになる", async ({
-  app,
-  screen,
-}) => {
-  await app.open("/");
-  await screen.getByRole("switch", { name: "集中 → ジャーナルを自動で進める" }).click();
-  await screen.getByRole("button", { name: "60倍速で1ラウンドを見る" }).click();
-  await expect(screen.getByRole("button", { name: "ジャーナルを始める" })).toBeVisible({
-    timeout: 15_000,
-  });
-});
-
 test(
-  "ログインしていれば / はタイマーの画面のまま",
+  "ログインしていても / はタイマーの画面のまま（LP は /lp にだけ出る）",
   { session: "signedIn" },
   async ({ app, screen }) => {
     await app.open("/");

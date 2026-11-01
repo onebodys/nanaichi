@@ -197,6 +197,32 @@ p {
   background: var(--bg);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ベータ版の印。押すと「いまできること、これから」へ */
+.beta {
+  padding: 3px 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--focus);
+  text-decoration: none;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+.beta:hover {
+  background: var(--focus);
+  color: var(--accent-ink);
+}
+
 .wordmark {
   display: inline-flex;
   align-items: center;
@@ -250,9 +276,10 @@ p {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: var(--gap);
+  grid-template-rows: 1fr auto;
   align-items: center;
   min-height: min(calc(100svh - 64px), 960px);
-  padding: clamp(24px, 4vw, 56px) var(--margin) clamp(48px, 6vw, 96px);
+  padding: clamp(16px, 3vw, 40px) var(--margin) clamp(32px, 4vw, 56px);
 }
 
 .hero-copy {
@@ -335,6 +362,76 @@ p {
 }
 
 /* ---------------------------------------------------------------------------
+ * リズムの帯: 1ラウンド（29分）を拍の長さの比で並べる。LP でいちばん目立たせるのはここ。
+ * 上のタイマーを動かすと、進んだところまで印の色が満ちる（rhythm-score.ts）
+ * ------------------------------------------------------------------------- */
+
+.score {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 7fr 1fr 7fr 1fr 7fr 1fr 5fr;
+  gap: 6px;
+  margin: clamp(32px, 4vw, 56px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.beat {
+  --soft: var(--focus-soft);
+  --mark: var(--focus);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.beat-journal {
+  --soft: #f8e2bd;
+  --mark: var(--journal-mark);
+}
+
+.beat-break {
+  --soft: var(--break-soft);
+  --mark: var(--break-mark);
+}
+
+.beat-focus {
+  --soft: #dde5f9;
+}
+
+.beat i {
+  position: relative;
+  display: block;
+  height: clamp(40px, 4.5vw, 72px);
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--soft);
+}
+
+.beat i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mark);
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left;
+  transition: transform 300ms linear;
+}
+
+.beat span {
+  overflow: hidden;
+  font-size: var(--t-small);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--muted);
+  transition: color 200ms ease;
+}
+
+.beat[data-current] span {
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------------------
  * アプリの画面の断片（data-ui）。ここだけはアプリの流儀で描く
  * ------------------------------------------------------------------------- */
 
@@ -359,7 +456,7 @@ p {
   grid-column: 7 / span 6;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
-  min-height: min(640px, calc(100svh - 160px));
+  min-height: min(600px, calc(100svh - 340px));
   overflow: hidden;
   border: 1px solid var(--ui-line); /* taste-skill-ignore: アプリの画面の断片（data-ui）の流儀 */
   border-radius: 14px;
@@ -782,7 +879,7 @@ span.panel-quiet {
 }
 
 /* ---------------------------------------------------------------------------
- * 25分が長い人のために: 見出しと文、砂時計、4つの段落
+ * 1分のふり返りが、次の集中につながる: 見出しと文、4つの段落
  * ------------------------------------------------------------------------- */
 
 .intro {
@@ -801,48 +898,10 @@ span.panel-quiet {
   gap: 32px;
 }
 
-.intro-quote {
-  margin: 0;
-  font-weight: 500;
-}
-
-.intro-quote footer {
-  margin-top: 8px;
-  font-size: var(--t-small);
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.intro-figure {
-  grid-column: 9 / span 4;
-  grid-row: 1 / span 2;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.intro-frame {
-  overflow: hidden;
-  aspect-ratio: 1;
-  background: var(--surface);
-}
-
-.intro-frame img {
-  width: 100%;
-  height: 112%;
-  object-fit: cover;
-}
-
-.intro-figure figcaption {
-  font-size: var(--t-small);
-  color: var(--muted);
-}
-
 .intro-columns {
-  grid-column: 1 / span 8;
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 40px var(--gap);
 }
 
@@ -854,69 +913,6 @@ span.panel-quiet {
   display: block;
   margin-bottom: 6px;
   font-weight: 700;
-}
-
-/* ---------------------------------------------------------------------------
- * 決まった長さを、くり返す: 時間を計る道具の写真と映像を、同じ高さで1列に
- * ------------------------------------------------------------------------- */
-
-.tools {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  column-gap: var(--gap);
-  row-gap: 48px;
-  padding: var(--section) var(--margin) 0;
-}
-
-.tools-head {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: end;
-}
-
-.tools-head .heading {
-  grid-column: 1 / span 6;
-}
-
-.tools-text {
-  grid-column: 8 / span 5;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.tools figure {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.tools-clip {
-  grid-column: 1 / span 6;
-}
-
-.tools-sandglass {
-  grid-column: 7 / span 3;
-}
-
-.tools-minder {
-  grid-column: 10 / span 3;
-}
-
-.tools img,
-.tools video {
-  display: block;
-  width: 100%;
-  height: clamp(320px, 34vw, 500px);
-  object-fit: cover;
-  background: var(--surface);
-}
-
-.tools figcaption {
-  font-size: var(--t-small);
-  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1566,11 +1562,11 @@ span.panel-quiet {
 }
 
 /* ---------------------------------------------------------------------------
- * 進め方: 1文ごとの帯。右の切り替えでいちばん上のタイマーの進め方が変わる
+ * 進め方: 設定で選べることだけを短く並べる（LP の中では切り替えない）
  * ------------------------------------------------------------------------- */
 
 .advance {
-  padding-top: var(--section);
+  padding: var(--section) var(--margin) 0;
 }
 
 .advance-head {
@@ -1578,7 +1574,7 @@ span.panel-quiet {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: var(--gap);
   align-items: end;
-  padding: 0 var(--margin) 56px;
+  padding-bottom: 56px;
 }
 
 .advance-head .heading {
@@ -1589,108 +1585,114 @@ span.panel-quiet {
   grid-column: 9 / span 4;
 }
 
-.band {
+.options {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--gap);
-  min-height: 20vh;
-  padding: 28px var(--margin);
-  transition: background-color 400ms ease;
-}
-
-.band h3 {
-  font-size: var(--t-heading);
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  color: var(--muted);
-  transition: color 400ms ease;
-}
-
-.band-on,
-.band-off {
-  margin-top: 8px;
-  font-size: var(--t-body);
-}
-
-.band-on {
-  display: none;
-}
-
-.band.is-on h3 {
-  color: var(--ink);
-}
-
-.band.is-on .band-on {
-  display: block;
-}
-
-.band.is-on .band-off {
-  display: none;
-}
-
-.band.is-on.band-journal {
-  background: var(--journal-soft);
-}
-
-.band.is-on.band-focus {
-  background: var(--focus-soft);
-}
-
-.band.is-on.band-break {
-  background: var(--break-soft);
-}
-
-.band.is-on.band-sound {
-  background: var(--surface-2);
-}
-
-.band:not(.is-on) {
-  background: var(--bg);
-}
-
-.band:not(.is-on) + .band:not(.is-on) {
-  background: var(--surface);
-}
-
-.switch {
-  position: relative;
-  width: 2.6em;
-  height: 1.4em;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 40px var(--gap);
+  margin: 0;
   padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: #a8a29e;
-  font-size: clamp(28px, 3.2vw, 48px);
-  transition: background-color 240ms ease;
+  list-style: none;
 }
 
-.switch i {
-  position: absolute;
-  top: 0.15em;
-  left: 0.15em;
-  width: 1.1em;
-  height: 1.1em;
-  border-radius: 50%;
-  background: #ffffff;
-  transition: transform 280ms var(--ease-out);
+.options li {
+  padding-top: 20px;
+  border-top: 2px solid var(--ink);
 }
 
-.switch[aria-checked="true"] {
-  background: var(--ink);
+.options h3 {
+  font-size: var(--t-body);
+  font-weight: 700;
 }
 
-.switch[aria-checked="true"] i {
-  transform: translateX(1.2em);
+.options p {
+  margin-top: 8px;
+  line-height: 1.8;
+  color: var(--muted);
 }
 
-.switch:active i {
-  transform: scale(0.92);
+/* ---------------------------------------------------------------------------
+ * いまできること、これから: ベータ版の現在地。使えるものは満ちた帯、これからのものは点線の帯
+ * （ヒーローのリズムの帯と同じ言葉で「済んだ／まだ」を表す）
+ * ------------------------------------------------------------------------- */
+
+.roadmap {
+  padding: var(--section) var(--margin) 0;
 }
 
-.switch[aria-checked="true"]:active i {
-  transform: translateX(1.2em) scale(0.92);
+.roadmap-head {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gap);
+  align-items: end;
+  padding-bottom: 56px;
+}
+
+.roadmap-head .heading {
+  grid-column: 1 / span 7;
+}
+
+.roadmap-head p {
+  grid-column: 9 / span 4;
+}
+
+.roadmap-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px var(--gap);
+}
+
+.roadmap-status {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 8px;
+  font-size: var(--t-body);
+  font-weight: 700;
+}
+
+.roadmap-status i {
+  display: block;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.roadmap-done .roadmap-status i {
+  background: var(--focus);
+}
+
+.roadmap-soon .roadmap-status {
+  color: var(--muted);
+}
+
+.roadmap-soon .roadmap-status i {
+  border: 2px dashed #a8a29e;
+}
+
+.roadmap-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roadmap-group li {
+  padding: 20px 0;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.roadmap-group h4 {
+  margin: 0;
+  font-size: var(--t-statement);
+  font-weight: 700;
+}
+
+.roadmap-soon h4 {
+  color: var(--muted);
+}
+
+.roadmap-group p {
+  margin: 6px 0 0;
+  line-height: 1.8;
+  color: var(--muted);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1922,12 +1924,6 @@ html.js [data-reveal].is-in {
   transform: none;
 }
 
-/* 写真は枠の中で、スクロールに合わせてゆっくり上がる */
-[data-drift] {
-  transform: translateY(calc(var(--drift, 0.5) * -10.7%));
-  transition: transform 120ms linear;
-}
-
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1937,10 +1933,6 @@ html.js [data-reveal].is-in {
     opacity: 1;
     transform: none;
     transition: none;
-  }
-
-  [data-drift] {
-    transform: none;
   }
 
   *,
@@ -1970,17 +1962,21 @@ html.js [data-reveal].is-in {
     grid-column: 1 / -1;
   }
 
+  .score {
+    grid-row: 2;
+    margin-top: 0;
+  }
+
   .intro-lead {
     grid-column: 1 / span 8;
   }
 
-  .intro-figure {
-    grid-column: 9 / span 4;
-    grid-row: 1;
+  .intro-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .intro-columns {
-    grid-column: 1 / -1;
+  .options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .flow {
@@ -2011,32 +2007,6 @@ html.js [data-reveal].is-in {
     grid-column: 1;
     margin: 0;
     padding: 0;
-  }
-
-  .tools-head .heading,
-  .tools-text {
-    grid-column: 1 / -1;
-  }
-
-  .tools-text {
-    margin-top: 16px;
-  }
-
-  .tools-clip {
-    grid-column: 1 / -1;
-  }
-
-  .tools-sandglass {
-    grid-column: 1 / span 6;
-  }
-
-  .tools-minder {
-    grid-column: 7 / span 6;
-  }
-
-  .tools-clip video {
-    height: auto;
-    aspect-ratio: 16 / 9;
   }
 
   .screens-head .heading,
@@ -2070,8 +2040,14 @@ html.js [data-reveal].is-in {
   }
 
   .advance-head .heading,
-  .advance-head p {
+  .advance-head p,
+  .roadmap-head .heading,
+  .roadmap-head p {
     grid-column: 1 / -1;
+  }
+
+  .roadmap-head p {
+    margin-top: 16px;
   }
 
   .advance-head p {
@@ -2154,6 +2130,19 @@ html.js [data-reveal].is-in {
     width: 220px;
   }
 
+  .score {
+    gap: 3px;
+  }
+
+  /* 1分の拍は細いので、名前は集中と休憩にだけ出す */
+  .beat-journal span {
+    visibility: hidden;
+  }
+
+  .beat span {
+    font-size: 12px;
+  }
+
   .app-timeline {
     max-height: 360px;
   }
@@ -2163,12 +2152,9 @@ html.js [data-reveal].is-in {
   }
 
   .intro-lead,
-  .intro-figure {
-    grid-column: 1 / -1;
-    grid-row: auto;
-  }
-
-  .intro-columns {
+  .intro-columns,
+  .options,
+  .roadmap-groups {
     grid-template-columns: minmax(0, 1fr);
     gap: 32px;
   }
@@ -2196,10 +2182,6 @@ html.js [data-reveal].is-in {
     order: 1;
   }
 
-  .tools img {
-    height: 260px;
-  }
-
   .screens-row {
     gap: 4vw;
     min-height: 0;
@@ -2209,23 +2191,6 @@ html.js [data-reveal].is-in {
   .panel,
   .panel-wide {
     width: 86vw;
-  }
-
-  .band {
-    min-height: 132px;
-  }
-
-  .band h3 {
-    font-size: var(--t-statement);
-  }
-
-  .band-on,
-  .band-off {
-    font-size: 15px;
-  }
-
-  .switch {
-    font-size: 30px;
   }
 
   .faq summary {

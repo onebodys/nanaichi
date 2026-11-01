@@ -4,52 +4,44 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
-      ログインしていない人に `/` で見せる LP（Issue #90、ADR 0018）。どちらの画面かは Worker が cookie で決める。
+      `/lp` で見せる LP（Issue #90、ADR 0018）。ベータ版のあいだは `/` はアプリのまま。
       一般向けに公開するまでは検索エンジンに載せない
     -->
     <meta name="robots" content="noindex" />
-    <title>nanaichi — 7分集中して、1分書くタイマー</title>
+    <title>nanaichi — 集中が続くリズムをつくるタイマー</title>
     <meta
       name="description"
-      content="nanaichi は、7分の集中と1分のジャーナルをくり返すタイマーです。7分ごとに、いまやったことを一言でふり返り、次の一手を選び直します。"
+      content="nanaichi は、7分の集中と1分のジャーナルをくり返すタイマーです。短いふり返りをはさんでくり返すうちに作業にリズムが生まれ、集中が途切れにくくなります。"
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="nanaichi — 7分集中して、1分書くタイマー" />
+    <meta property="og:title" content="nanaichi — 集中が続くリズムをつくるタイマー" />
     <meta
       property="og:description"
-      content="7分の集中と1分のジャーナルをくり返すタイマー。経験をふり返ることから学ぶための、小さな仕掛け。"
+      content="7分集中して、1分書く。そのくり返しがリズムになり、集中が続く。"
     />
     <meta property="og:image" content="/landing/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#fafaf9" />
-    <script>
-      // ホーム画面に追加した nanaichi（PWA）は `/` から開く。ログインが切れていたら LP ではなくログイン画面へ送る。
-      // LP にはログインへの導線を置かないので、ここで送らないと PWA から戻れなくなる
-      (function () {
-        var standalone =
-          window.matchMedia("(display-mode: standalone)").matches ||
-          window.navigator.standalone === true;
-        if (standalone) {
-          window.location.replace("/login");
-        }
-      })();
-    </script>
   </head>
   <body>
     <header class="bar">
-      <a class="wordmark" href="#top" aria-label="nanaichi">
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
-          <rect width="32" height="32" rx="8" />
-          <text x="16" y="21" text-anchor="middle">7·1</text>
-        </svg>
-        <span>nanaichi</span>
-      </a>
+      <div class="brand">
+        <a class="wordmark" href="#top" aria-label="nanaichi">
+          <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="8" />
+            <text x="16" y="21" text-anchor="middle">7·1</text>
+          </svg>
+          <span>nanaichi</span>
+        </a>
+        <a class="beta" href="#roadmap">ベータ版</a>
+      </div>
       <nav aria-label="ページの中">
         <a href="#flow">流れ</a>
         <a href="#screens">画面</a>
         <a href="#advance">進め方</a>
+        <a href="#roadmap">これから</a>
         <a href="#faq">質問</a>
       </nav>
     </header>
@@ -57,10 +49,10 @@
     <main id="top">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <h1 id="hero-title" class="display" data-reveal>7分集中して、<br />1分書く</h1>
+          <h1 id="hero-title" class="display" data-reveal>集中は、<br />リズムで続く</h1>
           <p class="lede" data-reveal>
-            nanaichi
-            は、7分の集中と1分のジャーナルをくり返すタイマーです。7分ごとに、いまやったことを一言でふり返る。その小さなふり返りで、次の一手を選び直せます。
+            7分集中して、1分だけ書く。短いふり返りをはさんでくり返すうちに作業にリズムが生まれ、気づけば深く入り込んでいる。nanaichi
+            は、そのリズムを刻むタイマーです。
           </p>
           <div class="hero-actions" data-reveal data-hero-actions>
             <button type="button" class="button" data-try="1">1セットやってみる</button>
@@ -170,107 +162,49 @@
             </div>
           </section>
         </div>
+
+        <!-- 1ラウンドの拍。上のタイマーを動かすと、進んだところまで色が満ちる（rhythm-score.ts） -->
+        <ol
+          class="score"
+          aria-label="1ラウンドのリズム。集中7分とジャーナル1分を3回、そのあと休憩5分"
+          data-reveal
+        >
+          <li class="beat beat-focus" data-beat><i></i><span>集中 7分</span></li>
+          <li class="beat beat-journal" data-beat><i></i><span>1分</span></li>
+          <li class="beat beat-focus" data-beat><i></i><span>集中 7分</span></li>
+          <li class="beat beat-journal" data-beat><i></i><span>1分</span></li>
+          <li class="beat beat-focus" data-beat><i></i><span>集中 7分</span></li>
+          <li class="beat beat-journal" data-beat><i></i><span>1分</span></li>
+          <li class="beat beat-break" data-beat><i></i><span>休憩 5分</span></li>
+        </ol>
       </section>
 
       <section class="intro" aria-labelledby="intro-title">
         <div class="intro-lead">
-          <h2 id="intro-title" class="heading" data-reveal>経験ではなく、ふり返りから学ぶ</h2>
-          <blockquote class="statement intro-quote" data-reveal>
-            <p>「私たちは経験から学ぶのではない。経験をふり返ることから学ぶのだ」</p>
-            <footer>ジョン・デューイの言葉として知られる一節</footer>
-          </blockquote>
-          <p data-reveal>
-            同じ時間を過ごしても、学びになるかどうかは、どれだけふり返ったかで決まる。仕事でも、読書でも。nanaichi
-            は、そのふり返りを7分ごとに挟むための仕掛けです。ただのポモドーロタイマーではなく、ジャーナルを書く1分がセットになっています。
+          <h2 id="intro-title" class="heading" data-reveal>1分のふり返りが、次の集中につながる</h2>
+          <p class="statement" data-reveal>
+            ポモドーロ・テクニックは、25分集中して5分休む。nanaichi
+            は7分ごとに1分だけ手を止めて、やったことと次の一手を書く。
           </p>
         </div>
-        <figure class="intro-figure" data-reveal>
-          <div class="intro-frame">
-            <img
-              src="/landing/kitchen-timer.jpg"
-              width="1200"
-              height="900"
-              alt="机に置いた白いデジタルのキッチンタイマー。分・秒・スタートとストップのボタンが並ぶ"
-              loading="lazy"
-              decoding="async"
-              data-drift
-            />
-          </div>
-          <figcaption>
-            分と秒をセットするキッチンタイマー。はじめは、こういうタイマーを7分と1分にくり返しセットして、メモを書いていた。
-          </figcaption>
-        </figure>
         <div class="intro-columns">
           <p data-reveal>
-            <strong>7分ごとに、ふり返る。</strong
-            >集中が終わると音が鳴り、1分のジャーナルに入る。やったこと、気づいたこと、次にやることを一言。手を止めて書くと、作業から一歩引いて、いまの進め方でいいかを見直せる。
+            <strong>7分なら、気が散る前に終わる。</strong>25分のあいだには、つい Slack
+            を見に行ってしまう。7分なら、集中が切れる前に音が鳴る。
+          </p>
+          <p data-reveal>
+            <strong>書くと、次の7分が決まる。</strong
+            >一言書き出すと頭が空き、次に何をするかが決まる。だから次の集中にすっと入れる。
+          </p>
+          <p data-reveal>
+            <strong>くり返すと、フローに入る。</strong
+            >7分と1分を何度かくり返すころには、音を待たずに手が動いている。
           </p>
           <p data-reveal>
             <strong>決めずに、始めていい。</strong
-            >やることが決まっていなくても、とりあえず開始を押す。音が鳴って「何もできなかった」と書けば、「じゃあ次は計画を立てよう」と次の7分が決まる。それもひとつのふり返り。
-          </p>
-          <p data-reveal>
-            <strong>小さなふり返りで、道筋を直す。</strong
-            >7分ごとの一言が積み重なると、1日の進み方が見えてくる。遠回りに気づくのは、たいてい書いているとき。
-          </p>
-          <p data-reveal>
-            <strong>3セットで休憩5分。</strong
-            >集中とジャーナルの8分が1セット。3セットのあとに5分の休憩が入り、ここまでの29分が1ラウンド。開始を押せば、あとは自動で進む。
+            >やることが決まっていなくても、開始を押す。「何もできなかった」と書けば、次の7分は計画を立てる時間になる。
           </p>
         </div>
-      </section>
-
-      <section class="tools" aria-labelledby="tools-title">
-        <div class="tools-head">
-          <h2 id="tools-title" class="heading" data-reveal>くり返すと、リズムになる</h2>
-          <div class="tools-text" data-reveal>
-            <p>
-              砂時計を返すように、7分と1分をくり返す。続けていると、書く1分が息継ぎになり、自然とリズムができる。リズムに乗っているあいだは、集中の流れが途切れにくい。
-            </p>
-            <p>
-              だから7分・1分・5分は変えられないようにした。長さで迷わず、始めるか始めないかだけを決めればいい。
-            </p>
-          </div>
-        </div>
-        <figure class="tools-clip" data-reveal>
-          <video
-            autoplay
-            muted
-            loop
-            playsinline
-            preload="metadata"
-            poster="/landing/hourglass-tokyo.jpg"
-            width="854"
-            height="480"
-            aria-hidden="true"
-            data-loop
-          >
-            <source src="/landing/hourglass-tokyo.webm" type="video/webm" />
-          </video>
-          <figcaption>木の枠の砂時計。東京の喫茶店で、2015年。</figcaption>
-        </figure>
-        <figure class="tools-sandglass" data-reveal>
-          <img
-            src="/landing/sandglass.jpg"
-            width="1145"
-            height="1400"
-            alt="金色の金具に囲まれたガラスの砂時計。下の球に赤茶色の砂がたまっている"
-            loading="lazy"
-            decoding="async"
-          />
-          <figcaption>30分を計る砂時計。1500〜25年ごろ。</figcaption>
-        </figure>
-        <figure class="tools-minder" data-reveal>
-          <img
-            src="/landing/minute-minder.jpg"
-            width="1000"
-            height="985"
-            alt="深緑のダイヤル式キッチンタイマー。0から55までの目盛りがある"
-            loading="lazy"
-            decoding="async"
-          />
-          <figcaption>60分まで回せるダイヤルのタイマー。</figcaption>
-        </figure>
       </section>
 
       <section class="flow" id="flow" aria-labelledby="flow-title">
@@ -521,102 +455,83 @@
 
       <section class="advance" id="advance" aria-labelledby="advance-title">
         <div class="advance-head">
-          <h2 id="advance-title" class="heading" data-reveal>自動で進むか、止めて待つか</h2>
+          <h2 id="advance-title" class="heading" data-reveal>進め方は、設定で選べる</h2>
           <p data-reveal>
-            フェーズの切り替わりごとに選べます。ここで変えると、いちばん上のタイマーにもそのまま効きます。
+            はじめはすべて自動で進む。止めて待ちたいところだけ、設定で切り替えればいい。
           </p>
         </div>
-        <ul class="bands" data-bands>
-          <li class="band band-journal" data-transition="FocusToJournal">
-            <div class="band-text">
-              <h3>集中の7分が過ぎたら、ジャーナルへ</h3>
-              <p class="band-on">音が鳴って、1分のジャーナルがすぐに始まる。</p>
-              <p class="band-off">
-                0:00 で止まって音で知らせ、「ジャーナルを始める」を押すまで待つ。
-              </p>
-            </div>
-            <button
-              type="button"
-              class="switch"
-              role="switch"
-              aria-checked="true"
-              aria-label="集中 → ジャーナルを自動で進める"
-              data-ui
-            >
-              <i></i>
-            </button>
+        <ul class="options">
+          <li data-reveal>
+            <h3>集中の7分が過ぎたら</h3>
+            <p>すぐにジャーナルへ進むか、0:00 で止まって待つか。</p>
           </li>
-          <li class="band band-focus" data-transition="JournalToFocus">
-            <div class="band-text">
-              <h3>ジャーナルの1分が過ぎたら、次の集中へ</h3>
-              <p class="band-on">書き終わっていなくても、次のセットの7分が始まる。</p>
-              <p class="band-off">0:00 で止まって待つ。書き切ってから「集中を始める」を押す。</p>
-            </div>
-            <button
-              type="button"
-              class="switch"
-              role="switch"
-              aria-checked="true"
-              aria-label="ジャーナル → 集中を自動で進める"
-              data-ui
-            >
-              <i></i>
-            </button>
+          <li data-reveal>
+            <h3>ジャーナルの1分が過ぎたら</h3>
+            <p>次の集中へ進むか、書き切るまで待つか。</p>
           </li>
-          <li class="band band-break" data-transition="JournalToBreak">
-            <div class="band-text">
-              <h3>3セット目のあとは、休憩へ</h3>
-              <p class="band-on">3セット目のジャーナルが終わると、5分の休憩が始まる。</p>
-              <p class="band-off">
-                止まって待つ。休憩をスキップして、次のラウンドの集中にも進める。
-              </p>
-            </div>
-            <button
-              type="button"
-              class="switch"
-              role="switch"
-              aria-checked="true"
-              aria-label="ジャーナル → 休憩を自動で進める"
-              data-ui
-            >
-              <i></i>
-            </button>
+          <li data-reveal>
+            <h3>3セットを終えたら</h3>
+            <p>5分の休憩へ進むか、止まって待つか。</p>
           </li>
-          <li class="band band-focus" data-transition="BreakToFocus">
-            <div class="band-text">
-              <h3>休憩の5分が過ぎたら、次のラウンドへ</h3>
-              <p class="band-on">2ラウンド目の1セット目の集中が始まる。</p>
-              <p class="band-off">止まって待つ。待っている時間は、集中時間に数えない。</p>
-            </div>
-            <button
-              type="button"
-              class="switch"
-              role="switch"
-              aria-checked="true"
-              aria-label="休憩 → 集中を自動で進める"
-              data-ui
-            >
-              <i></i>
-            </button>
+          <li data-reveal>
+            <h3>休憩の5分が過ぎたら</h3>
+            <p>次のラウンドへ進むか、止まって待つか。待っている時間は集中時間に数えない。</p>
           </li>
-          <li class="band band-sound" data-sound>
-            <div class="band-text">
-              <h3>切り替わりは音で知らせる</h3>
-              <p class="band-on">鐘・木琴・電子音・やわらかから、フェーズごとに音色を選べる。</p>
-              <p class="band-off">音は鳴らさない。ブラウザ通知だけにもできる。</p>
-            </div>
-            <button
-              type="button"
-              class="switch"
-              role="switch"
-              aria-checked="true"
-              aria-label="切り替わりを音で知らせる"
-              data-ui
-            >
-              <i></i>
-            </button>
+          <li data-reveal>
+            <h3>知らせ方</h3>
+            <p>
+              鐘・木琴・電子音・やわらかから、フェーズごとに音色を選べる。ブラウザ通知も出せる。
+            </p>
           </li>
         </ul>
+      </section>
+
+      <section class="roadmap" id="roadmap" aria-labelledby="roadmap-title">
+        <div class="roadmap-head">
+          <h2 id="roadmap-title" class="heading" data-reveal>いまできること、これから</h2>
+          <p data-reveal>
+            nanaichi はベータ版です。いまはブラウザで使えます。iPhone・Apple Watch
+            のアプリから、ネイティブのアプリを作っていきます。
+          </p>
+        </div>
+        <div class="roadmap-groups">
+          <div class="roadmap-group roadmap-done" data-reveal>
+            <h3 class="roadmap-status"><i aria-hidden="true"></i>使える</h3>
+            <ul>
+              <li>
+                <h4>Web アプリ</h4>
+                <p>ブラウザで、タイマー・ジャーナル・スタッツまで使える。</p>
+              </li>
+              <li>
+                <h4>PWA</h4>
+                <p>スマホやパソコンのホーム画面に追加して、アプリのように開ける。</p>
+              </li>
+              <li>
+                <h4>端末間の同期</h4>
+                <p>
+                  タイマーと記入は、端末をまたいでリアルタイムに同じになる。パソコンで始めて、スマホで書ける。
+                </p>
+              </li>
+            </ul>
+          </div>
+          <div class="roadmap-group roadmap-soon" data-reveal>
+            <h3 class="roadmap-status"><i aria-hidden="true"></i>これから</h3>
+            <ul>
+              <li>
+                <h4>iPhone アプリ</h4>
+                <p>切り替わりを通知で知らせ、ロック画面で残り時間が見られるように。</p>
+              </li>
+              <li>
+                <h4>Apple Watch アプリ</h4>
+                <p>切り替わりを手首の振動で知らせ、声でジャーナルを書けるように。</p>
+              </li>
+              <li>
+                <h4>Mac アプリ</h4>
+                <p>メニューバーに常駐して、ブラウザを開かずに使えるように。</p>
+              </li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       <section class="faq" id="faq" aria-labelledby="faq-title">
@@ -626,7 +541,7 @@
             <summary>ポモドーロ・テクニックと何が違いますか？</summary>
             <p>
               ポモドーロ・テクニックは、25分の集中と5分の休憩で作業を区切ります。nanaichi
-              は区切りを7分と短くし、そのたびに1分のジャーナルを挟みます。区切ることより、こまめにふり返ることを大事にしています。
+              は区切りを7分と短くし、そのたびに1分のジャーナルを挟みます。こまめにふり返りを挟むことで、集中にリズムをつくり、長く続けることを大事にしています。
             </p>
           </details>
           <details name="faq" data-reveal>
@@ -689,18 +604,15 @@
 
     <footer class="board" aria-labelledby="footer-title">
       <div class="tile tile-statement">
-        <h2 id="footer-title">経験をふり返ることから学ぶ。そのための、7分と1分のタイマーです。</h2>
-        <p class="tile-small">
-          写真と映像: “Small kitchen timer” Douglas Paul Perkins（CC BY 3.0）、“Half-hour sandglass”
-          The Metropolitan Museum of Art（CC0）、“Lux Minute Minder timer”
-          Retro00064（パブリックドメイン）、“Hourglass - tokyo - 2015 11 17” Nesnad（CC BY-SA
-          4.0）。いずれも Wikimedia Commons とメトロポリタン美術館から。
-        </p>
+        <h2 id="footer-title">
+          7分集中して、1分書く。そのリズムで集中を続けるためのタイマーです。
+        </h2>
       </div>
       <nav class="tile tile-nav" aria-label="ページの中">
         <a href="#flow">1ラウンドの流れ</a>
         <a href="#screens">ふり返りを、見返す</a>
         <a href="#advance">進め方</a>
+        <a href="#roadmap">いまとこれから</a>
         <a href="#faq">よくある質問</a>
       </nav>
       <div class="tile tile-clock" data-clock>
@@ -721,7 +633,9 @@
         </dl>
       </div>
       <div class="tile tile-device">
-        <p>ブラウザで動きます。スマホはホーム画面に追加すると、アプリのように開けます。</p>
+        <p>
+          いまはベータ版。ブラウザで動き、スマホはホーム画面に追加するとアプリのように開けます。
+        </p>
       </div>
       <div class="tile tile-wordmark" aria-hidden="true"><span>nanaichi</span></div>
       <a class="tile tile-action" href="#top" data-try-link>

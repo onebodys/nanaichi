@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { authFor } from "./auth-context.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { journalRoutes } from "./journal-routes.ts";
-import { landingRoutes } from "./landing-routes.ts";
 import { mcpRoutes } from "./mcp-routes.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
@@ -40,6 +39,3 @@ api.route("/", authenticated);
 
 // `route` はその時点のルートを写すので、`api` にすべて足してからつなぐ
 app.route("/api", api);
-
-// `/` だけは、ログインしているかでタイマーの画面と LP を出し分ける（ADR 0018）
-app.route("/", landingRoutes);

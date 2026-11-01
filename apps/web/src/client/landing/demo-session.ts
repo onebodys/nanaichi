@@ -136,22 +136,6 @@ export const Demo = {
     }
   },
 
-  /** フェーズの進め方を変える。セッションの途中なら、その時刻から効く（ADR 0016） */
-  changeMode: (demo: Demo, mode: AdvanceMode, realNow: Date): Demo => {
-    switch (demo.kind) {
-      case "NotStarted":
-        return { kind: "NotStarted", mode };
-      case "Started":
-        return {
-          ...demo,
-          session: Session.withAdvanceModeChange(demo.session, {
-            at: sessionTimeOf(demo.clock, realNow),
-            mode,
-          }),
-        };
-    }
-  },
-
   /** 始める前に戻す。いま効いている進め方は持ち越す */
   reset: (demo: Demo, realNow: Date): Demo => Demo.initial(Demo.modeAt(demo, realNow)),
 } as const;

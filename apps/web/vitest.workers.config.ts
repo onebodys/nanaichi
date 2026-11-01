@@ -21,11 +21,6 @@ export default defineConfig({
           // D1 は空で起動するので、テストの前に本番と同じマイグレーションを当てる（workers-test-harness.ts）
           TEST_MIGRATIONS: await readD1Migrations(`${import.meta.dirname}/migrations`),
         },
-        // wrangler.jsonc の assets はディレクトリを Vite のプラグインが渡すので、ここでは ASSETS が付かない。
-        // `/` は Worker が ASSETS から画面を引く（ADR 0018）ので、静的アセットがまだない Worker として、どのパスにも 404 を返す
-        serviceBindings: {
-          ASSETS: () => new Response("Not Found", { status: 404 }),
-        },
       },
     })),
   ],

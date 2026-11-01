@@ -7,11 +7,9 @@
   // https://better-auth.com/docs/integrations/hono#cloudflare-workers
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    // `/` はログインしているかで画面を出し分けるので、Worker が ASSETS から index.html か landing.html を引く（ADR 0018）
-    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // MCP クライアントが OAuth のサーバーを見つける文書（/.well-known/*）も Worker が答える（ADR 0017）
-    "run_worker_first": ["/", "/api/*", "/.well-known/*"],
+    "run_worker_first": ["/api/*", "/.well-known/*"],
   },
   "d1_databases": [
     {

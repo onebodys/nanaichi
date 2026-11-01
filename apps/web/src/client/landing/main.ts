@@ -1,5 +1,5 @@
 import "./landing.css";
-import { AdvanceMode, type PhaseTransition } from "../../domain/advance-mode.ts";
+import { AdvanceMode } from "../../domain/advance-mode.ts";
 import {
   nextPhase,
   phaseDurationMsOf,
@@ -9,10 +9,10 @@ import {
 import { ALERT_TONES, type AlertTone } from "../alert-settings.ts";
 import { timeLabelOf } from "../journal-text.ts";
 import { createPhaseAlert } from "../phase-alert.ts";
-import { mountDemo, type DemoView } from "./demo-view.ts";
+import { mountDemo } from "./demo-view.ts";
 
 /**
- * LP（Issue #90、ADR 0018）の入口。ログインしていない人に `/` で見せる。
+ * LP（Issue #90、ADR 0018）の入口。`/lp` で見せる。
  * サーバーとは通信しない。いちばん上のタイマーもページの中だけで動く（demo-view.ts）。
  */
 
@@ -20,55 +20,7 @@ document.documentElement.classList.add("js");
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const alert = createPhaseAlert();
-const demo = mountDemo(document, alert, AdvanceMode.default);
-
-// ---------------------------------------------------------------------------
-// 進め方の帯: 切り替えるといちばん上のタイマーの進め方が変わる
-// ---------------------------------------------------------------------------
-
-const isTransition = (value: string | undefined): value is PhaseTransition =>
-  AdvanceMode.transitions.some((transition) => transition === value);
-
-const mountBands = (view: DemoView) => {
-  const paint = () => {
-    const mode = view.modeNow();
-    document.querySelectorAll<HTMLElement>("[data-transition]").forEach((band) => {
-      const transition = band.dataset["transition"];
-      if (!isTransition(transition)) return;
-      const on = mode[transition] === "Auto";
-      band.classList.toggle("is-on", on);
-      band.querySelector(".switch")?.setAttribute("aria-checked", String(on));
-    });
-  };
-
-  document.querySelectorAll<HTMLElement>("[data-transition]").forEach((band) => {
-    const transition = band.dataset["transition"];
-    if (!isTransition(transition)) return;
-    band.querySelector(".switch")?.addEventListener("click", () => {
-      const mode = view.modeNow();
-      view.changeMode({ ...mode, [transition]: mode[transition] === "Auto" ? "Manual" : "Auto" });
-      paint();
-    });
-  });
-
-  const soundBand = document.querySelector<HTMLElement>("[data-sound]");
-  soundBand?.classList.add("is-on");
-  soundBand?.querySelector(".switch")?.addEventListener("click", (event) => {
-    const on = !soundBand.classList.contains("is-on");
-    soundBand.classList.toggle("is-on", on);
-    if (event.currentTarget instanceof Element) {
-      event.currentTarget.setAttribute("aria-checked", String(on));
-    }
-    view.setSound(on);
-    if (on) {
-      alert.preview({ to: "Journal", tone: "Bell", volume: "Medium" });
-    }
-  });
-
-  paint();
-};
-
-mountBands(demo);
+mountDemo(document, alert, AdvanceMode.default);
 
 // ---------------------------------------------------------------------------
 // ふり返りを、見返す: 横に並んだ画面のうち、中央に来たものを明るくし、説明を差し替える
@@ -304,48 +256,4 @@ const mountReveal = () => {
   items.forEach((item) => observer.observe(item));
 };
 
-const mountDrift = () => {
-  if (reducedMotion) return;
-  const pictures = [...document.querySelectorAll<HTMLElement>("[data-drift]")];
-  let frame = 0;
-  const paint = () => {
-    pictures.forEach((picture) => {
-      // 写真そのものは動くので、枠の位置で進み具合を測る。枠が画面の下から入って上へ抜けるまでを 0 → 1 にする
-      const rect = (picture.parentElement ?? picture).getBoundingClientRect();
-      const progress = Math.min(
-        1,
-        Math.max(0, 1 - rect.bottom / (window.innerHeight + rect.height)),
-      );
-      picture.style.setProperty("--drift", String(progress));
-    });
-  };
-  window.addEventListener(
-    "scroll",
-    () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(paint);
-    },
-    { passive: true },
-  );
-  paint();
-};
-
-/** 砂時計の映像は音のないくり返し。動きを減らす設定なら止めて、最初のコマだけを見せる */
-const mountLoops = () => {
-  document.querySelectorAll<HTMLVideoElement>("[data-loop]").forEach((video) => {
-    if (reducedMotion) {
-      video.removeAttribute("autoplay");
-      video.pause();
-      return;
-    }
-    // タブが裏にあるあいだは止めておく
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) video.pause();
-      else void video.play().catch(() => undefined);
-    });
-  });
-};
-
 mountReveal();
-mountDrift();
-mountLoops();

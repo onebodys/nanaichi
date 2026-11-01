@@ -38,14 +38,14 @@ export default defineConfig(({ mode }) => ({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   environments: {
-    // 画面は2枚。タイマーの SPA（index.html）と、ログインしていない人に `/` で見せる LP（landing.html、ADR 0018）。
+    // 画面は2枚。タイマーの SPA（index.html）と、`/lp` で見せる LP（lp.html、ADR 0018）。
     // Worker の環境にまで入口を足すと Worker のビルドが HTML を読もうとして失敗するので、client の環境にだけ書く
     client: {
       build: {
         rollupOptions: {
           input: {
             index: fileURLToPath(new URL("./index.html", import.meta.url)),
-            landing: fileURLToPath(new URL("./landing.html", import.meta.url)),
+            lp: fileURLToPath(new URL("./lp.html", import.meta.url)),
           },
         },
       },

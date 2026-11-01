@@ -55,11 +55,11 @@ export type AuthHarness = Readonly<{
 /**
  * 空の D1 を用意し、許可リストが `allowedEmails` のアプリを動かす。
  * テストごとに作れば、テスト同士でユーザーやセッションが混ざらない。
- * `bindings` で、secret 以外のバインディング（`TEST_SIGN_IN`、`ASSETS` など）を足せる。
+ * `bindings` で、secret 以外のバインディング（`TEST_SIGN_IN` など）を足せる。
  */
 export const startAuthHarness = async (
   allowedEmails: string,
-  bindings: Readonly<Pick<Partial<Env>, "TEST_SIGN_IN" | "ASSETS">> = {},
+  bindings: Readonly<Pick<Partial<Env>, "TEST_SIGN_IN">> = {},
 ): Promise<AuthHarness> => {
   // miniflare 5 は設定の形が変わったが、D1 を1つ動かすだけなら v4 形式の方が短く書ける。
   // 永続化を指定していないので D1 はメモリ上にでき、dispose で消える。
