@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import * as v from "valibot";
-import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
+import {
+  exhaustRateLimit,
+  prepareDatabase,
+  request,
+  resetStorage,
+  signInAs,
+} from "./workers-test-harness.ts";
 
 // 時計の扱いは stats-api.workers.test.ts と同じ。alarm がすぐ鳴らないよう、本当の時計より先の時刻でテストする。
 // 2100-01-01 0:00（UTC）は日本時間の 9:00
@@ -530,9 +536,7 @@ describe("レート制限（ADR 0018）", () => {
   test("画面からのリクエストで制限に達したユーザーは、MCP からも 429 になる", async () => {
     const { headers } = await signInAs("me@example.com");
     const accessToken = await connectClient(headers.get("cookie") ?? "");
-    for (let i = 0; i < 100; i += 1) {
-      await request("/api/session/current", { headers });
-    }
+    await exhaustRateLimit(headers);
 
     const res = await rpc(accessToken, "tools/list");
 
