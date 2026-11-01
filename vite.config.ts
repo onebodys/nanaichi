@@ -10,15 +10,15 @@ const restrict = (group: string[], message: string): RestrictRule => [
 const web = "apps/web/src";
 
 export default defineConfig({
-  // 外部から取り込んだスキルと自動生成ファイルは検査しない
+  // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）は検査しない
   fmt: {
-    ignorePatterns: [".agents/**", ".claude/**", "**/worker-configuration.d.ts"],
+    ignorePatterns: [".agents/**", ".claude/**", ".taste-skill/**", "**/worker-configuration.d.ts"],
   },
   staged: {
     "*": "vp check --fix",
   },
   lint: {
-    ignorePatterns: [".agents/**", ".claude/**", "**/worker-configuration.d.ts"],
+    ignorePatterns: [".agents/**", ".claude/**", ".taste-skill/**", "**/worker-configuration.d.ts"],
     plugins: ["unicorn", "typescript", "oxc", "react"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: {
