@@ -19,7 +19,8 @@ afterEach(async () => {
   await resetStorage();
 });
 
-describe("UserDO へのリクエストの制限", () => {
+// 制限を使い切るのに 100〜300 回送る。全体を並列で走らせると 1 回が遅くなり、既定の 5 秒では足りない
+describe("UserDO へのリクエストの制限", { timeout: 30_000 }, () => {
   test("10 秒に 100 回までは通り、超えると 429 と RATE_LIMITED と Retry-After を返す", async () => {
     const { headers } = await signInAs("me@example.com");
 

@@ -532,7 +532,8 @@ describe("アクセストークンの確認", () => {
   });
 });
 
-describe("レート制限（ADR 0018）", () => {
+// 制限を使い切るのに 100〜300 回送るので、既定の 5 秒では足りないことがある（rate-limit.workers.test.ts）
+describe("レート制限（ADR 0018）", { timeout: 30_000 }, () => {
   test("画面からのリクエストで制限に達したユーザーは、MCP からも 429 になる", async () => {
     const { headers } = await signInAs("me@example.com");
     const accessToken = await connectClient(headers.get("cookie") ?? "");
