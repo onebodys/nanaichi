@@ -18,8 +18,6 @@ export type PhaseAlert = Readonly<{
   preview: (sound: Readonly<{ to: Phase["kind"]; tone: AlertTone; volume: Volume }>) => void;
   /** `to` のフェーズに切り替わった（手動の切り替わりでは、切り替え待ちになった）ことを知らせる */
   alert: (to: Phase) => void;
-  /** 今の音の状態。まだ画面に触れておらず音を鳴らせなければ `Locked`（知らせた記録に残す、alert-log.ts） */
-  soundState: () => AudioContextState | "Locked";
 }>;
 
 /** ブラウザ通知の許可の状態。通知のないブラウザでは `unsupported` */
@@ -209,6 +207,5 @@ export const createPhaseAlert = (): PhaseAlert => {
         void showPhaseChangeNotification(to);
       }
     },
-    soundState: () => audio?.state ?? "Locked",
   };
 };
