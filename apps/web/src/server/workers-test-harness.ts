@@ -49,3 +49,23 @@ export const signInAs = async (
 /** アプリ（Worker の default export）にリクエストする。`origin` を変えれば本番などのホストからとして送れる */
 export const request = (path: string, init?: RequestInit, origin = ORIGIN): Promise<Response> =>
   exports.default.fetch(new Request(`${origin}${path}`, init));
+
+/**
+ * ログイン中のユーザーのレート制限（ADR 0018、10 秒で 100 回）を使い切る。429 が返るまで送り、
+ * それまでに通った回数と、最初に弾かれた応答を返す。
+ *
+ * miniflare の窓は実時間の 10 秒ごとの区切りで、送っている途中で区切りをまたぐと数が 0 に戻る。
+ * 決まった回数を送るとまたいだときに使い切れないので、弾かれるまで送る。
+ */
+export const exhaustRateLimit = async (
+  headers: Headers,
+): Promise<Readonly<{ passed: number; rejected: Response }>> => {
+  // 区切りを2回またいでも使い切れるよう、上限の3倍で打ち切る
+  for (let passed = 0; passed < 300; passed += 1) {
+    const res = await request("/api/session/current", { headers });
+    if (res.status === 429) {
+      return { passed, rejected: res };
+    }
+  }
+  throw new Error("レート制限に達しなかった");
+};

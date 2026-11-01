@@ -3,6 +3,7 @@ import { authFor } from "./auth-context.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { journalRoutes } from "./journal-routes.ts";
 import { mcpRoutes } from "./mcp-routes.ts";
+import { limitRequestsPerUser } from "./rate-limit.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
 import { syncRoutes } from "./sync-routes.ts";
@@ -27,6 +28,8 @@ api.route("/", testSignInRoutes);
 // 認証必須。ここに足したエンドポイントは requireSession で自動的に保護される。
 const authenticated = new Hono<AppEnv>();
 authenticated.use("*", requireSession);
+// ループするバグや連続の書き込みで UserDO へのリクエストが膨らまないよう、ユーザーごとに数を制限する（ADR 0018）
+authenticated.use("*", limitRequestsPerUser);
 authenticated.get("/me", (c) => {
   const { user } = sessionOf(c);
   return c.json({ user: { id: user.id, name: user.name, email: user.email, image: user.image } });

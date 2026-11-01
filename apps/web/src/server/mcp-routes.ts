@@ -7,6 +7,7 @@ import { MCP_PATH, MCP_READ_SCOPE, mcpResourceOf } from "./auth.ts";
 import { resolveBaseURL, servesMcpOn } from "./base-url.ts";
 import type { AppEnv } from "./hono-context.ts";
 import { createMcpServer } from "./mcp-server.ts";
+import { rejectIfRateLimited } from "./rate-limit.ts";
 import { accessTokenVerifier, userIdOf } from "./mcp-token.ts";
 
 /** MCP サーバーの Protected Resource Metadata（RFC 9728）の場所。`mcp()` プラグインが配信する */
@@ -45,6 +46,12 @@ export const mcpRoutes = new Hono<AppEnv>().all("/mcp", async (c) => {
   const user = await (await auth.$context).internalAdapter.findUserById(userId);
   if (user === null || !Allowlist.permits(allowlistFor(c), user.email)) {
     return c.json({ error: "EMAIL_NOT_ALLOWED" } satisfies ApiErrorBody, 403);
+  }
+
+  // 画面からの `/api/*` と同じ数え方で、同じユーザーの UserDO へのリクエストとして数える（ADR 0018）
+  const rejected = await rejectIfRateLimited(c, userId);
+  if (rejected !== undefined) {
+    return rejected;
   }
 
   const userDO = c.env.USER_DO.getByName(userId);
