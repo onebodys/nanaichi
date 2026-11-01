@@ -29,6 +29,8 @@ const API_ERROR_CODES = [
   "WEBSOCKET_UPGRADE_REQUIRED",
   /** `GET /api/ws` の Origin がこのアプリと違う（403、ADR 0012） */
   "CROSS_ORIGIN_REJECTED",
+  /** 同じユーザーからのリクエストが短い時間に多すぎる（429、ADR 0018） */
+  "RATE_LIMITED",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

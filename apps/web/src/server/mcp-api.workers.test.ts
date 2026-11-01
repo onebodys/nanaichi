@@ -525,3 +525,17 @@ describe("アクセストークンの確認", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("レート制限（ADR 0018）", () => {
+  test("画面からのリクエストで制限に達したユーザーは、MCP からも 429 になる", async () => {
+    const { headers } = await signInAs("me@example.com");
+    const accessToken = await connectClient(headers.get("cookie") ?? "");
+    for (let i = 0; i < 100; i += 1) {
+      await request("/api/session/current", { headers });
+    }
+
+    const res = await rpc(accessToken, "tools/list");
+
+    expect(res.status).toBe(429);
+  });
+});

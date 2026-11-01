@@ -79,6 +79,8 @@ export const startAuthHarness = async (
     GOOGLE_CLIENT_ID: "test-google-client-id",
     GOOGLE_CLIENT_SECRET: "test-google-client-secret",
     ALLOWED_EMAILS: allowedEmails,
+    // レート制限（ADR 0018）は Workers のテスト（rate-limit.workers.test.ts）で確かめるので、ここでは常に通す
+    USER_RATE_LIMITER: { limit: async () => ({ success: true }) },
     ...bindings,
   } satisfies Partial<Env>;
 
