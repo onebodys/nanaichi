@@ -6,7 +6,8 @@ import { phaseChangeBetween } from "../domain/phase-change.ts";
 import { SessionEventId, type SessionOperation } from "../domain/session-event.ts";
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
-import { useBackend, type BackendError } from "./backend.ts";
+import type { BackendError } from "../domain/backend.ts";
+import { useBackend } from "./backend.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import { startTicker } from "./ticker.ts";
 

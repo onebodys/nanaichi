@@ -12,7 +12,8 @@ import {
   type TimelineSession,
 } from "../domain/timeline.ts";
 import type { ApiErrorCode } from "../domain/api-error.ts";
-import { useBackend, type BackendError } from "./backend.ts";
+import type { BackendError } from "../domain/backend.ts";
+import { useBackend } from "./backend.ts";
 import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
 
 // `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）

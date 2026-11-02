@@ -1,5 +1,6 @@
 import { Result } from "@praha/byethrow";
 import { schemaResult } from "../domain/schema-result.ts";
+import type { SyncConnection, SyncHandlers } from "../domain/backend.ts";
 import { SyncMessageJsonSchema, type SyncMessage } from "../domain/sync-message.ts";
 
 /**
@@ -42,21 +43,6 @@ export const openBrowserSocket =
     ws.addEventListener("close", onClose);
     return { send: (data) => ws.send(data), close: () => ws.close() };
   };
-
-export type SyncHandlers = Readonly<{
-  onConnected: () => void;
-  onMessage: (message: SyncMessage) => void;
-}>;
-
-export type SyncConnection = Readonly<{
-  /**
-   * 今すぐ繋がっているかを確かめる。画面に戻ってきたときやオンラインに戻ったときに呼ぶ。
-   * 繋ぎ直しを待っている間なら待たずに繋ぎ直し、繋がっているなら `ping` で確かめる
-   */
-  check: () => void;
-  /** 接続を閉じ、繋ぎ直しもやめる */
-  close: () => void;
-}>;
 
 const parseMessage = schemaResult(SyncMessageJsonSchema);
 
