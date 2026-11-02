@@ -7,10 +7,15 @@ test("ログイン画面が表示される", async ({ app, screen }) => {
   await expect(screen.getByRole("button", { name: "Google でログイン" })).toBeVisible();
 });
 
-test("未ログインでホームを開くとログイン画面に移る", async ({ app, browser, screen }) => {
+test("未ログインでホームを開くと、ログイン画面に移らずタイマーが表示される", async ({
+  app,
+  browser,
+  screen,
+}) => {
   await app.open("/");
-  await expect(browser).toHaveURL("/login");
-  await expect(screen.getByRole("button", { name: "Google でログイン" })).toBeVisible();
+  await expect(browser).toHaveURL("/");
+  await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
+  await expect(screen.getByRole("link", { name: "ログインして同期" })).toBeVisible();
 });
 
 test("開発サーバーではログイン画面の開発用ログインからログインできる", async ({
