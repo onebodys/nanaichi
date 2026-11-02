@@ -90,7 +90,6 @@ export default defineConfig({
               "**/server/**",
               "**/workflows/**",
               "cloudflare:*",
-              // device は入口の index.ts だけを import する
               "**/device",
               "**/device/**",
               "!**/device/index.ts",

@@ -39,7 +39,6 @@ describe("端末の時計", () => {
     ).toBe(true);
     clock = at(3);
 
-    // 戻った時刻のまま操作すると、ドメインが記録の順序が崩れたとして例外を出す
     expect(() =>
       operateSession(deps)({ id: crypto.randomUUID(), kind: "Resume" }, clock),
     ).toThrow();

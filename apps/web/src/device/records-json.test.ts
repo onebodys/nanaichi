@@ -102,16 +102,11 @@ describe("保存の形", () => {
     const broken = decodeRecords(meta, [session.replace('"Written"', '"Scribbled"')]);
     expect(broken).toMatchObject({ type: "Failure", error: { kind: "Malformed" } });
     expect(JSON.stringify(broken)).not.toContain("秘密の本文");
-    // 開いているセッションは高々1つ
     expect(decodeRecords(meta, [session, session])).toEqual(
       Result.fail({ kind: "Malformed", paths: ["(open sessions)"] }),
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// 3年分の記録で、1回の書き込みにかかる時間（Node で測る目安。ADR 0019）
-// ---------------------------------------------------------------------------
 
 const DAYS = 3 * 365;
 const SESSIONS_PER_DAY = 8;
@@ -122,7 +117,6 @@ const syntheticRecords = (): DeviceRecords => {
   const closed = Array.from({ length: DAYS * SESSIONS_PER_DAY }, (_, i): ClosedSession => {
     const startedAt = T0 - (DAYS * SESSIONS_PER_DAY - i) * 3 * 3_600_000;
     const sessionId = v.parse(SessionId.schema, crypto.randomUUID());
-    // 1セッションに6件か7件、平均6.5件
     const entries = Array.from({ length: 6 + (i % 2) }, (_, j): StoredEntry => {
       const writtenAt = new Date(startedAt + (j + 1) * 60_000);
       const entry: JournalEntry = {

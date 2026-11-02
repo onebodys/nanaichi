@@ -24,19 +24,10 @@ import { operateSession } from "../workflows/operate-session.ts";
 import { startSession } from "../workflows/start-session.ts";
 import { writeJournalEntry } from "../workflows/write-journal-entry.ts";
 
-/**
- * 記録先の読み書きの契約が同じ振る舞いをすることを確かめる場面の一覧（ADR 0019）。
- *
- * 同じ場面を UserDO の SQLite のアダプタ（`server/store-contract.workers.test.ts`）と、この端末の記録
- * （`device/records.test.ts`）の両方に通す。期待する値は SQLite の振る舞いを仕様として書く。
- * ワークフローは UserDO と同じく、実行したあとに自動終了を確定させる（`UserDO#run`）。
- */
-
 /** 空の記録先を用意し、その読み書きの契約で場面を1つ動かす */
 export type FreshStore = (scene: (deps: RecordsDeps) => void) => Promise<void>;
 
 const T0 = Date.UTC(2026, 10, 2, 9, 0, 0);
-/** `T0` からの経過 */
 const at = (minutes: number, seconds = 0) => new Date(T0 + minutes * 60_000 + seconds * 1000);
 const iso = (time: Date) => time.toISOString();
 
@@ -122,6 +113,7 @@ const operator = (deps: RecordsDeps) => {
 
 const idsOf = (entries: ReadonlyArray<JournalEntry>) => entries.map(({ id }) => id);
 
+/** 期待する値は SQLite の振る舞いを仕様として書く（ADR 0019） */
 export const storeContract = (freshStore: FreshStore): void => {
   describe("セッションと操作イベント", () => {
     test("同じミリ秒の操作は記録した順に操作イベントに並ぶ", async () => {
@@ -168,8 +160,6 @@ export const storeContract = (freshStore: FreshStore): void => {
         succeeded(store.changeAdvanceMode(at(3), mode("Manual", "Manual")));
         const next = inSession(succeeded(store.start(at(4))));
 
-        // 閉じたセッションをもう一度閉じても、閉じた時刻は最初のままで、開いているセッションも閉じない
-        // （`WHERE id = ? AND ended_at IS NULL`）
         deps.closeSession(first.session.id, {
           kind: "Ended",
           endedAt: at(10),
@@ -322,7 +312,6 @@ export const storeContract = (freshStore: FreshStore): void => {
         ).toEqual([at(1).getTime(), at(2).getTime()]);
         expect(idsOf(deps.findJournalEntriesWrittenIn(window))).toEqual([first.id, second.id]);
 
-        // 2026-11-02 09:00 UTC は東京で 11月2日
         const calendar = succeeded(store.calendar(at(5), "2026-11"));
         expect(calendar.days[1]).toMatchObject({ kind: "Day", entries: 3 });
         expect(idsOf(succeeded(store.entriesOnDate(at(5), "2026-11-02")).entries)).toEqual([
@@ -398,7 +387,6 @@ export const storeContract = (freshStore: FreshStore): void => {
         const full = succeeded(store.write(at(1), "20種類", twenty));
 
         expect(failed(store.write(at(2), "21種類目", ["t21"])).kind).toBe("TagLimitExceeded");
-        // 書き直す記入自身のタグは数えない
         succeeded(store.edit(at(3), full.id, "入れ替え", [...twenty.slice(1), "t21"]));
         succeeded(store.remove(at(4), full.id));
         expect(succeeded(store.write(at(5), "空いた", ["t22"])).tags).toEqual(["t22"]);

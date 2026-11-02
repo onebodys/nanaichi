@@ -5,6 +5,7 @@ import {
   DeletedJournalEntryJsonSchema,
   JournalEntry,
   JournalEntryJsonSchema,
+  type JournalEntryJson,
 } from "../domain/journal-entry.ts";
 import { JsonDateSchema } from "../domain/json-date.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
@@ -12,13 +13,6 @@ import { RecordedSessionEventsJsonSchema } from "../domain/session-event.ts";
 import { SessionId } from "../domain/session.ts";
 import type { ClosedSession, DeviceRecords, SessionRecord, StoredEntry } from "./records.ts";
 
-/**
- * この端末の記録を保存する形（ADR 0019）。セッションごとに1件と、進め方の変更履歴の1件に分ける。
- *
- * 記入の本文は `Sensitive` に包まれていて、`JSON.stringify` すると `"[REDACTED]"` になって消える。
- * 書くときは `JournalEntry.toJson` で取り出し、読むときは `JournalEntryJsonSchema` で包み直す。
- * どの1件も `version` を持ち、知らない新しい版はこのアプリでは読まない（上書きもしない）。
- */
 const FORMAT_VERSION = 1;
 
 /** 保存した記録を読めない。値は返さず、どこがおかしいかだけを返す（記入の本文は PII） */
@@ -131,7 +125,6 @@ const decodeWith =
       Result.andThen((json) => Result.pipe(schemaResult(schema)(json), Result.mapError(malformed))),
     );
 
-/** 開いているセッションは高々1つ。閉じたセッションは開始の順に並べる */
 const assemble = (
   advanceModeChanges: DeviceRecords["advanceModeChanges"],
   records: ReadonlyArray<SessionRecord>,
@@ -153,7 +146,10 @@ const assemble = (
   });
 };
 
-/** セッションの1件を保存する文字列にする */
+type StoredEntryJson =
+  | Readonly<{ kind: "Written"; entry: JournalEntryJson }>
+  | Extract<StoredEntry, { kind: "Deleted" }>;
+
 export const encodeSessionRecord = (record: SessionRecord): string => {
   const { id, events, entries } = record.session;
   const closing = (() => {
@@ -173,7 +169,7 @@ export const encodeSessionRecord = (record: SessionRecord): string => {
     id,
     events,
     closing,
-    entries: entries.map((stored) => {
+    entries: entries.map((stored): StoredEntryJson => {
       switch (stored.kind) {
         case "Written":
           return { kind: stored.kind, entry: JournalEntry.toJson(stored.entry) };
@@ -184,7 +180,6 @@ export const encodeSessionRecord = (record: SessionRecord): string => {
   });
 };
 
-/** セッション以外の記録（進め方の変更履歴）の1件を保存する文字列にする */
 export const encodeMetaRecord = (records: DeviceRecords): string =>
   JSON.stringify({ version: FORMAT_VERSION, advanceModeChanges: records.advanceModeChanges });
 

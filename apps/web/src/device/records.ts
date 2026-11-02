@@ -28,10 +28,6 @@ import type { OperateSessionDeps } from "../workflows/operate-session.ts";
 import type { StartSessionDeps } from "../workflows/start-session.ts";
 import type { WriteJournalEntryDeps } from "../workflows/write-journal-entry.ts";
 
-// ---------------------------------------------------------------------------
-// この端末の記録（UserDO の SQLite の表を、1つの不変の値にしたもの）
-// ---------------------------------------------------------------------------
-
 /**
  * 記録されている記入。削除した記入は本文とタグを捨て、ID・削除した時刻・セッション・書いた時刻だけを残す。
  * ID は同じ記入の再送を見分けるため、書いた時刻は自動終了の判断で削除した記入も数えるため（ADR 0010）。
@@ -45,13 +41,7 @@ export type StoredEntry =
       writtenAt: Date;
     }>;
 
-/**
- * 記録されているセッションと、その記入（書いた順）。
- *
- * `events` は SQLite の `ORDER BY at, rowid` の順に並べておく。同じミリ秒の操作は記録した順になる。
- * `Session` の `journalEntryTimes` と `advanceModeChanges` は持たず、読むときに `entries` と
- * 進め方の変更履歴から作る（`sessionLoader` と同じ）。
- */
+/** `events` は SQLite の `ORDER BY at, rowid` の順に並べておく。同じミリ秒の操作は記録した順になる */
 type StoredSession = Readonly<{
   id: SessionId;
   events: RecordedSessionEvents;
@@ -61,7 +51,6 @@ type StoredSession = Readonly<{
 /** 閉じたセッション。`sessions.ended_at` / `ended_by` と同じものだけを持ち、終了の状態はドメインで計算し直す */
 export type ClosedSession = StoredSession & Readonly<{ endedAt: Date; endedBy: Ended["endedBy"] }>;
 
-/** 開いているセッションは高々1つ（SQLite の `sessions_one_open` を型にしたもの） */
 type OpenSlot =
   | Readonly<{ kind: "NoOpenSession" }>
   | Readonly<{ kind: "Open"; session: StoredSession }>;
@@ -93,10 +82,6 @@ export const sessionRecordsOf = (records: DeviceRecords): ReadonlyArray<SessionR
   }
 };
 
-/**
- * `base` から `current` までに書き換わったセッション。書き換えは書き換えたセッションだけを作り直すので、
- * 同じオブジェクトのままのセッションは変わっていない
- */
 export const changedSessionRecords = (
   base: DeviceRecords,
   current: DeviceRecords,
@@ -105,11 +90,6 @@ export const changedSessionRecords = (
   return sessionRecordsOf(current).filter(({ session }) => !unchanged.has(session));
 };
 
-// ---------------------------------------------------------------------------
-// 端末の時刻
-// ---------------------------------------------------------------------------
-
-/** 記録にあるいちばん新しい時刻。記録が空ならない */
 const latestRecordedAt = (records: DeviceRecords): Date | undefined => {
   let latest = Number.NEGATIVE_INFINITY;
   const see = (time: Date) => {
@@ -137,21 +117,13 @@ const latestRecordedAt = (records: DeviceRecords): Date | undefined => {
   return Number.isFinite(latest) ? new Date(latest) : undefined;
 };
 
-/**
- * この端末の記録先が記録に使う時刻。端末の時計 `clock` が記録済みの時刻より前に戻っていれば、記録済みの時刻を使う。
- * 戻った時刻で操作すると、ドメインが「記録済みのイベントより前」として例外を出し、どの操作もできなくなるため
- */
+/** この端末の記録先が記録に使う時刻。端末の時計 `clock` が記録済みの時刻より前に戻っていれば、記録済みの時刻を使う */
 export const deviceNow = (clock: () => Date, records: DeviceRecords): Date => {
   const now = clock();
   const latest = latestRecordedAt(records);
   return latest !== undefined && latest.getTime() > now.getTime() ? latest : now;
 };
 
-// ---------------------------------------------------------------------------
-// 読み書きの契約を、この端末の記録で実装する
-// ---------------------------------------------------------------------------
-
-/** ワークフローが使う読み書きの契約すべて（UserDO が SQLite のアダプタを広げて渡すものと同じ） */
 export type RecordsDeps = StartSessionDeps &
   OperateSessionDeps &
   WriteJournalEntryDeps &
@@ -230,12 +202,10 @@ const sessionFrom = (
 ): Session => ({
   id: stored.id,
   events: stored.events,
-  // 削除した記入も、書いたことには変わりないので自動終了の判断に含める（`sessionLoader` と同じ）
   journalEntryTimes: stored.entries.map(writtenAtOf).toSorted((a, b) => a.getTime() - b.getTime()),
   advanceModeChanges,
 });
 
-/** `sessionLoader` と同じく、閉じたセッションには閉じた時刻までの進め方の変更だけを含める */
 const sessionOf = (records: DeviceRecords, record: SessionRecord): Session => {
   const relevant = AdvanceModeChange.relevantSince(
     records.advanceModeChanges,
@@ -254,7 +224,6 @@ const sessionOf = (records: DeviceRecords, record: SessionRecord): Session => {
   }
 };
 
-/** セッション `id` を書き換える。ほかのセッションは同じオブジェクトのまま残す */
 const updateSession = (
   records: DeviceRecords,
   id: SessionId,
@@ -295,7 +264,7 @@ const updateWrittenEntry = (
   }));
 };
 
-/** 使っているタグごとの、最後に書いた時刻と記入の数。並びは SQLite の `ORDER BY MAX(written_at) DESC, name` */
+/** 並びは SQLite の `ORDER BY MAX(written_at) DESC, name` */
 const tagUsageOf = (records: DeviceRecords): ReadonlyArray<TagUsage> => {
   const usage = new Map<TagName, { latest: number; entryCount: number }>();
   for (const { session } of sessionRecordsOf(records)) {
