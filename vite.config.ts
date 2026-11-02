@@ -38,6 +38,8 @@ export default defineConfig({
               "**/workflows/**",
               "**/server/**",
               "**/client/**",
+              "**/device",
+              "**/device/**",
               "hono",
               "hono/*",
               "react",
@@ -58,6 +60,8 @@ export default defineConfig({
             [
               "**/server/**",
               "**/client/**",
+              "**/device",
+              "**/device/**",
               "hono",
               "hono/*",
               "react",
@@ -73,8 +77,8 @@ export default defineConfig({
         files: [`${web}/server/**`],
         rules: {
           "no-restricted-imports": restrict(
-            ["**/client/**", "react", "react-dom", "react-dom/*"],
-            "server は client に依存しない",
+            ["**/client/**", "**/device", "**/device/**", "react", "react-dom", "react-dom/*"],
+            "server は client / device に依存しない",
           ),
         },
       },
@@ -82,8 +86,38 @@ export default defineConfig({
         files: [`${web}/client/**`],
         rules: {
           "no-restricted-imports": restrict(
-            ["**/server/**", "**/workflows/**", "cloudflare:*"],
-            "client は server / workflows に依存しない",
+            [
+              "**/server/**",
+              "**/workflows/**",
+              "cloudflare:*",
+              // device は入口の index.ts だけを import する
+              "**/device",
+              "**/device/**",
+              "!**/device/index.ts",
+            ],
+            "client は server / workflows に依存せず、device は device/index.ts だけを import する",
+          ),
+        },
+      },
+      {
+        files: [`${web}/device/**`],
+        rules: {
+          "no-restricted-imports": restrict(
+            [
+              "**/client",
+              "**/client/**",
+              "**/server",
+              "**/server/**",
+              "hono",
+              "hono/*",
+              "react",
+              "react-dom",
+              "react-dom/*",
+              "cloudflare:*",
+              "better-auth",
+              "better-auth/*",
+            ],
+            "device は domain と workflows だけに依存する",
           ),
         },
       },

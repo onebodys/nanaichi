@@ -28,5 +28,5 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["src/client", "src/domain"]
+  "include": ["src/client", "src/device", "src/domain", "src/testing", "src/workflows"]
 }

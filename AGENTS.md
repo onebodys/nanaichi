@@ -48,10 +48,12 @@ apps/web/src/
   workflows/   ユースケース。I/O を端に置き、domain の純粋関数を ROP でつなぐ（サーバー側）
   server/      Imperative Shell: Hono のルート、UserDO、D1 / DO SQLite のアダプタ、Better Auth、組み立て
   client/      Imperative Shell: React の画面、通信、音・通知・Wake Lock
+  device/      Imperative Shell: この端末の記録先。UserDO と同じワークフローを IndexedDB の記録につなぐ（ADR 0019）
 ```
 
 - `domain/` は他のどのディレクトリも import しない。
 - `workflows/` は `domain/` だけを import する。
+- `device/` は `domain/` と `workflows/` だけを import する。`client/` は `device/index.ts` だけを import してよい。
 - `server/` と `client/` は互いを import しない（共有するものは `domain/` に置く）。
 
 ## 4. 型で取りうる状態を狭める
