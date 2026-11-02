@@ -4,6 +4,7 @@ import { SessionId } from "../domain/session.ts";
 import { TagName } from "../domain/tag.ts";
 import {
   attachedTagsIn,
+  attachedTagsKeyOf,
   attachTags,
   parseAttachedTags,
   serializeAttachedTags,
@@ -65,5 +66,12 @@ describe("タグを削除したときのつけたままのタグ", () => {
     expect(
       withTagDeleted(attached, { name: reading, deletion: { kind: "Reassign", to: book } }),
     ).toEqual(attachTags(undefined, [book]));
+  });
+});
+
+describe("つけたままのタグを覚えるキー", () => {
+  test("この端末の記録先とアカウントで別のキーに覚え、アカウントのキーは変えない", () => {
+    expect(attachedTagsKeyOf({ kind: "Account" })).toBe("nanaichi:attached-tags");
+    expect(attachedTagsKeyOf({ kind: "Device" })).toBe("nanaichi:attached-tags:device");
   });
 });

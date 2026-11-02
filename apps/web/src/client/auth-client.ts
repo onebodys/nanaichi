@@ -11,8 +11,8 @@ import { createAuthClient } from "better-auth/react";
  */
 export const authClient = createAuthClient({ plugins: [oauthProviderClient()] });
 
-/** ログアウトする。セッションが無くなるので、ルートの beforeLoad がログイン画面へ送る */
+/** ログアウトする。ログインしていない状態でも使えるので、ホームに戻り、この端末の記録を開く（ADR 0019） */
 export const signOut = async () => {
   await authClient.signOut();
-  window.location.href = "/login";
+  window.location.href = "/";
 };

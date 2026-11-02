@@ -3,6 +3,7 @@ import type { SyncMessage } from "../domain/sync-message.ts";
 import { useBackend } from "./backend.ts";
 import type { AdvanceModeState } from "./use-advance-mode.ts";
 import type { SessionTimer } from "./use-session-timer.ts";
+import type { AttachedTagsKey } from "./attached-tags.ts";
 import { applyTagDeletionToAttached } from "./use-attached-tags.ts";
 import type { TagUsageState } from "./use-tag-usage.ts";
 import type { TagsState } from "./use-tags.ts";
@@ -14,6 +15,7 @@ type Receivers = Readonly<{
   tags: TagsState;
   tagUsage: TagUsageState;
   advanceMode: AdvanceModeState;
+  attachedTagsKey: AttachedTagsKey;
 }>;
 
 /**
@@ -22,7 +24,7 @@ type Receivers = Readonly<{
  */
 const deliver = (
   message: SyncMessage,
-  { timer, timeline, tags, tagUsage, advanceMode }: Receivers,
+  { timer, timeline, tags, tagUsage, advanceMode, attachedTagsKey }: Receivers,
 ): void => {
   switch (message.kind) {
     case "SessionChanged":
@@ -38,7 +40,7 @@ const deliver = (
     case "TagDeleted":
       // 書き換えた記入は届かないので、読み込んだ記入とつけたままのタグに同じ削除を当てる（ADR 0017）
       timeline.receiveTagDeletion(message.deleted);
-      applyTagDeletionToAttached(message.deleted);
+      applyTagDeletionToAttached(attachedTagsKey, message.deleted);
       tags.refresh();
       return tagUsage.refresh();
     case "AdvanceModeChanged":

@@ -13,6 +13,7 @@ import {
 } from "../domain/timeline.ts";
 import type { ApiErrorCode } from "../domain/api-error.ts";
 import type { BackendError } from "../domain/backend.ts";
+import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
 import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
 
@@ -58,7 +59,7 @@ const messageOf = (error: BackendError): string => {
     case "Rejected":
       return rejectedMessageOf(error.code);
     case "StorageFailed":
-      return "この端末に記録を保存できませんでした。";
+      return storageFailedMessageOf(error);
     case "Broken":
       return "保存できませんでした。";
   }

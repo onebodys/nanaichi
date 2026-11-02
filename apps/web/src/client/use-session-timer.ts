@@ -7,6 +7,7 @@ import { SessionEventId, type SessionOperation } from "../domain/session-event.t
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import type { BackendError } from "../domain/backend.ts";
+import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import { startTicker } from "./ticker.ts";
@@ -67,8 +68,9 @@ const messageOf = (error: BackendError): string => {
   switch (error.kind) {
     case "Unreachable":
       return "通信できませんでした。もう一度お試しください。";
-    case "Rejected":
     case "StorageFailed":
+      return storageFailedMessageOf(error);
+    case "Rejected":
     case "Broken":
       return "操作できませんでした。最新の状態を読み込み直しました。";
   }

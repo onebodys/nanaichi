@@ -11,7 +11,7 @@ import {
 } from "./alert-settings.ts";
 import { AdvanceMode } from "../domain/advance-mode.ts";
 import { TagName, type TagDeletion, type TagUsage } from "../domain/tag.ts";
-import { authClient, signOut } from "./auth-client.ts";
+import { signOut } from "./auth-client.ts";
 import { Button } from "./components/ui/button.tsx";
 import {
   Select,
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "./components/ui/select.tsx";
 import { Switch } from "./components/ui/switch.tsx";
+import { useRecordStore } from "./record-store.ts";
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -97,15 +98,18 @@ const ADVANCE_CHOICES = ["Auto", "Manual"] as const;
 
 /**
  * フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。
- * アカウントの設定なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
+ * 記録先ごとの設定（ADR 0019）なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
  */
 const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeState }>) => {
   const { view, errorMessage, change } = advanceMode;
+  const recordStore = useRecordStore();
   return (
     <Section id="settings-advance" title="フェーズの進め方" perDevice={false}>
       <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
         手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、ボタンを押すまで待ちます。
-        どの端末でも同じ設定になります。
+        {recordStore.kind === "Device"
+          ? "この端末の設定です。"
+          : "どの端末でも同じ設定になります。"}
       </p>
       {view.kind === "Loaded" ? (
         AdvanceMode.transitions.map((transition) => {
@@ -435,17 +439,32 @@ const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
 };
 
 const AccountSection = () => {
-  const { data: session } = authClient.useSession();
-  const name = session?.user.name;
-  return (
-    <Section id="settings-account" title="アカウント" perDevice={false}>
-      <Row label={name ?? "読み込み中…"}>
-        <Button variant="outline" onClick={() => void signOut()}>
-          ログアウト
-        </Button>
-      </Row>
-    </Section>
-  );
+  const recordStore = useRecordStore();
+  switch (recordStore.kind) {
+    case "Device":
+      return (
+        <Section id="settings-account" title="アカウント" perDevice={false}>
+          <Row
+            label="ログインしていません"
+            description="記録はこのブラウザに保存されています。ログインすると、他の端末とも同期できます。"
+          >
+            <Button variant="outline" nativeButton={false} render={<a href="/login" />}>
+              ログインして同期
+            </Button>
+          </Row>
+        </Section>
+      );
+    case "Account":
+      return (
+        <Section id="settings-account" title="アカウント" perDevice={false}>
+          <Row label={recordStore.user.name}>
+            <Button variant="outline" onClick={() => void signOut()}>
+              ログアウト
+            </Button>
+          </Row>
+        </Section>
+      );
+  }
 };
 
 const SECTIONS = [
