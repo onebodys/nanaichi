@@ -6,7 +6,7 @@ import { phaseChangeBetween } from "../domain/phase-change.ts";
 import { SessionEventId, type SessionOperation } from "../domain/session-event.ts";
 import { Session, SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
-import { createApiClient, type ApiError } from "./api.ts";
+import { useBackend, type BackendError } from "./backend.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import { startTicker } from "./ticker.ts";
 
@@ -62,20 +62,19 @@ const timerViewOf = (loading: Loading, deviceNow: Date): TimerView => {
 };
 
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
-const messageOf = (error: ApiError): string => {
+const messageOf = (error: BackendError): string => {
   switch (error.kind) {
-    case "NetworkError":
+    case "Unreachable":
       return "通信できませんでした。もう一度お試しください。";
-    case "ApiRejected":
-    case "UnexpectedResponse":
+    case "Rejected":
+    case "StorageFailed":
+    case "Broken":
       return "操作できませんでした。最新の状態を読み込み直しました。";
   }
 };
 
 // `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）
 const newEventId = (): SessionEventId => v.parse(SessionEventId.schema, crypto.randomUUID());
-
-const api = createApiClient();
 
 /**
  * 端末の時刻。E2E がページの時計を進めて自動的な切り替わりを確かめられるよう、
@@ -85,8 +84,8 @@ const readDeviceClock = (): Date => new Date(Date.now());
 
 /** API を呼び、送ってから受け取るまでの端末の時刻で時計のずれを測る */
 const receive = async (
-  call: () => Result.ResultAsync<SessionSnapshot, ApiError>,
-): Result.ResultAsync<Received, ApiError> => {
+  call: () => Result.ResultAsync<SessionSnapshot, BackendError>,
+): Result.ResultAsync<Received, BackendError> => {
   const requestedAt = readDeviceClock();
   const result = await call();
   const receivedAt = readDeviceClock();
@@ -107,12 +106,6 @@ const applyReceived = (current: Loading, received: Received): Loading =>
   current.kind === "Loaded" && SessionSnapshot.isOlder(received.snapshot, current.received.snapshot)
     ? current
     : { kind: "Loaded", received };
-
-const redirectToLoginIfSignedOut = (error: ApiError) => {
-  if (error.kind === "ApiRejected" && error.code === "UNAUTHENTICATED") {
-    window.location.href = "/login";
-  }
-};
 
 /**
  * タイマー画面の状態と操作。
@@ -145,21 +138,21 @@ export const useSessionTimer = (
    */
   receive: (snapshot: SessionSnapshot) => void;
 }> => {
+  const backend = useBackend();
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
   const load = useCallback(async () => {
-    const result = await receive(api.getCurrentSession);
+    const result = await receive(backend.getCurrentSession);
     if (Result.isSuccess(result)) {
       const received = result.value;
       setLoading((current) => applyReceived(current, received));
       return;
     }
-    redirectToLoginIfSignedOut(result.error);
     setLoading((current) => (current.kind === "Loaded" ? current : { kind: "LoadFailed" }));
-  }, []);
+  }, [backend]);
 
   useEffect(() => {
     void load();
@@ -205,7 +198,7 @@ export const useSessionTimer = (
     previous.current = { snapshot: received.snapshot, state };
   }, [received, state, phaseAlert]);
 
-  const send = async (call: () => Result.ResultAsync<SessionSnapshot, ApiError>) => {
+  const send = async (call: () => Result.ResultAsync<SessionSnapshot, BackendError>) => {
     setPending(true);
     setErrorMessage(undefined);
     const result = await receive(call);
@@ -213,10 +206,9 @@ export const useSessionTimer = (
       const received = result.value;
       setLoading((current) => applyReceived(current, received));
     } else {
-      redirectToLoginIfSignedOut(result.error);
       setErrorMessage(messageOf(result.error));
       // 別のタブで操作したなどで食い違っているかもしれないので、今の状態を読み込み直す
-      if (result.error.kind !== "NetworkError") {
+      if (result.error.kind !== "Unreachable") {
         await load();
       }
     }
@@ -234,12 +226,12 @@ export const useSessionTimer = (
       // 通知の許可と音の準備は、ボタンを押した操作の中でしかできない
       phaseAlert.prepare();
       const id = newEventId();
-      void send(() => api.startSession(id));
+      void send(() => backend.startSession(id));
     },
     operate: (kind) => {
       phaseAlert.unlockSound();
       const id = newEventId();
-      void send(() => api.operateSession(id, kind));
+      void send(() => backend.operateSession(id, kind));
     },
     reload: () => {
       setLoading({ kind: "Loading" });

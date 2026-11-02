@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { TagName } from "../domain/tag.ts";
-import { createApiClient } from "./api.ts";
-
-const api = createApiClient();
+import { useBackend } from "./backend.ts";
 
 /**
  * 入力の候補に出す、使っているタグ（最近使った順、ADR 0013）。
@@ -16,15 +14,16 @@ export const useTags = (): Readonly<{
   known: ReadonlyArray<TagName>;
   refresh: () => void;
 }> => {
+  const backend = useBackend();
   const [known, setKnown] = useState<ReadonlyArray<TagName>>([]);
 
   const refresh = useCallback(() => {
-    void api.getTags().then((result) => {
+    void backend.getTags().then((result) => {
       if (Result.isSuccess(result)) {
         setKnown(result.value.tags);
       }
     });
-  }, []);
+  }, [backend]);
 
   useEffect(refresh, [refresh]);
 

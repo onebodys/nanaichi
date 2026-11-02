@@ -1,18 +1,12 @@
 import { useEffect, useRef } from "react";
 import type { SyncMessage } from "../domain/sync-message.ts";
-import { connectSync, openBrowserSocket } from "./sync-connection.ts";
+import { useBackend } from "./backend.ts";
 import type { AdvanceModeState } from "./use-advance-mode.ts";
 import type { SessionTimer } from "./use-session-timer.ts";
 import { applyTagDeletionToAttached } from "./use-attached-tags.ts";
 import type { TagUsageState } from "./use-tag-usage.ts";
 import type { TagsState } from "./use-tags.ts";
 import type { TimelineState } from "./use-timeline.ts";
-
-/** 同期の WebSocket の URL。SPA と API は同じ origin なので、ログインの cookie はそのまま送られる */
-const syncUrl = (): string => {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/api/ws`;
-};
 
 type Receivers = Readonly<{
   timer: SessionTimer;
@@ -61,6 +55,7 @@ const deliver = (
  * - 画面に戻ってきたとき・オンラインに戻ったときは、繋がっているかをすぐ確かめる
  */
 export const useSync = (receivers: Receivers): void => {
+  const backend = useBackend();
   // 接続は開いている間ずっと1つなので、最新の受け取り手を参照で渡す
   const latest = useRef<Receivers>(receivers);
   useEffect(() => {
@@ -68,19 +63,16 @@ export const useSync = (receivers: Receivers): void => {
   });
 
   useEffect(() => {
-    const connection = connectSync(
-      {
-        onConnected: () => {
-          latest.current.timer.refresh();
-          latest.current.timeline.refresh();
-          latest.current.tags.refresh();
-          latest.current.tagUsage.refresh();
-          latest.current.advanceMode.refresh();
-        },
-        onMessage: (message) => deliver(message, latest.current),
+    const connection = backend.subscribe({
+      onConnected: () => {
+        latest.current.timer.refresh();
+        latest.current.timeline.refresh();
+        latest.current.tags.refresh();
+        latest.current.tagUsage.refresh();
+        latest.current.advanceMode.refresh();
       },
-      openBrowserSocket(syncUrl()),
-    );
+      onMessage: (message) => deliver(message, latest.current),
+    });
     const checkIfVisible = () => {
       if (document.visibilityState === "visible") {
         connection.check();
@@ -93,5 +85,5 @@ export const useSync = (receivers: Receivers): void => {
       window.removeEventListener("online", connection.check);
       connection.close();
     };
-  }, []);
+  }, [backend]);
 };
