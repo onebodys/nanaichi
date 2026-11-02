@@ -17,16 +17,8 @@ import { TimelinePageJsonSchema } from "../domain/timeline.ts";
 import type { Backend, BackendError } from "./backend.ts";
 import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-connection.ts";
 
-/**
- * ログインしたアカウントの記録（サーバー）を、画面から `Backend` として使えるようにする。
- *
- * HTTP の通信と同期の WebSocket をここに閉じ込める。応答はかならず `domain/` のスキーマで検証し、
- * 失敗も含めて byethrow の Result で返す。HTTP のステータスは画面に見せない。
- */
-
 type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
 
-/** 本文まで読んだ応答。本文はまだ検証していない */
 type ReceivedResponse = Readonly<{ ok: boolean; body: unknown }>;
 
 const send =
@@ -48,12 +40,6 @@ const receive = (response: Response): Result.ResultAsync<ReceivedResponse, Backe
 
 const parseErrorBody = schemaResult(ApiErrorBodyJsonSchema);
 
-/**
- * 成功の応答はそのエンドポイントのスキーマで、失敗の応答はエラーの本文のスキーマで検証する。
- *
- * 検証の失敗（`ValidationError`）は外に出さない。指摘には応答の値（今後はジャーナル記入の本文も）が
- * 含まれうるため、食い違ったことだけを伝える。
- */
 const decode =
   <T>(schema: StandardSchemaV1<unknown, T>) =>
   (response: ReceivedResponse): Result.Result<T, BackendError> => {
@@ -74,7 +60,6 @@ const decode =
     );
   };
 
-/** リクエストを送り、応答の本文を読み、スキーマで検証する。ログインが切れていたら `onSignedOut` を呼ぶ */
 const requestApi =
   (fetchApi: Fetch, onSignedOut: () => void) =>
   <T>(
@@ -101,11 +86,10 @@ const sendJson = (method: "POST" | "PATCH" | "PUT" | "DELETE", body: unknown): R
 
 const postJson = (body: unknown): RequestInit => sendJson("POST", body);
 
-/** `createRemoteBackend` に渡すもの。`fetchApi` と `openSocket` はテストで差し替えるためで、画面からは省略する */
 export type RemoteBackendDeps = Readonly<{
   fetchApi?: Fetch;
   openSocket?: OpenSyncSocket;
-  /** ログインが切れていた（`UNAUTHENTICATED`）とき、失敗を返す前に呼ぶ。ログイン画面へ移る */
+  /** ログインが切れていた（`UNAUTHENTICATED`）とき、失敗を返す前に呼ぶ */
   onSignedOut: () => void;
 }>;
 
@@ -116,7 +100,7 @@ const syncUrl = (): string => {
 };
 
 /**
- * ログインしたアカウントの `Backend`。SPA と API は同じ origin なので、ログインの cookie はそのまま送られる。
+ * SPA と API は同じ origin なので、ログインの cookie はそのまま送られる。
  */
 export const createRemoteBackend = ({
   fetchApi = (path, init) => fetch(path, init),

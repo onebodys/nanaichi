@@ -13,11 +13,6 @@ import type { TaggedEntriesPage } from "../domain/tagged-entries.ts";
 import type { TimelinePage } from "../domain/timeline.ts";
 import type { SyncConnection, SyncHandlers } from "./sync-connection.ts";
 
-/**
- * 画面（hooks）が記録を読み書きする入口。どこに記録があるか（アカウントのサーバーか、この端末か）は
- * `Backend` の向こう側の事情で、画面は知らない。HTTP のステータスや保存先の都合も見せない。
- */
-
 export type BackendError =
   /** いま記録に届かない（オフラインなど）。やり直せば通りうる */
   | Readonly<{ kind: "Unreachable" }>
@@ -30,36 +25,28 @@ export type BackendError =
 
 type Call<T> = Result.ResultAsync<T, BackendError>;
 
-/**
- * ページごとに1つ。ページを開いている間、`Backend` は入れ替わらない
- * （ログインとログアウトはページ全体の移動なので、画面の状態を作り直す必要がない）。
- */
 export type Backend = Readonly<{
-  /** 現在のセッションのスナップショット */
   getCurrentSession: () => Call<SessionSnapshot>;
   /**
    * セッションを開始する。`id` は開始の操作イベントの ID（ADR 0007）。
    * やり直すときは同じ ID で送れば、二重に開始しない。
    */
   startSession: (id: SessionEventId) => Call<SessionSnapshot>;
-  /** セッションに操作を1つ加える。`id` は操作イベントの ID */
   operateSession: (id: SessionEventId, kind: SessionOperation["kind"]) => Call<SessionSnapshot>;
   /**
    * ジャーナル記入を書く。`id` は記入の ID（ADR 0010）。
-   * やり直すときは同じ ID で送れば、二重に書かない。本文は送るときだけ取り出す
+   * やり直すときは同じ ID で送れば、二重に書かない。
    */
   writeJournalEntry: (
     id: JournalEntryId,
     body: string,
     tags: ReadonlyArray<TagName>,
   ) => Call<JournalEntry>;
-  /** 記入の本文とタグを書き直す */
   editJournalEntry: (
     id: JournalEntryId,
     body: string,
     tags: ReadonlyArray<TagName>,
   ) => Call<JournalEntry>;
-  /** 記入を削除する */
   deleteJournalEntry: (id: JournalEntryId) => Call<DeletedJournalEntry>;
   /** タイムラインの1ページ。`before` を省けば最新のページ */
   getTimeline: (before?: Date) => Call<TimelinePage>;
@@ -79,7 +66,6 @@ export type Backend = Readonly<{
   getEntriesOnDate: (date: LocalDate, timeZone: string) => Call<EntriesOnDate>;
   /** タグのついた記入の1ページ（新しい順）。`before` を省けば最新のページ */
   getEntriesWithTag: (tag: TagName, before?: Date) => Call<TaggedEntriesPage>;
-  /** いまのフェーズの進め方（ADR 0016） */
   getAdvanceMode: () => Call<AdvanceMode>;
   /** フェーズの進め方を変える。変えたあとの進め方が返る */
   changeAdvanceMode: (mode: AdvanceMode) => Call<AdvanceMode>;
@@ -95,7 +81,6 @@ export const BackendProvider = ({
 }: Readonly<{ backend: Backend; children: ReactNode }>): ReactNode =>
   createElement(BackendContext.Provider, { value: backend }, children);
 
-/** `BackendProvider` の外で使うのは実装の誤りなので、例外にする */
 export const useBackend = (): Backend => {
   const backend = useContext(BackendContext);
   if (backend === undefined) {

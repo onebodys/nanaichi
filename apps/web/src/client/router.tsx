@@ -14,7 +14,6 @@ import { HomePage } from "./home-page.tsx";
 import { LoginPage } from "./login-page.tsx";
 import { createRemoteBackend } from "./remote-backend.ts";
 
-/** ページを開いている間、バックエンドは1つ。ログイン・ログアウトはページ全体の移動なので作り直さない */
 const backend = createRemoteBackend({
   onSignedOut: () => {
     window.location.href = "/login";
