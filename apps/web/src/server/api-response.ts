@@ -38,14 +38,12 @@ const statusOf = (code: ApiErrorCode): ContentfulStatusCode => {
   }
 };
 
-/** 種類ごとの補足 */
 const extrasOf = (error: WorkflowError): Omit<ApiErrorBody, "error"> => {
   switch (error.kind) {
     case "ValidationError":
       // 入力値はレスポンスに含めず、どの項目が不正かだけを返す（ジャーナル記入の本文は PII）
       return { paths: describeIssuePaths(error) };
     case "ReassignToSameTag":
-      // 付け替え先の指定が不正。入力の検証と同じく、どの項目かだけを返す
       return { paths: ["to"] };
     case "OperationRejected":
       return { operation: error.operation, during: error.during };
@@ -60,7 +58,6 @@ const extrasOf = (error: WorkflowError): Omit<ApiErrorBody, "error"> => {
   }
 };
 
-/** 想定内の失敗を HTTP の応答にする。種類は `rejectionCodeOf`、ステータスと補足はここで決める */
 const errorResponseOf = (
   error: WorkflowError,
 ): Readonly<{ status: ContentfulStatusCode; body: ApiErrorBody }> => {

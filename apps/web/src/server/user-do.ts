@@ -256,14 +256,15 @@ export class UserDO extends DurableObject<Env> {
     return result;
   }
 
-  /**
-   * 書き込みのコマンドを `#run` で実行し、コミットのあとで、コマンドが決めた同期メッセージを送る。
-   * 失敗のときは `messages` が空なので何も送らない。
-   */
-  async #execute<T, E>(command: (now: Date) => Executed<T, E>): Promise<Result.Result<T, E>> {
-    const { result, messages } = await this.#run(command);
-    this.#broadcast(messages);
-    return result;
+  async #execute<T, E>(
+    command: (now: Date) => Result.Result<Executed<T>, E>,
+  ): Promise<Result.Result<T, E>> {
+    const result = await this.#run(command);
+    return Result.pipe(
+      result,
+      Result.inspect(({ messages }) => this.#broadcast(messages)),
+      Result.map(({ value }) => value),
+    );
   }
 
   /** 同期メッセージを、このユーザーのすべての接続へ送る（ADR 0012） */

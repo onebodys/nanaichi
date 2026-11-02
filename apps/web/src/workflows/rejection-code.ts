@@ -7,7 +7,6 @@ import type { OperateSessionError } from "./operate-session.ts";
 import type { StartSessionError } from "./start-session.ts";
 import type { WriteJournalEntryError } from "./write-journal-entry.ts";
 
-/** 画面から呼ぶワークフローの想定内の失敗すべて */
 export type WorkflowError =
   | StartSessionError
   | OperateSessionError
@@ -17,10 +16,7 @@ export type WorkflowError =
   | DeleteTagError
   | GetTimelineError;
 
-/**
- * 想定内の失敗を、画面が扱いを決める拒否の種類にする。
- * サーバーもこの端末の記録先も同じ対応を使う。HTTP のステータスなど届け方はここでは決めない。
- */
+/** 想定内の失敗を、画面が扱いを決める拒否の種類にする */
 export const rejectionCodeOf = (error: WorkflowError): ApiErrorCode => {
   switch (error.kind) {
     case "ValidationError":
