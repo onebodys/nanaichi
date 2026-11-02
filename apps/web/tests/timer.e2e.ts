@@ -2,6 +2,7 @@
 // 偽物はページの中で動くので、ブラウザの型（DOM）を使う
 import { describe, test, type Browser } from "@e2e-dev/web";
 import { expect, type App } from "e2e";
+import { advanceClock, installPageClock } from "./page-clock.ts";
 
 /** 開始のボタン。終了したあとは「次のセッションを開始」になる */
 const START_BUTTON = /^(次のセッションを)?開始$/;
@@ -10,7 +11,7 @@ const START_BUTTON = /^(次のセッションを)?開始$/;
  * タイマー画面（Issue #5）。
  *
  * フェーズが自動で切り替わるのを本当に7分待たずに確かめるため、ページの時計（`Date.now`）を
- * 進められるようにする。画面は端末の時刻と時計のずれから残り時間を計算する（ADR 0003）ので、
+ * 進められるようにする（tests/page-clock.ts）。画面は端末の時刻と時計のずれから残り時間を計算する（ADR 0003）ので、
  * ページの時計を進めればサーバーを待たずにフェーズが進む。
  * 音・通知・Wake Lock はヘッドレスのブラウザでは確かめられないので、呼ばれたことを記録する偽物に置き換える。
  */
@@ -23,17 +24,6 @@ const installFakes = () => {
   Object.assign(window, { __recorded: recorded });
   // 知らせ方の設定は端末に残るので、前のテストで変えたものを持ち越さない
   localStorage.removeItem("nanaichi:alert-settings");
-
-  // ページの時計: 画面が端末の時刻を読む `Date.now()` を `shift` だけ進める。
-  // `Date` そのものを差し替えるとログインの判定まで巻き込むので、`now` だけにする
-  const realNow = Date.now.bind(Date);
-  let shift = 0;
-  Date.now = () => realNow() + shift;
-  Object.assign(window, {
-    __advanceClock: (ms: number) => {
-      shift += ms;
-    },
-  });
 
   class FakeNotification {
     static permission: NotificationPermission = "default";
@@ -82,10 +72,6 @@ type Recorded = {
 
 const recordedIn = (browser: Browser) => browser.evaluate<Recorded>("window.__recorded");
 
-/** ページの時計を進める */
-const advanceClock = (browser: Browser, minutes: number) =>
-  browser.evaluate<null>(`(window.__advanceClock(${minutes * 60_000}), null)`);
-
 /** フェーズの進め方の既定（すべて自動） */
 const ALL_AUTO = {
   FocusToJournal: "Auto",
@@ -122,6 +108,7 @@ const openWithoutSession = async (app: App, browser: Browser) => {
       body: JSON.stringify({ id: crypto.randomUUID(), kind: "End" }),
     });
   }
+  await browser.addInitScript(installPageClock);
   await browser.addInitScript(installFakes);
   await app.open("/");
 };

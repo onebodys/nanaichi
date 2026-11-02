@@ -28,6 +28,8 @@ export default {
             // Google を通さないテスト用のログイン（/api/test/sign-in）を開く（ADR 0008）。
             // ログインのしかたは tests/sign-in.setup.e2e.ts
             TEST_SIGN_IN: "enabled",
+            // 同じユーザーで操作し続けるので、ユーザーごとのレート制限を外す（vite.config.ts の relaxRateLimitForE2E）
+            E2E_RELAX_RATE_LIMIT: "enabled",
           },
           startupTimeout: 120_000,
           log: ".e2e/logs/app.log",
