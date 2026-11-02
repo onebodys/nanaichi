@@ -27,7 +27,7 @@ import {
 import { deviceNow, recordsDeps, type RecordsDeps } from "./records.ts";
 import { VaultContent, type Vault, type VaultFailure } from "./vault.ts";
 
-/** タブのあいだで同期メッセージを送り合う口。ブラウザでは BroadcastChannel で、送ったタブ自身には届かない */
+/** タブのあいだで同期メッセージを送り合う口。ブラウザでは BroadcastChannel で、送った口自身には届かない */
 export type SyncChannel = Readonly<{
   post: (data: string) => void;
   listen: (onData: (data: unknown) => void) => () => void;
@@ -68,6 +68,16 @@ const read =
       Result.map((value) => ({ value, messages: [] })),
     );
 
+/** alarm がないので、UserDO の `#run` と違い、コマンドの前にも自動終了を確定させる */
+const withAutoEndSettled =
+  <T, E>(command: Command<T, E>): Command<T, E> =>
+  (deps, now) => {
+    settleAutoEnd(deps)(now);
+    const result = command(deps, now);
+    settleAutoEnd(deps)(now);
+    return result;
+  };
+
 /**
  * この端末の記録で動く `Backend`。UserDO（server/user-do.ts）と同じワークフローを、
  * HTTP のルートが渡すのと同じ形の入力で呼ぶので、入力の検証も断る判断も同じになる。
@@ -91,10 +101,6 @@ export const createDeviceBackend = ({
     }
   };
 
-  /**
-   * UserDO の `#run` と同じく、ワークフローのあとに自動終了を確定させる。alarm がないので、前にも確定させる。
-   * 例外が出たら下書きを捨てるので、何も保存しない（`transactionSync` と同じ）
-   */
   const runExclusively = <T, E extends WorkflowError>(
     command: Command<T, E>,
   ): Promise<Result.Result<Executed<T>, BackendError>> =>
@@ -109,9 +115,7 @@ export const createDeviceBackend = ({
       const now = deviceNow(clock, cache.records);
       let result: Result.Result<Executed<T>, E>;
       try {
-        settleAutoEnd(deps)(now);
-        result = command(deps, now);
-        settleAutoEnd(deps)(now);
+        result = withAutoEndSettled(command)(deps, now);
       } catch {
         return Result.fail({ kind: "Broken" } satisfies BackendError);
       }
@@ -139,7 +143,6 @@ export const createDeviceBackend = ({
     command: Command<T, E>,
   ): Promise<Result.Result<T, BackendError>> => {
     let result: Result.Result<Executed<T>, BackendError>;
-    // ロックや保存先が投げたもの（実装の誤りなど）も、画面には読めない記録として返す
     try {
       result = await runExclusively(command);
     } catch {
@@ -192,7 +195,6 @@ export const createDeviceBackend = ({
           handlers.onMessage(message);
         }
       });
-      // WebSocket の接続と同じく、受け取り始めてから知らせる。画面はここで読み込み直す
       queueMicrotask(() => {
         if (open) {
           handlers.onConnected();

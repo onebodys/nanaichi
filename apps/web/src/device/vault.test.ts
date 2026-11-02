@@ -14,7 +14,6 @@ const T0 = Date.UTC(2026, 10, 2, 9, 0, 0);
 const at = (minutes: number) => new Date(T0 + minutes * 60_000);
 const newSessionId = () => v.parse(SessionId.schema, crypto.randomUUID());
 
-/** 記録に `change` を当てた新しい記録 */
 const changed = (records: DeviceRecords, change: (draft: Draft) => void): DeviceRecords => {
   const draft: Draft = { base: records, current: records };
   change(draft);
@@ -47,7 +46,6 @@ const unwrap = async <T>(result: Result.ResultAsync<T, unknown>): Promise<T> => 
   return settled.value;
 };
 
-/** 記入の本文は `Sensitive` に包まれていて toEqual で比べられないので、保存する形で比べる */
 const encoded = ({ revision, records }: VaultContent) => ({
   revision,
   meta: encodeMetaRecord(records),
@@ -57,7 +55,6 @@ const encoded = ({ revision, records }: VaultContent) => ({
 const commit = (vault: Vault, previous: VaultContent, records: DeviceRecords) =>
   unwrap(vault.commit(previous, records));
 
-/** テストから IndexedDB の中身を直接読み書きする */
 const database = (factory: IDBFactory, version = 1, upgrade?: (db: IDBDatabase) => void) =>
   new Promise<IDBDatabase>((resolve, reject) => {
     const request = factory.open("nanaichi-device", version);
@@ -119,7 +116,6 @@ describe("この端末の保存先（IndexedDB）", () => {
     const closedId = closedIdOf(first.records);
     const openId = openIdOf(first.records);
 
-    // 閉じたセッションの値を、読める別の表記に置き換えておく。書き直されれば元の表記に戻る
     const closedKey = `session:${closedId}`;
     const respaced = JSON.stringify(
       JSON.parse(v.parse(v.string(), await rawGet(factory, "records", closedKey))),
@@ -141,7 +137,6 @@ describe("この端末の保存先（IndexedDB）", () => {
     const vault = indexedDbVault(factory);
     const first = await commit(vault, VaultContent.empty, started(DeviceRecords.empty, 0));
 
-    // 読み込んだあとに別の書き込みがあった（版が合わない）ので、セッションを書いたあとで取り消される
     const other = started(DeviceRecords.empty, 10);
     await expect(vault.commit(VaultContent.empty, other)).rejects.toThrow();
 
@@ -176,7 +171,6 @@ describe("この端末の保存先（IndexedDB）", () => {
     const first = await commit(tabA, VaultContent.empty, twoSessions());
     const seen = await unwrap(tabB.load(VaultContent.empty));
 
-    // 変わっていないセッションを読めない値にしておく。読み直せば Broken になる
     await rawPut(factory, `session:${closedIdOf(first.records)}`, "{");
     const second = await commit(tabA, first, written(first.records, 61));
 

@@ -46,7 +46,6 @@ export type Vault = Readonly<{
   ) => Result.ResultAsync<VaultContent, VaultFailure>;
 }>;
 
-/** 保存する進め方の履歴などの1件。`changed` はこの版で書き換えたセッションで、ほかのタブはそれだけを読み直す */
 type StoredMeta = Readonly<{
   revision: number;
   changed: ReadonlyArray<SessionId>;
@@ -63,13 +62,8 @@ const RevisionSchema = v.object({ revision: v.number() });
 
 type EncodedSession = Readonly<{ id: SessionId; raw: string }>;
 
-/** 読めなかった記録の生の値。上書きせずに退避しておく */
 type UnreadableCopy = Readonly<{ meta: unknown; sessions: ReadonlyArray<unknown> }>;
 
-/**
- * 保存先そのものの読み書き。失敗は DOMException で投げる（IndexedDB と同じ）。
- * `write` は、保存されている版が `expectedRevision` でなければ何も書かずに投げる。
- */
 type RawStore = Readonly<{
   readMeta: () => Promise<unknown>;
   readSessions: (ids: ReadonlyArray<SessionId>) => Promise<ReadonlyArray<unknown>>;
@@ -79,8 +73,7 @@ type RawStore = Readonly<{
     meta: StoredMeta,
     sessions: ReadonlyArray<EncodedSession>,
   ) => Promise<void>;
-  /** `key` に退避したものがまだなければ退避する */
-  keepUnreadable: (key: string, copy: UnreadableCopy) => Promise<void>;
+  keepFirstUnreadable: (key: string, copy: UnreadableCopy) => Promise<void>;
 }>;
 
 const revisionOf = (meta: unknown): number => {
@@ -103,7 +96,6 @@ const failureOf = (error: DOMException): VaultFailure => {
   }
 };
 
-/** 保存先の失敗を Result にする。それ以外の例外は実装の誤りなので投げ直す */
 const guarded = async <T>(
   operation: () => Promise<Result.Result<T, VaultFailure>>,
 ): Promise<Result.Result<T, VaultFailure>> => {
@@ -142,7 +134,6 @@ const decodeAll = (meta: StoredMeta, raws: ReadonlyArray<unknown>) =>
     Result.andThen((sessions) => decodeRecords(meta.records, sessions)),
   );
 
-/** `cached` の次の版で変わったセッションだけを読み直し、残りは `cached` のものを使う */
 const decodeChanges = (cached: DeviceRecords, meta: StoredMeta, raws: ReadonlyArray<unknown>) =>
   Result.pipe(
     Result.do(),
@@ -162,16 +153,15 @@ const decodeChanges = (cached: DeviceRecords, meta: StoredMeta, raws: ReadonlyAr
   );
 
 const vaultOver = (raw: RawStore): Vault => {
-  // 一度読めなかったら、このページでは読み直さない。どの呼び出しも同じ失敗を返し、何も書かない
-  let unreadable: VaultFailure | undefined;
+  let latchedFailure: VaultFailure | undefined;
 
   const keepAndReport = async (
     failure: VaultFailure,
     meta: unknown,
   ): Promise<Result.Result<never, VaultFailure>> => {
     const sessions = await raw.readAllSessions();
-    await raw.keepUnreadable(`unreadable-${revisionOf(meta)}`, { meta, sessions });
-    unreadable = failure;
+    await raw.keepFirstUnreadable(`unreadable-${revisionOf(meta)}`, { meta, sessions });
+    latchedFailure = failure;
     return Result.fail(failure);
   };
 
@@ -186,8 +176,8 @@ const vaultOver = (raw: RawStore): Vault => {
   return {
     load: (cached) =>
       guarded(async () => {
-        if (unreadable !== undefined) {
-          return Result.fail(unreadable);
+        if (latchedFailure !== undefined) {
+          return Result.fail(latchedFailure);
         }
         const metaRaw = await raw.readMeta();
         if (metaRaw === undefined) {
@@ -209,8 +199,8 @@ const vaultOver = (raw: RawStore): Vault => {
 
     commit: (previous, records) =>
       guarded(async () => {
-        if (unreadable !== undefined) {
-          return Result.fail(unreadable);
+        if (latchedFailure !== undefined) {
+          return Result.fail(latchedFailure);
         }
         const changed = changedSessionRecords(previous.records, records);
         const revision = previous.revision + 1;
@@ -228,12 +218,10 @@ const vaultOver = (raw: RawStore): Vault => {
   };
 };
 
-/** メモリに置いた保存先の中身。テストで生の値を仕込んだり、書き込みを失敗させたりする */
 export type MemoryStore = {
   meta: unknown;
   sessions: Map<SessionId, unknown>;
   unreadable: Map<string, UnreadableCopy>;
-  /** 書き込みのたびに投げる例外。保存先がいっぱいのときなどを再現する */
   failWrites: DOMException | undefined;
 };
 
@@ -246,7 +234,6 @@ export const MemoryStore = {
   }),
 } as const;
 
-/** IndexedDB と同じふるまいを、メモリの上で持つ保存先。同じ `store` を渡せば、タブ2つが1つの保存先を共有する */
 export const memoryVault = (store: MemoryStore = MemoryStore.empty()): Vault =>
   vaultOver({
     readMeta: async () => store.meta,
@@ -264,7 +251,7 @@ export const memoryVault = (store: MemoryStore = MemoryStore.empty()): Vault =>
       }
       store.meta = meta;
     },
-    keepUnreadable: async (key, copy) => {
+    keepFirstUnreadable: async (key, copy) => {
       if (!store.unreadable.has(key)) {
         store.unreadable.set(key, copy);
       }
@@ -383,7 +370,7 @@ export const indexedDbVault = (factory: IDBFactory | undefined): Vault => {
       }
     },
 
-    keepUnreadable: async (key, copy) => {
+    keepFirstUnreadable: async (key, copy) => {
       const { transaction, store: unreadable } = await store(UNREADABLE, "readwrite");
       const done = completed(transaction);
       const existing = unreadable.getKey(key);

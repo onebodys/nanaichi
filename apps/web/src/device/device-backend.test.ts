@@ -27,7 +27,7 @@ const serialLock = () => {
   };
 };
 
-/** BroadcastChannel と同じく、送ったタブ以外のすべてのタブに届ける */
+/** BroadcastChannel と同じく、送った口以外のすべての口に届ける */
 const channelHub = () => {
   const listeners = new Set<Readonly<{ tab: object; onData: (data: unknown) => void }>>();
   return (): SyncChannel => {
@@ -44,7 +44,6 @@ const channelHub = () => {
   };
 };
 
-/** 1つの保存先を共有するブラウザ。`openTab` でタブを開く */
 const browser = () => {
   const store = MemoryStore.empty();
   const exclusive = serialLock();
@@ -164,7 +163,6 @@ describe("この端末の記録先", () => {
     const { openTab, clock, store } = browser();
     await unwrap(openTab().startSession(eventId()));
     const before = { meta: store.meta, sessions: [...store.sessions.values()] };
-    // 自動終了の時刻を過ぎてから開始する。自動終了で閉じたあと、開始の途中で例外が出る
     clock.now += DAY;
     const tab = openTab({
       newSessionId: () => {
