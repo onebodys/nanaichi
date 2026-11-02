@@ -54,6 +54,16 @@ function Button({
   );
 }
 
-// shadcn/ui の元のコードは buttonVariants も export するが、まだ他のコンポーネントから使わないので
-// export しない（knip の未使用 export と Fast Refresh の警告を避ける）。要るようになったら戻す
-export { Button };
+/** ボタンの見た目のリンク。ページを移るものは `button` ではなく `a` にする（役割がリンクのまま伝わる） */
+function LinkButton({
+  className,
+  variant = "default",
+  size = "default",
+  ...props
+}: React.ComponentProps<"a"> & VariantProps<typeof buttonVariants>) {
+  return (
+    <a data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />
+  );
+}
+
+export { Button, LinkButton };

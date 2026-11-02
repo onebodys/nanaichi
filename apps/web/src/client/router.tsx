@@ -10,7 +10,7 @@ import * as v from "valibot";
 import type { Backend } from "../domain/backend.ts";
 import { STATS_PERIODS } from "../domain/stats.ts";
 import { attachedTagsKeyOf } from "./attached-tags.ts";
-import { authClient } from "./auth-client.ts";
+import { authClient, redirectToLogin } from "./auth-client.ts";
 import { BackendProvider } from "./backend.ts";
 import { ConsentPage } from "./consent-page.tsx";
 import { HomePage } from "./home-page.tsx";
@@ -38,11 +38,7 @@ const createBackendFor = async (recordStore: RecordStore): Promise<Backend> => {
       return createBrowserDeviceBackend();
     }
     case "Account":
-      return createRemoteBackend({
-        onSignedOut: () => {
-          window.location.href = "/login";
-        },
-      });
+      return createRemoteBackend({ onSignedOut: redirectToLogin });
   }
 };
 

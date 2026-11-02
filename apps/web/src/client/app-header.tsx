@@ -1,6 +1,6 @@
 import { ChartColumnIcon, SettingsIcon } from "lucide-react";
 import { signOut } from "./auth-client.ts";
-import { Button } from "./components/ui/button.tsx";
+import { Button, LinkButton } from "./components/ui/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,15 +37,9 @@ const AccountMenu = ({ name }: Readonly<{ name: string }>) => {
 
 /** 記録先がこの端末のあいだ出す。ログインすると同期でき、この端末の記録を引き継ぐ導線になる（ADR 0019） */
 const SignInLink = () => (
-  <Button
-    variant="outline"
-    size="lg"
-    className="rounded-[10px]"
-    nativeButton={false}
-    render={<a href="/login" />}
-  >
+  <LinkButton href="/login" variant="outline" size="lg" className="rounded-[10px]">
     ログインして同期
-  </Button>
+  </LinkButton>
 );
 
 /** 記録先ごとのヘッダー右端。アカウントなら名前のメニュー、この端末ならログインへの入口 */
