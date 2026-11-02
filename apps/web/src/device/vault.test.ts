@@ -183,7 +183,7 @@ describe("この端末の保存先（IndexedDB）", () => {
     expect(encoded(await unwrap(tabB.load(seen)))).toEqual(encoded(second));
   });
 
-  test("新しい版のアプリが IndexedDB の版を上げていたら NewerFormat で、開き直さない", async () => {
+  test("新しい版のアプリが IndexedDB の版を上げていたら 読みも書きもせず NewerFormat を返す", async () => {
     const factory = new IDBFactory();
     const newer = await database(factory, 2, (db) => {
       db.createObjectStore("records");
