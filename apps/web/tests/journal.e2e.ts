@@ -1,33 +1,12 @@
-/// <reference lib="dom" />
-// 時計の差し替えはページの中で動くので、ブラウザの型（DOM）を使う
 import { describe, test, type Browser } from "@e2e-dev/web";
 import { expect, type App, type Screen } from "e2e";
+import { advanceClock, installPageClock } from "./page-clock.ts";
 
 /** 開始のボタン。終了したあとは「次のセッションを開始」になる */
 const START_BUTTON = /^(次のセッションを)?開始$/;
 
-/**
- * ジャーナル記入とタイムライン（Issue #6）。
- *
- * ジャーナルのフェーズに入るのを7分待たずに確かめるため、tests/timer.e2e.ts と同じく
- * ページの時計（`Date.now`）を進められるようにする（docs/E2E.md「時間の経過・音・通知のテスト」）。
- */
-const installClock = () => {
-  if ("__advanceClock" in window) {
-    return;
-  }
-  const realNow = Date.now.bind(Date);
-  let shift = 0;
-  Date.now = () => realNow() + shift;
-  Object.assign(window, {
-    __advanceClock: (ms: number) => {
-      shift += ms;
-    },
-  });
-};
-
-const advanceClock = (browser: Browser, minutes: number) =>
-  browser.evaluate<null>(`(window.__advanceClock(${minutes * 60_000}), null)`);
+// ジャーナル記入とタイムライン（Issue #6）。ジャーナルのフェーズに入るのを7分待たずに確かめるため、
+// ページの時計（`Date.now`）を進める（tests/page-clock.ts）
 
 /** 前の実行のセッションが残っていれば終了しておき（docs/E2E.md）、セッションなしの画面を開く */
 const openWithoutSession = async (app: App, browser: Browser) => {
@@ -38,7 +17,7 @@ const openWithoutSession = async (app: App, browser: Browser) => {
     headers: { cookie, "content-type": "application/json" },
     body: JSON.stringify({ id: crypto.randomUUID(), kind: "End" }),
   });
-  await browser.addInitScript(installClock);
+  await browser.addInitScript(installPageClock);
   await app.open("/");
 };
 
