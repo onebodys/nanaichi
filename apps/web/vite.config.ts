@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { cloudflare } from "@cloudflare/vite-plugin";
+import { cloudflare, type WorkerConfig } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
@@ -22,14 +22,35 @@ const devServerOptions = () => {
   return { port: 5173, strictPort: true };
 };
 
+/**
+ * E2E のときだけ、ユーザーごとのレート制限（wrangler.jsonc の `ratelimits`、ADR 0018）を実質なくす。
+ *
+ * E2E は同じユーザーで画面を開き直し・操作し続けるので、10 秒 100 回の上限に当たって 429 で落ちる。
+ * `e2e.config.ts` が開発サーバーを起動するときに `E2E_RELAX_RATE_LIMIT=enabled` を渡す。
+ * 開発サーバー（`serve`）でだけ効かせ、ビルド（デプロイする Worker の設定）には決して入れない。
+ * 制限そのものは Workers のテスト（rate-limit.workers.test.ts）で確かめる。
+ */
+const relaxRateLimitForE2E =
+  (command: "build" | "serve") =>
+  (config: WorkerConfig): void => {
+    if (command !== "serve" || process.env["E2E_RELAX_RATE_LIMIT"] !== "enabled") {
+      return;
+    }
+    // プラグインは返した値を元の設定と配列ごと連結して合成する（defu）ので、返さずに置き換える
+    config.ratelimits = config.ratelimits.map((binding) => ({
+      ...binding,
+      simple: { ...binding.simple, limit: 1_000_000 },
+    }));
+  };
+
 // lint / fmt の設定はルートの vite.config.ts に集約している（Vite+ の monorepo の仕様）。
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, command }) => ({
   plugins: lazyPlugins(() => [
     // テストは Node 上で Hono を直接呼ぶので Worker ランタイムは要らない。
     // better-auth は node:async_hooks などを import するため、Cloudflare プラグインを
     // 入れたまま vitest を走らせると Node 組み込みモジュールの external 指定と衝突する。
     // （Workers ランタイムで動かすテストは vitest.workers.config.ts に分ける）
-    ...(mode === "test" ? [] : [cloudflare()]),
+    ...(mode === "test" ? [] : [cloudflare({ config: relaxRateLimitForE2E(command) })]),
     react(),
     tailwindcss(),
   ]),
