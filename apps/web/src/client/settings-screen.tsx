@@ -98,7 +98,7 @@ const ADVANCE_CHOICES = ["Auto", "Manual"] as const;
 
 /**
  * フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。
- * 記録先ごとの設定（ADR 0019）なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
+ * 変えるとセッションの途中でもすぐ効く
  */
 const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeState }>) => {
   const { view, errorMessage, change } = advanceMode;
@@ -379,7 +379,7 @@ const TagDeletionForm = ({
 
 /**
  * タグ（GLOSSARY の「タグの削除」、ADR 0017）。使っているタグとついている記入の数を出し、
- * 使わないタグを削除できる。タグは記録先の記録についているものなので「この端末」の印はつけない
+ * 使わないタグを削除できる
  */
 const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
   const { view, errorMessage, remove } = tagUsage;

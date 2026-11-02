@@ -23,13 +23,7 @@ const clientBannedImports = [
 const clientBannedMessage =
   "client は server / workflows に依存せず、device は device/index.ts だけを import する";
 
-/** `useRecordStore` を import してよい client のファイル（record-store.ts 自身は import しない） */
-const recordStoreReaders = [
-  "app-header.tsx",
-  "settings-screen.tsx",
-  "router.tsx",
-  "record-store.ts",
-];
+const recordStoreReaders = ["app-header.tsx", "settings-screen.tsx", "router.tsx"];
 
 export default defineConfig({
   // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）は検査しない
@@ -104,10 +98,8 @@ export default defineConfig({
           ),
         },
       },
-      // 記録先の出し分けは、ヘッダー・設定画面・ルーターだけに許す（ADR 0019）。データを読み書きする側が分岐すると、
-      // 記録先ごとに挙動が分かれてしまう。`paths` は `./record-store.ts` や `@/client/record-store` を見逃すので `patterns` で書く。
-      // 後の `files` の上書きは前の no-restricted-imports を置き換えるので、client の禁止は各ブロックで繰り返す。
-      // `files` の否定（`!`）は「それ以外すべて」に当たってしまうので、許すファイルを後のブロックで上書きする
+      // `paths` は `./record-store.ts` や `@/client/record-store` を見逃すので `patterns` で書く。
+      // 後の `files` の上書きは前の no-restricted-imports を置き換えるので、client の禁止は各ブロックで繰り返す
       {
         files: [`${web}/client/**`],
         rules: {

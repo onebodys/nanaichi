@@ -4,7 +4,6 @@ import { authClient } from "./auth-client.ts";
 
 /**
  * いまの記録先（GLOSSARY の「記録先」、ADR 0019）。ログインしていなければこの端末、していればアカウント。
- * 画面が出し分けるのは、ヘッダーと設定画面のアカウントの欄だけ。データを読み書きする側は `Backend` だけを見る
  */
 export type RecordStore =
   | Readonly<{ kind: "Device" }>

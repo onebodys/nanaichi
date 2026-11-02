@@ -73,7 +73,6 @@ export const HomePage = ({
   settings,
   stats,
 }: Readonly<{
-  /** つけたままのタグを覚えるキー。記録先ごとに分ける（attached-tags.ts） */
   attachedTagsKey: AttachedTagsKey;
   /** 設定画面を重ねて開いているか。開閉は URL（`?settings=open`）で持ち、ブラウザの戻るで閉じられる */
   settings: Readonly<{ open: boolean; show: () => void; close: () => void }>;

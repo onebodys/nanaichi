@@ -24,7 +24,6 @@ import {
 import { RecordStoreUnknownPage } from "./record-store-unknown-page.tsx";
 import { createRemoteBackend } from "./remote-backend.ts";
 
-/** ホームを開く準備の結果。記録先と、その記録先の `Backend` */
 type HomeSetup = Result.Result<
   Readonly<{ recordStore: RecordStore; backend: Backend }>,
   RecordStoreUnknown
@@ -33,7 +32,6 @@ type HomeSetup = Result.Result<
 const createBackendFor = async (recordStore: RecordStore): Promise<Backend> => {
   switch (recordStore.kind) {
     case "Device": {
-      // ログインして使う人に、この端末の記録の読み書き（workflows）を配信しないよう、必要なときに読み込む
       const { createBrowserDeviceBackend } = await import("../device/index.ts");
       return createBrowserDeviceBackend();
     }
@@ -129,7 +127,6 @@ const homeRoute = createRoute({
     const parsed = v.safeParse(HomeSearchSchema, search);
     return parsed.success ? parsed.output : {};
   },
-  // ログインしていなくても開ける（記録先はこの端末になる、ADR 0019）。アカウントの記録の保護はサーバー側の /api/* ミドルウェア。
   beforeLoad: async () => ({ setup: await setupHome() }),
   component: () => {
     const { settings, stats } = homeRoute.useSearch();

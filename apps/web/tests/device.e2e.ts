@@ -2,14 +2,9 @@ import { describe, test } from "@e2e-dev/web";
 import { expect } from "e2e";
 import { advanceClock, installPageClock } from "./page-clock.ts";
 
-/** 開始のボタン。終了したあとは「次のセッションを開始」になる */
 const START_BUTTON = /^(次のセッションを)?開始$/;
 
-/**
- * ログインしないで使う（Issue #85、ADR 0019）。記録先はこの端末で、記録はこのブラウザの IndexedDB に残る。
- * テストごとにブラウザの保存先は空から始まるので、前の実行の記録は混ざらない。
- * この端末の記録先には同期の WebSocket がないので、ページの時計は通信の落ち着きだけを待って進める。
- */
+/** テストごとにブラウザの保存先は空から始まるので、前の実行の記録は混ざらない */
 describe("ログインしないで使う", () => {
   test("ログインしていなくてもホームにタイマーが表示され、ヘッダーのログインして同期からログイン画面へ進める", async ({
     app,
@@ -48,7 +43,6 @@ describe("ログインしないで使う", () => {
     await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 
-    // 集中を最後まで終えると完了セットになり、ジャーナルのフェーズに入る
     await advanceClock(browser, 7, { socket: false });
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
 
@@ -112,7 +106,6 @@ describe("ログインしないで使う", () => {
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     await advanceClock(browser, 3, { socket: false });
 
-    // 読み込み直すとページの時計は進める前に戻るが、この端末の記録より前の時刻は記録しない
     await browser.reload();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
     await screen.getByRole("button", { name: "一時停止" }).tap();

@@ -35,14 +35,12 @@ const AccountMenu = ({ name }: Readonly<{ name: string }>) => {
   );
 };
 
-/** 記録先がこの端末のあいだ出す。ログインすると同期でき、この端末の記録を引き継ぐ導線になる（ADR 0019） */
 const SignInLink = () => (
   <LinkButton href="/login" variant="outline" size="lg" className="rounded-[10px]">
     ログインして同期
   </LinkButton>
 );
 
-/** 記録先ごとのヘッダー右端。アカウントなら名前のメニュー、この端末ならログインへの入口 */
 const AccountEntry = () => {
   const recordStore = useRecordStore();
   switch (recordStore.kind) {

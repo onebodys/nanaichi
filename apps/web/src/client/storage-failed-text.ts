@@ -2,7 +2,7 @@ import type { BackendError } from "../domain/backend.ts";
 
 type StorageFailure = Extract<BackendError, { kind: "StorageFailed" }>;
 
-/** この端末に保存できなかったときの文言（ADR 0019）。ログインすれば記録を残せるので、そこへ案内する */
+/** この端末に保存できなかったときの文言（ADR 0019） */
 export const storageFailedMessageOf = ({ reason }: StorageFailure): string => {
   switch (reason) {
     case "QuotaExceeded":
