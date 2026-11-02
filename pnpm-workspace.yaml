@@ -27,6 +27,7 @@ catalog:
   class-variance-authority: 0.7.1
   clsx: 2.1.1
   e2e: 0.21.2
+  fake-indexeddb: 6.2.7
   hono: 4.13.13
   jose: 6.2.13
   knip: 6.42.1
