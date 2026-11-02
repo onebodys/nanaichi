@@ -20,16 +20,10 @@ import type { DeletedTag, TagList, TagUsageList } from "../domain/tag.ts";
 import { TaggedEntries, type TaggedEntriesPageJson } from "../domain/tagged-entries.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
-import {
-  changeAdvanceMode,
-  type ChangeAdvanceModeError,
-} from "../workflows/change-advance-mode.ts";
-import {
-  deleteJournalEntry,
-  type DeleteJournalEntryError,
-} from "../workflows/delete-journal-entry.ts";
-import { deleteTag, type DeleteTagError } from "../workflows/delete-tag.ts";
-import { editJournalEntry, type EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
+import type { ChangeAdvanceModeError } from "../workflows/change-advance-mode.ts";
+import type { DeleteJournalEntryError } from "../workflows/delete-journal-entry.ts";
+import type { DeleteTagError } from "../workflows/delete-tag.ts";
+import type { EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
 import { getAdvanceMode } from "../workflows/get-advance-mode.ts";
 import { getCurrentSession } from "../workflows/get-current-session.ts";
 import { getJournalPeriod, type GetJournalPeriodError } from "../workflows/get-journal-period.ts";
@@ -46,12 +40,19 @@ import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTagUsage } from "../workflows/get-tag-usage.ts";
 import { getTags } from "../workflows/get-tags.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
-import { operateSession, type OperateSessionError } from "../workflows/operate-session.ts";
-import { startSession, type StartSessionError } from "../workflows/start-session.ts";
+import type { OperateSessionError } from "../workflows/operate-session.ts";
+import type { StartSessionError } from "../workflows/start-session.ts";
 import {
-  writeJournalEntry,
-  type WriteJournalEntryError,
-} from "../workflows/write-journal-entry.ts";
+  changeAdvanceModeCommand,
+  deleteJournalEntryCommand,
+  deleteTagCommand,
+  editJournalEntryCommand,
+  operateSessionCommand,
+  startSessionCommand,
+  writeJournalEntryCommand,
+  type Executed,
+} from "../workflows/user-commands.ts";
+import type { WriteJournalEntryError } from "../workflows/write-journal-entry.ts";
 import { journalSqlite, type JournalSqlite } from "./journal-sqlite.ts";
 import { sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
 import { statsSqlite } from "./stats-sqlite.ts";
@@ -103,14 +104,12 @@ export class UserDO extends DurableObject<Env> {
 
   /** `POST /api/session`。`raw` はリクエストの本文で、検証はワークフローが行う */
   async startSession(raw: unknown): Promise<Result.Result<SessionSnapshot, StartSessionError>> {
-    const result = await this.#run((now) => startSession(this.#sessions)(raw, now, newSessionId()));
-    return Result.pipe(result, Result.inspect(this.#broadcastSessionChanged));
+    return this.#execute((now) => startSessionCommand(this.#sessions)(raw, now, newSessionId()));
   }
 
   /** `POST /api/session/commands`。`raw` はリクエストの本文で、検証はワークフローが行う */
   async operateSession(raw: unknown): Promise<Result.Result<SessionSnapshot, OperateSessionError>> {
-    const result = await this.#run((now) => operateSession(this.#sessions)(raw, now));
-    return Result.pipe(result, Result.inspect(this.#broadcastSessionChanged));
+    return this.#execute((now) => operateSessionCommand(this.#sessions)(raw, now));
   }
 
   // 記入の本文は `Sensitive` に包まれていて RPC で送れない（関数を含む）ため、
@@ -120,23 +119,10 @@ export class UserDO extends DurableObject<Env> {
   async writeJournalEntry(
     raw: unknown,
   ): Promise<Result.Result<JournalEntryJson, WriteJournalEntryError>> {
-    const result = await this.#run((now) =>
-      Result.pipe(
-        writeJournalEntry({ ...this.#sessions, ...this.#journal })(raw, now),
-        // 記入で自動終了の時刻が延びるので、新しいスナップショットもあわせて送る（ADR 0012）
-        Result.map((entry) => ({ entry, snapshot: getCurrentSession(this.#sessions)(now) })),
-      ),
+    const result = await this.#execute((now) =>
+      writeJournalEntryCommand({ ...this.#sessions, ...this.#journal })(raw, now),
     );
-    return Result.pipe(
-      result,
-      Result.inspect(({ entry, snapshot }) =>
-        this.#broadcast([
-          { kind: "JournalEntrySaved", entry },
-          { kind: "SessionChanged", snapshot },
-        ]),
-      ),
-      Result.map(({ entry }) => JournalEntry.toJson(entry)),
-    );
+    return Result.pipe(result, Result.map(JournalEntry.toJson));
   }
 
   /** `PATCH /api/journal-entries/:id` */
@@ -144,23 +130,17 @@ export class UserDO extends DurableObject<Env> {
     rawId: unknown,
     raw: unknown,
   ): Promise<Result.Result<JournalEntryJson, EditJournalEntryError>> {
-    const result = await this.#run((now) => editJournalEntry(this.#journal)(rawId, raw, now));
-    return Result.pipe(
-      result,
-      Result.inspect((entry) => this.#broadcast([{ kind: "JournalEntrySaved", entry }])),
-      Result.map(JournalEntry.toJson),
+    const result = await this.#execute((now) =>
+      editJournalEntryCommand(this.#journal)(rawId, raw, now),
     );
+    return Result.pipe(result, Result.map(JournalEntry.toJson));
   }
 
   /** `DELETE /api/journal-entries/:id` */
   async deleteJournalEntry(
     rawId: unknown,
   ): Promise<Result.Result<DeletedJournalEntry, DeleteJournalEntryError>> {
-    const result = await this.#run((now) => deleteJournalEntry(this.#journal)(rawId, now));
-    return Result.pipe(
-      result,
-      Result.inspect((deleted) => this.#broadcast([{ kind: "JournalEntryDeleted", deleted }])),
-    );
+    return this.#execute((now) => deleteJournalEntryCommand(this.#journal)(rawId, now));
   }
 
   /** `GET /api/timeline?before=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
@@ -200,11 +180,7 @@ export class UserDO extends DurableObject<Env> {
     rawName: unknown,
     raw: unknown,
   ): Promise<Result.Result<DeletedTag, DeleteTagError>> {
-    const result = await this.#run(() => deleteTag(this.#journal)(rawName, raw));
-    return Result.pipe(
-      result,
-      Result.inspect((deleted) => this.#broadcast([{ kind: "TagDeleted", deleted }])),
-    );
+    return this.#execute(() => deleteTagCommand(this.#journal)(rawName, raw));
   }
 
   /** `GET /api/stats?period=&timeZone=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
@@ -252,22 +228,7 @@ export class UserDO extends DurableObject<Env> {
   async changeAdvanceMode(
     raw: unknown,
   ): Promise<Result.Result<AdvanceMode, ChangeAdvanceModeError>> {
-    const result = await this.#run((now) => changeAdvanceMode(this.#sessions)(raw, now));
-    return Result.pipe(
-      result,
-      Result.inspect((changed) => {
-        if (changed.kind === "Unchanged") {
-          return;
-        }
-        this.#broadcast([
-          { kind: "AdvanceModeChanged", mode: changed.mode },
-          ...(changed.snapshot.kind === "Session"
-            ? [{ kind: "SessionChanged", snapshot: changed.snapshot } as const]
-            : []),
-        ]);
-      }),
-      Result.map(({ mode }) => mode),
-    );
+    return this.#execute((now) => changeAdvanceModeCommand(this.#sessions)(raw, now));
   }
 
   /**
@@ -295,8 +256,16 @@ export class UserDO extends DurableObject<Env> {
     return result;
   }
 
-  readonly #broadcastSessionChanged = (snapshot: SessionSnapshot): void =>
-    this.#broadcast([{ kind: "SessionChanged", snapshot }]);
+  async #execute<T, E>(
+    command: (now: Date) => Result.Result<Executed<T>, E>,
+  ): Promise<Result.Result<T, E>> {
+    const result = await this.#run(command);
+    return Result.pipe(
+      result,
+      Result.inspect(({ messages }) => this.#broadcast(messages)),
+      Result.map(({ value }) => value),
+    );
+  }
 
   /** 同期メッセージを、このユーザーのすべての接続へ送る（ADR 0012） */
   #broadcast(messages: ReadonlyArray<SyncMessage>): void {

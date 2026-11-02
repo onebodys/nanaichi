@@ -1,14 +1,8 @@
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { Result } from "@praha/byethrow";
-import type { ApiErrorBody } from "../domain/api-error.ts";
-import type { DeleteJournalEntryError } from "../workflows/delete-journal-entry.ts";
-import type { DeleteTagError } from "../workflows/delete-tag.ts";
-import type { EditJournalEntryError } from "../workflows/edit-journal-entry.ts";
-import type { GetTimelineError } from "../workflows/get-timeline.ts";
-import type { OperateSessionError } from "../workflows/operate-session.ts";
-import type { StartSessionError } from "../workflows/start-session.ts";
-import type { WriteJournalEntryError } from "../workflows/write-journal-entry.ts";
+import type { ApiErrorBody, ApiErrorCode } from "../domain/api-error.ts";
+import { rejectionCodeOf, type WorkflowError } from "../workflows/rejection-code.ts";
 import { sessionOf, type AppEnv } from "./hono-context.ts";
 import { describeIssuePaths } from "./validation-error.ts";
 
@@ -19,44 +13,56 @@ export const userDOOf = (c: Context<AppEnv>) => c.env.USER_DO.getByName(sessionO
 export const bodyOf = async (c: Context<AppEnv>): Promise<unknown> =>
   c.req.json<unknown>().catch(() => undefined);
 
-type WorkflowError =
-  | StartSessionError
-  | OperateSessionError
-  | WriteJournalEntryError
-  | EditJournalEntryError
-  | DeleteJournalEntryError
-  | DeleteTagError
-  | GetTimelineError;
+const statusOf = (code: ApiErrorCode): ContentfulStatusCode => {
+  switch (code) {
+    case "INVALID_REQUEST":
+      return 400;
+    case "UNAUTHENTICATED":
+      return 401;
+    case "EMAIL_NOT_ALLOWED":
+    case "CROSS_ORIGIN_REJECTED":
+      return 403;
+    case "JOURNAL_ENTRY_NOT_FOUND":
+    case "TAG_NOT_FOUND":
+      return 404;
+    case "SESSION_ALREADY_IN_PROGRESS":
+    case "NO_SESSION_IN_PROGRESS":
+    case "OPERATION_REJECTED":
+    case "EVENT_ID_CONFLICT":
+    case "TAG_LIMIT_EXCEEDED":
+      return 409;
+    case "WEBSOCKET_UPGRADE_REQUIRED":
+      return 426;
+    case "RATE_LIMITED":
+      return 429;
+  }
+};
 
-/** 想定内の失敗を HTTP の応答にする。どれもクライアントが直せる失敗なので 4xx */
-const errorResponseOf = (
-  error: WorkflowError,
-): Readonly<{ status: ContentfulStatusCode; body: ApiErrorBody }> => {
+const extrasOf = (error: WorkflowError): Omit<ApiErrorBody, "error"> => {
   switch (error.kind) {
     case "ValidationError":
       // 入力値はレスポンスに含めず、どの項目が不正かだけを返す（ジャーナル記入の本文は PII）
-      return { status: 400, body: { error: "INVALID_REQUEST", paths: describeIssuePaths(error) } };
-    case "SessionAlreadyInProgress":
-      return { status: 409, body: { error: "SESSION_ALREADY_IN_PROGRESS" } };
-    case "NoSessionInProgress":
-      return { status: 409, body: { error: "NO_SESSION_IN_PROGRESS" } };
-    case "OperationRejected":
-      return {
-        status: 409,
-        body: { error: "OPERATION_REJECTED", operation: error.operation, during: error.during },
-      };
-    case "EventIdConflict":
-      return { status: 409, body: { error: "EVENT_ID_CONFLICT" } };
-    case "TagLimitExceeded":
-      return { status: 409, body: { error: "TAG_LIMIT_EXCEEDED", limit: error.limit } };
-    case "JournalEntryNotFound":
-      return { status: 404, body: { error: "JOURNAL_ENTRY_NOT_FOUND" } };
-    case "TagNotFound":
-      return { status: 404, body: { error: "TAG_NOT_FOUND" } };
+      return { paths: describeIssuePaths(error) };
     case "ReassignToSameTag":
-      // 付け替え先の指定が不正。入力の検証と同じく、どの項目かだけを返す
-      return { status: 400, body: { error: "INVALID_REQUEST", paths: ["to"] } };
+      return { paths: ["to"] };
+    case "OperationRejected":
+      return { operation: error.operation, during: error.during };
+    case "TagLimitExceeded":
+      return { limit: error.limit };
+    case "SessionAlreadyInProgress":
+    case "NoSessionInProgress":
+    case "EventIdConflict":
+    case "JournalEntryNotFound":
+    case "TagNotFound":
+      return {};
   }
+};
+
+const errorResponseOf = (
+  error: WorkflowError,
+): Readonly<{ status: ContentfulStatusCode; body: ApiErrorBody }> => {
+  const code = rejectionCodeOf(error);
+  return { status: statusOf(code), body: { error: code, ...extrasOf(error) } };
 };
 
 // DO の RPC を通ると型が直列化できる形に写される（タプルが配列になるなど）ため、
