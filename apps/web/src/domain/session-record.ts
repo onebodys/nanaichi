@@ -152,3 +152,25 @@ export const SessionRecord = {
     }),
   }),
 } as const;
+
+/**
+ * 閉じたセッションの記録だけを受け取る（取り込み、ADR 0020）。開いているセッションと、
+ * 終わった時刻が始めた時刻より前のセッションは検証に失敗する
+ */
+export const ClosedSessionRecordJsonSchema: v.GenericSchema<unknown, ClosedSession> = v.pipe(
+  SessionRecordJsonSchema,
+  v.rawTransform(({ dataset, addIssue, NEVER }): ClosedSession => {
+    const record = dataset.value;
+    switch (record.kind) {
+      case "Open":
+        addIssue({ message: "閉じていないセッションは取り込めない", path: undefined });
+        return NEVER;
+      case "Closed":
+        return record.session;
+    }
+  }),
+  v.check(
+    (session) => session.endedAt.getTime() >= session.events[0].at.getTime(),
+    "終わった時刻が始めた時刻より前",
+  ),
+);
