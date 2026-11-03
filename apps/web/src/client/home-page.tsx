@@ -12,6 +12,7 @@ import { StatsScreen } from "./stats-screen.tsx";
 import { TimelinePanel } from "./timeline-panel.tsx";
 import { TimerPanel } from "./timer-panel.tsx";
 import { useAdvanceMode } from "./use-advance-mode.ts";
+import type { AttachedTagsKey } from "./attached-tags.ts";
 import { applyTagDeletionToAttached } from "./use-attached-tags.ts";
 import { useSessionTimer, type TimerView } from "./use-session-timer.ts";
 import { deviceTimeZone, useStats, type StatsView } from "./use-stats.ts";
@@ -68,9 +69,11 @@ const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
  * スマホは上にタイマーのカード、その下に入力欄とタイムラインを縦に並べる。
  */
 export const HomePage = ({
+  attachedTagsKey,
   settings,
   stats,
 }: Readonly<{
+  attachedTagsKey: AttachedTagsKey;
   /** 設定画面を重ねて開いているか。開閉は URL（`?settings=open`）で持ち、ブラウザの戻るで閉じられる */
   settings: Readonly<{ open: boolean; show: () => void; close: () => void }>;
   /** スタッツを重ねて開いているなら、その期間（`?stats=<期間>`）。開いていなければ `undefined` */
@@ -94,10 +97,10 @@ export const HomePage = ({
   // 削除したタグは、読み込んだ記入とこの端末でつけたままのタグからも外す（ADR 0017）
   const tagUsage = useTagUsage(settings.open, (deleted) => {
     timeline.receiveTagDeletion(deleted);
-    applyTagDeletionToAttached(deleted);
+    applyTagDeletionToAttached(attachedTagsKey, deleted);
     tags.refresh();
   });
-  useSync({ timer, timeline, tags, tagUsage, advanceMode });
+  useSync({ timer, timeline, tags, tagUsage, advanceMode, attachedTagsKey });
   // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
   const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
   const todayStats = useStats("Today", statsRefreshKey);
@@ -135,6 +138,7 @@ export const HomePage = ({
           <main className="flex flex-1 flex-col gap-6 lg:min-h-0 lg:gap-0">
             <div className="flex max-w-[760px] flex-col gap-2 px-4 lg:shrink-0 lg:px-12 lg:pt-8 lg:pb-5">
               <JournalInput
+                attachedTagsKey={attachedTagsKey}
                 sessionId={timer.view.kind === "InSession" ? timer.session?.id : undefined}
                 knownTags={tags.known}
                 write={timeline.write}

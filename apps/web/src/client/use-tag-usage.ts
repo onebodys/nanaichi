@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { DeletedTag, TagDeletion, TagName, TagUsage } from "../domain/tag.ts";
 import type { BackendError } from "../domain/backend.ts";
+import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
 
 /** 設定画面のタグの一覧の読み込みの様子 */
@@ -20,7 +21,7 @@ const messageOf = (error: BackendError): string => {
         ? "そのタグはもう使われていません。一覧を読み込み直しました。"
         : "削除できませんでした。";
     case "StorageFailed":
-      return "この端末に記録を保存できませんでした。";
+      return storageFailedMessageOf(error);
     case "Broken":
       return "削除できませんでした。";
   }

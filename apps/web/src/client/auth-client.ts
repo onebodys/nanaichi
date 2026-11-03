@@ -11,8 +11,21 @@ import { createAuthClient } from "better-auth/react";
  */
 export const authClient = createAuthClient({ plugins: [oauthProviderClient()] });
 
-/** ログアウトする。セッションが無くなるので、ルートの beforeLoad がログイン画面へ送る */
+let signingOut = false;
+
+/** ログアウトする。ログインしていない状態でも使えるので、ホームに戻り、この端末の記録を開く（ADR 0019） */
 export const signOut = async () => {
+  signingOut = true;
   await authClient.signOut();
-  window.location.href = "/login";
+  window.location.href = "/";
+};
+
+/**
+ * ログインが切れていたとき（API が `UNAUTHENTICATED` を返したとき）にログイン画面へ送る。
+ * ログアウトの最中に飛んでいた通信の失敗で、ログアウトの移動先（`/`）を上書きしない
+ */
+export const redirectToLogin = () => {
+  if (!signingOut) {
+    window.location.href = "/login";
+  }
 };

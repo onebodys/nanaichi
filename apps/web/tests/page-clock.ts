@@ -53,13 +53,13 @@ export const installPageClock = () => {
   let shift = 0;
   Date.now = () => realNow() + shift;
 
-  const settled = () => openSockets > 0 && inFlight === 0;
+  const settled = (needsSocket: boolean) => (!needsSocket || openSockets > 0) && inFlight === 0;
   Object.assign(window, {
-    __advanceClock: async (ms: number) => {
+    __advanceClock: async (ms: number, needsSocket: boolean) => {
       // 繋がった直後の読み込みが始まる余地を残すため、落ち着いた状態が少し続くのを待つ
       let quietSince: number | undefined;
       while (quietSince === undefined || realNow() - quietSince < 200) {
-        if (!settled()) {
+        if (!settled(needsSocket)) {
           quietSince = undefined;
         } else if (quietSince === undefined) {
           quietSince = realNow();
@@ -71,6 +71,13 @@ export const installPageClock = () => {
   });
 };
 
-/** ページの時計を `minutes` 分進める。同期の WebSocket が繋がり、通信が落ち着くのを待ってから進める */
-export const advanceClock = (browser: Browser, minutes: number) =>
-  browser.evaluate<null>(`window.__advanceClock(${minutes * 60_000}).then(() => null)`);
+/**
+ * ページの時計を `minutes` 分進める。同期の WebSocket が繋がり、通信が落ち着くのを待ってから進める。
+ * この端末の記録先には同期の WebSocket がない（ADR 0019）ので、その画面では `{ socket: false }` を渡し、通信が落ち着くのだけを待つ
+ */
+export const advanceClock = (
+  browser: Browser,
+  minutes: number,
+  { socket }: Readonly<{ socket: boolean }> = { socket: true },
+) =>
+  browser.evaluate<null>(`window.__advanceClock(${minutes * 60_000}, ${socket}).then(() => null)`);

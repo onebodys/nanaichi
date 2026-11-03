@@ -16,14 +16,15 @@ test(
 );
 
 test(
-  "ログアウトするとログイン画面に移る",
+  "ログアウトすると、ホームに戻りこの端末の記録のタイマーが表示される",
   { session: "signedInToSignOut" },
   async ({ app, browser, screen }) => {
     await app.open("/");
     await screen.getByRole("button", { name: "アカウント" }).tap();
     await screen.getByRole("menuitem", { name: "ログアウト" }).tap();
-    await expect(browser).toHaveURL("/login");
-    await expect(screen.getByRole("button", { name: "Google でログイン" })).toBeVisible();
+    await expect(browser).toHaveURL("/");
+    await expect(screen.getByRole("link", { name: "ログインして同期" })).toBeVisible();
+    await expect(screen.getByRole("button", { name: "開始" })).toBeVisible();
   },
 );
 

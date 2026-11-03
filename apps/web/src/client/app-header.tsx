@@ -1,6 +1,6 @@
 import { ChartColumnIcon, SettingsIcon } from "lucide-react";
-import { authClient, signOut } from "./auth-client.ts";
-import { Button } from "./components/ui/button.tsx";
+import { signOut } from "./auth-client.ts";
+import { Button, LinkButton } from "./components/ui/button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,14 +12,10 @@ import {
 } from "./components/ui/dropdown-menu.tsx";
 import { todayFocusOf, type TodayFocus } from "./focus-time-text.ts";
 import { LogoMark } from "./logo-mark.tsx";
+import { useRecordStore } from "./record-store.ts";
 
 /** アカウントのメニュー。名前の頭文字のボタンから開き、ログアウトできる */
-const AccountMenu = () => {
-  const { data: session, isPending } = authClient.useSession();
-  if (isPending || session === null) {
-    return <p className="text-sm text-muted-foreground">読み込み中…</p>;
-  }
-  const { name } = session.user;
+const AccountMenu = ({ name }: Readonly<{ name: string }>) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -37,6 +33,22 @@ const AccountMenu = () => {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+};
+
+const SignInLink = () => (
+  <LinkButton href="/login" variant="outline" size="lg" className="rounded-[10px]">
+    ログインして同期
+  </LinkButton>
+);
+
+const AccountEntry = () => {
+  const recordStore = useRecordStore();
+  switch (recordStore.kind) {
+    case "Device":
+      return <SignInLink />;
+    case "Account":
+      return <AccountMenu name={recordStore.user.name} />;
+  }
 };
 
 /**
@@ -63,7 +75,7 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
 };
 
 /**
- * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、スタッツと設定画面を開くボタン、アカウントのメニュー。
+ * 画面上部のヘッダー（Issue #34 の A 案）。左にロゴ、右に今日の集中時間、スタッツと設定画面を開くボタン、アカウントのメニュー（この端末のあいだはログインへの入口）。
  */
 export const AppHeader = ({
   today,
@@ -97,7 +109,7 @@ export const AppHeader = ({
         >
           <SettingsIcon className="size-[18px]" />
         </Button>
-        <AccountMenu />
+        <AccountEntry />
       </div>
     </div>
   </header>

@@ -19,6 +19,7 @@ import {
   submitKeyLabelOf,
 } from "./submit-key.ts";
 import { TagInput } from "./tag-input.tsx";
+import type { AttachedTagsKey } from "./attached-tags.ts";
 import { useAttachedTags } from "./use-attached-tags.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
 
@@ -41,12 +42,14 @@ const submitKeyItems = SubmitKeySchema.options.map((option) => ({
  * ジャーナルのフェーズのあいだは、書く時間だとわかるよう入力欄の枠をジャーナルの色にする（Issue #34 の A 案）。
  */
 export const JournalInput = ({
+  attachedTagsKey,
   sessionId,
   knownTags,
   write,
   textareaRef,
   inJournalPhase,
 }: Readonly<{
+  attachedTagsKey: AttachedTagsKey;
   /** 進行中のセッション。なければ（終了したあとも）書けない */
   sessionId: SessionId | undefined;
   /** 使っているタグ（入力の候補） */
@@ -61,7 +64,7 @@ export const JournalInput = ({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [submitKey, setSubmitKey] = useSubmitKey();
-  const [attachedTags, setAttachedTags] = useAttachedTags(sessionId);
+  const [attachedTags, setAttachedTags] = useAttachedTags(attachedTagsKey, sessionId);
   const inSession = sessionId !== undefined;
   const canSend = inSession && !sending && draft.trim().length > 0;
 

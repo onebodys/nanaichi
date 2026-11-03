@@ -20,6 +20,24 @@ export type AttachedTags = v.InferOutput<typeof AttachedTagsSchema>;
 
 const NONE: AttachedTags = { kind: "Prepared", tags: [] };
 
+/**
+ * 覚える localStorage のキー。記録先（GLOSSARY）ごとに分ける。覚えた値にはセッションの ID が入るので、
+ * この端末の記録先とアカウントで共有すると、互いのセッションを「終わったもの」として外し合う（ADR 0019）。
+ * アカウントのキーは、ログインして使っている人の既存の値を引き継ぐため変えない
+ */
+export type AttachedTagsKey = "nanaichi:attached-tags" | "nanaichi:attached-tags:device";
+
+export const attachedTagsKeyOf = (
+  recordStore: Readonly<{ kind: "Device" | "Account" }>,
+): AttachedTagsKey => {
+  switch (recordStore.kind) {
+    case "Device":
+      return "nanaichi:attached-tags:device";
+    case "Account":
+      return "nanaichi:attached-tags";
+  }
+};
+
 /** localStorage に覚えている値（文字列）を読む。読めなければ何もついていない */
 export const parseAttachedTags = (stored: string | null): AttachedTags => {
   if (stored === null) {

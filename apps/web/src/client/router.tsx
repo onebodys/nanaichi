@@ -5,20 +5,56 @@ import {
   Outlet,
   redirect,
 } from "@tanstack/react-router";
+import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import type { Backend } from "../domain/backend.ts";
 import { STATS_PERIODS } from "../domain/stats.ts";
-import { authClient } from "./auth-client.ts";
+import { attachedTagsKeyOf } from "./attached-tags.ts";
+import { authClient, redirectToLogin } from "./auth-client.ts";
 import { BackendProvider } from "./backend.ts";
 import { ConsentPage } from "./consent-page.tsx";
 import { HomePage } from "./home-page.tsx";
 import { LoginPage } from "./login-page.tsx";
+import {
+  RecordStoreProvider,
+  resolveRecordStore,
+  type RecordStore,
+  type RecordStoreUnknown,
+} from "./record-store.ts";
+import { RecordStoreUnknownPage } from "./record-store-unknown-page.tsx";
 import { createRemoteBackend } from "./remote-backend.ts";
 
-const backend = createRemoteBackend({
-  onSignedOut: () => {
-    window.location.href = "/login";
-  },
-});
+type HomeSetup = Result.Result<
+  Readonly<{ recordStore: RecordStore; backend: Backend }>,
+  RecordStoreUnknown
+>;
+
+const createBackendFor = async (recordStore: RecordStore): Promise<Backend> => {
+  switch (recordStore.kind) {
+    case "Device": {
+      const { createBrowserDeviceBackend } = await import("../device/index.ts");
+      return createBrowserDeviceBackend();
+    }
+    case "Account":
+      return createRemoteBackend({ onSignedOut: redirectToLogin });
+  }
+};
+
+const prepareHome = async (): Promise<HomeSetup> => {
+  const resolved = await resolveRecordStore();
+  if (Result.isFailure(resolved)) {
+    return resolved;
+  }
+  const recordStore = resolved.value;
+  return Result.succeed({ recordStore, backend: await createBackendFor(recordStore) });
+};
+
+/**
+ * 記録先は読み込みごとに1度だけ決める。ルートの beforeLoad は設定画面を開くなどの URL の変更でも走るが、
+ * そのたびに `Backend`（端末の記録なら同期の窓口）を作り直さない
+ */
+let homeSetup: Promise<HomeSetup> | undefined;
+const setupHome = (): Promise<HomeSetup> => (homeSetup ??= prepareHome());
 
 const rootRoute = createRootRoute({ component: Outlet });
 
@@ -91,35 +127,37 @@ const homeRoute = createRoute({
     const parsed = v.safeParse(HomeSearchSchema, search);
     return parsed.success ? parsed.output : {};
   },
-  // 画面の出し分けだけを行う。実際の保護はサーバー側の /api/* ミドルウェア。
-  beforeLoad: async () => {
-    const { data } = await authClient.getSession();
-    if (data === null) {
-      throw redirect({ to: "/login" });
-    }
-  },
+  beforeLoad: async () => ({ setup: await setupHome() }),
   component: () => {
     const { settings, stats } = homeRoute.useSearch();
+    const { setup } = homeRoute.useRouteContext();
     const navigate = homeRoute.useNavigate();
+    if (Result.isFailure(setup)) {
+      return <RecordStoreUnknownPage />;
+    }
+    const { recordStore, backend } = setup.value;
     // 閉じた画面に戻るで戻らないよう、履歴を置き換える
     const close = () => void navigate({ search: {}, replace: true });
     return (
-      <BackendProvider backend={backend}>
-        <HomePage
-          settings={{
-            open: settings === "open",
-            show: () => void navigate({ search: { settings: "open" } }),
-            close,
-          }}
-          stats={{
-            period: stats,
-            // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
-            show: () => void navigate({ search: { stats: "Week" } }),
-            changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
-            close,
-          }}
-        />
-      </BackendProvider>
+      <RecordStoreProvider recordStore={recordStore}>
+        <BackendProvider backend={backend}>
+          <HomePage
+            attachedTagsKey={attachedTagsKeyOf(recordStore)}
+            settings={{
+              open: settings === "open",
+              show: () => void navigate({ search: { settings: "open" } }),
+              close,
+            }}
+            stats={{
+              period: stats,
+              // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
+              show: () => void navigate({ search: { stats: "Week" } }),
+              changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
+              close,
+            }}
+          />
+        </BackendProvider>
+      </RecordStoreProvider>
     );
   },
 });

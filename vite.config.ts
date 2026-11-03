@@ -1,6 +1,9 @@
 import { defineConfig } from "vite-plus";
 
-type RestrictRule = ["error", { patterns: { group: string[]; message: string }[] }];
+type RestrictRule = [
+  "error",
+  { patterns: { group: string[]; importNames?: string[]; message: string }[] },
+];
 
 const restrict = (group: string[], message: string): RestrictRule => [
   "error",
@@ -8,6 +11,19 @@ const restrict = (group: string[], message: string): RestrictRule => [
 ];
 
 const web = "apps/web/src";
+
+const clientBannedImports = [
+  "**/server/**",
+  "**/workflows/**",
+  "cloudflare:*",
+  "**/device",
+  "**/device/**",
+  "!**/device/index.ts",
+];
+const clientBannedMessage =
+  "client は server / workflows に依存せず、device は device/index.ts だけを import する";
+
+const recordStoreReaders = ["app-header.tsx", "settings-screen.tsx", "router.tsx"];
 
 export default defineConfig({
   // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）は検査しない
@@ -82,21 +98,30 @@ export default defineConfig({
           ),
         },
       },
+      // `paths` は `./record-store.ts` や `@/client/record-store` を見逃すので `patterns` で書く。
+      // 後の `files` の上書きは前の no-restricted-imports を置き換えるので、client の禁止は各ブロックで繰り返す
       {
         files: [`${web}/client/**`],
         rules: {
-          "no-restricted-imports": restrict(
-            [
-              "**/server/**",
-              "**/workflows/**",
-              "cloudflare:*",
-              "**/device",
-              "**/device/**",
-              "!**/device/index.ts",
-            ],
-            "client は server / workflows に依存せず、device は device/index.ts だけを import する",
-          ),
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                { group: clientBannedImports, message: clientBannedMessage },
+                {
+                  group: ["**/record-store", "**/record-store.ts"],
+                  importNames: ["useRecordStore"],
+                  message:
+                    "useRecordStore を読んでよいのは app-header.tsx / settings-screen.tsx / router.tsx だけ。データを読み書きする側は記録先で分岐せず Backend だけを見る",
+                },
+              ],
+            },
+          ],
         },
+      },
+      {
+        files: recordStoreReaders.map((file) => `${web}/client/${file}`),
+        rules: { "no-restricted-imports": restrict(clientBannedImports, clientBannedMessage) },
       },
       {
         files: [`${web}/device/**`],

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { AdvanceMode } from "../domain/advance-mode.ts";
 import { useBackend } from "./backend.ts";
+import { storageFailedMessageOf } from "./storage-failed-text.ts";
 
 /** フェーズの進め方の読み込みの様子 */
 export type AdvanceModeView =
@@ -10,7 +11,7 @@ export type AdvanceModeView =
   | Readonly<{ kind: "Loaded"; mode: AdvanceMode }>;
 
 /**
- * フェーズの進め方（GLOSSARY、ADR 0016）。アカウントごとの設定なので、サーバーに置いて読み書きする。
+ * フェーズの進め方（GLOSSARY、ADR 0016）。記録先ごとの設定なので、記録先（ADR 0019）に置いて読み書きする。
  *
  * - 変えたら、押した見た目がすぐ変わるよう先に手元を替え、送れなければ元に戻す
  * - 変えるとセッションの状態が変わりうる（待っている切り替わりを自動にすると次のフェーズが始まる）ので、
@@ -56,7 +57,11 @@ export const useAdvanceMode = (
         return;
       }
       setView(before);
-      setErrorMessage("変更できませんでした。もう一度お試しください。");
+      setErrorMessage(
+        result.error.kind === "StorageFailed"
+          ? storageFailedMessageOf(result.error)
+          : "変更できませんでした。もう一度お試しください。",
+      );
     });
   };
 

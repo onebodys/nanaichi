@@ -11,8 +11,8 @@ import {
 } from "./alert-settings.ts";
 import { AdvanceMode } from "../domain/advance-mode.ts";
 import { TagName, type TagDeletion, type TagUsage } from "../domain/tag.ts";
-import { authClient, signOut } from "./auth-client.ts";
-import { Button } from "./components/ui/button.tsx";
+import { signOut } from "./auth-client.ts";
+import { Button, LinkButton } from "./components/ui/button.tsx";
 import {
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "./components/ui/select.tsx";
 import { Switch } from "./components/ui/switch.tsx";
+import { useRecordStore } from "./record-store.ts";
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -97,15 +98,18 @@ const ADVANCE_CHOICES = ["Auto", "Manual"] as const;
 
 /**
  * フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。
- * アカウントの設定なので「この端末」の印はつけない。変えるとセッションの途中でもすぐ効く
+ * 変えるとセッションの途中でもすぐ効く
  */
 const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeState }>) => {
   const { view, errorMessage, change } = advanceMode;
+  const recordStore = useRecordStore();
   return (
     <Section id="settings-advance" title="フェーズの進め方" perDevice={false}>
       <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
         手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、ボタンを押すまで待ちます。
-        どの端末でも同じ設定になります。
+        {recordStore.kind === "Device"
+          ? "この端末の設定です。"
+          : "どの端末でも同じ設定になります。"}
       </p>
       {view.kind === "Loaded" ? (
         AdvanceMode.transitions.map((transition) => {
@@ -375,16 +379,18 @@ const TagDeletionForm = ({
 
 /**
  * タグ（GLOSSARY の「タグの削除」、ADR 0017）。使っているタグとついている記入の数を出し、
- * 使わないタグを削除できる。記録はアカウントのものなので「この端末」の印はつけない
+ * 使わないタグを削除できる
  */
 const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
   const { view, errorMessage, remove } = tagUsage;
   const [deleting, setDeleting] = useState<TagName | undefined>(undefined);
+  const recordStore = useRecordStore();
   return (
     <Section id="settings-tags" title="タグ" perDevice={false}>
       <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
         {view.kind === "Loaded" && tagKindsNoteOf(view.tags.length)}
-        削除しても記入は消えず、タグだけを外すか、別のタグに付け替えます。どの端末でも同じです。
+        削除しても記入は消えず、タグだけを外すか、別のタグに付け替えます。
+        {recordStore.kind === "Account" && "どの端末でも同じです。"}
       </p>
       {view.kind === "Loaded" ? (
         view.tags.length === 0 ? (
@@ -435,17 +441,32 @@ const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
 };
 
 const AccountSection = () => {
-  const { data: session } = authClient.useSession();
-  const name = session?.user.name;
-  return (
-    <Section id="settings-account" title="アカウント" perDevice={false}>
-      <Row label={name ?? "読み込み中…"}>
-        <Button variant="outline" onClick={() => void signOut()}>
-          ログアウト
-        </Button>
-      </Row>
-    </Section>
-  );
+  const recordStore = useRecordStore();
+  switch (recordStore.kind) {
+    case "Device":
+      return (
+        <Section id="settings-account" title="アカウント" perDevice={false}>
+          <Row
+            label="ログインしていません"
+            description="記録はこのブラウザに保存されています。ログインすると、他の端末とも同期できます。"
+          >
+            <LinkButton href="/login" variant="outline">
+              ログインして同期
+            </LinkButton>
+          </Row>
+        </Section>
+      );
+    case "Account":
+      return (
+        <Section id="settings-account" title="アカウント" perDevice={false}>
+          <Row label={recordStore.user.name}>
+            <Button variant="outline" onClick={() => void signOut()}>
+              ログアウト
+            </Button>
+          </Row>
+        </Section>
+      );
+  }
 };
 
 const SECTIONS = [
