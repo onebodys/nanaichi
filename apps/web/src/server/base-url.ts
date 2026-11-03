@@ -1,13 +1,27 @@
 import { HTTPException } from "hono/http-exception";
 
+/** 本番の正のオリジン（ADR 0021）。Google Cloud Console に登録したリダイレクト URI と揃っている必要がある */
+const CANONICAL_ORIGIN = "https://nanaichi.app";
+
 /**
- * この Worker を配信している本番のホスト。
- *
- * `wrangler deploy` の配信先（`wrangler.jsonc` の name とアカウントの workers.dev
- * サブドメインで決まる）。Worker 名やサブドメインを変えたらここも直す。
- * Google Cloud Console に登録したリダイレクト URI と揃っている必要がある。
+ * 認証を受け付ける本番のホスト。`wrangler.jsonc` の `routes` のカスタムドメインと揃える。
+ * workers.dev は正のオリジンへ転送するので含めない（`canonicalRedirectFor`）。
  */
-const PRODUCTION_HOSTS = ["nanaichi.onori-black1984.workers.dev"] as const;
+const PRODUCTION_HOSTS = [new URL(CANONICAL_ORIGIN).host] as const;
+
+/**
+ * 正のオリジンへ転送すべきリクエストなら、転送先の URL（同じパスとクエリ）を返す（ADR 0021）。
+ *
+ * workers.dev（`nanaichi.onori-black1984.workers.dev` と、バージョンごとのプレビューの URL）は
+ * すべて転送する。workers.dev を名乗るのはこの Worker 自身の URL だけなので、末尾で判定する。
+ */
+export const canonicalRedirectFor = (requestUrl: string): string | undefined => {
+  const url = new URL(requestUrl);
+  if (!url.hostname.endsWith(".workers.dev")) {
+    return undefined;
+  }
+  return `${CANONICAL_ORIGIN}${url.pathname}${url.search}`;
+};
 
 /** Vite の dev サーバーをそのまま開くときのホスト（`vite.config.ts` の `server.port`） */
 const DEV_SERVER_HOSTS = ["localhost:5173", "127.0.0.1:5173"] as const;

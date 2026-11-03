@@ -27,11 +27,7 @@ describe("本番と同じ設定（wrangler.jsonc）で動く Worker", () => {
   });
 
   test("本番のホストへのリクエストでも 404 を返す", async () => {
-    const res = await request(
-      signInPath,
-      undefined,
-      "https://nanaichi.onori-black1984.workers.dev",
-    );
+    const res = await request(signInPath, undefined, "https://nanaichi.app");
 
     expect(res.status).toBe(404);
   });

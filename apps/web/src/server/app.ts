@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { authFor } from "./auth-context.ts";
+import { canonicalRedirectFor } from "./base-url.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { journalRoutes } from "./journal-routes.ts";
 import { mcpRoutes } from "./mcp-routes.ts";
@@ -10,6 +11,16 @@ import { syncRoutes } from "./sync-routes.ts";
 import { testSignInRoutes } from "./test-sign-in.ts";
 
 export const app = new Hono<AppEnv>();
+
+// workers.dev へのリクエストは、静的アセットを含めてすべて nanaichi.app の同じパスへ転送する（ADR 0021）。
+// 308 にするのは、MCP クライアントの POST などをメソッドと本文を保ったまま転送するため
+app.use("*", async (c, next) => {
+  const location = canonicalRedirectFor(c.req.url);
+  if (location === undefined) {
+    return next();
+  }
+  return c.redirect(location, 308);
+});
 
 // MCP クライアントが OAuth のサーバーを見つけるための文書（RFC 8414 / RFC 9728）。仕様でオリジンの直下に置く
 // ことになっているので `/api` の外で受け、Better Auth（`mcp()` プラグイン）に答えさせる（ADR 0017）
@@ -42,3 +53,9 @@ api.route("/", authenticated);
 
 // `route` はその時点のルートを写すので、`api` にすべて足してからつなぐ
 app.route("/api", api);
+// 知らない API は SPA の index.html ではなく 404 にする
+app.all("/api/*", (c) => c.notFound());
+
+// 転送を静的アセットにも効かせるため、すべてのリクエストを Worker が先に受けている（wrangler.jsonc の
+// `run_worker_first`）。API でなければ静的アセット（SPA・LP・アイコンなど）を返す
+app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));

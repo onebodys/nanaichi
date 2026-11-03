@@ -135,7 +135,7 @@ Obsidian と手元のポモドーロタイマーをやめて、**nanaichi だけ
 - タイマー状態は時刻とイベントから計算する（ADR 0003）
 - Vite+（`vp`）の pnpm monorepo。lint は Oxlint、フォーマットは Oxfmt。最初は `apps/web` のみ（ADR 0006）
 - UI は Tailwind CSS v4 + shadcn/ui（土台は Base UI。`components.json` の style は `base-vega`）
-- ドッグフーディング中の URL は `*.workers.dev`
+- 本番の URL は `https://nanaichi.app`。workers.dev の URL へのアクセスはすべて転送する（ADR 0021）
 - 本番環境のみ。main への push で GitHub Actions から `wrangler deploy`
 
 ## 長期ゴール（スコープ外だが設計上想定しておく）

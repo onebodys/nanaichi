@@ -15,11 +15,13 @@ Google ログインに使う OAuth 2.0 クライアントを作る。
    - アプリケーションの種類: **ウェブ アプリケーション**
    - 承認済みのリダイレクト URI に次の2つを登録する
      - `http://localhost:5173/api/auth/callback/google`（ローカル開発）
-     - `https://nanaichi.onori-black1984.workers.dev/api/auth/callback/google`（本番）
+     - `https://nanaichi.app/api/auth/callback/google`（本番）
+   - 承認済みの JavaScript 生成元に `https://nanaichi.app` を登録する
 
-   本番の URL は `wrangler.jsonc` の `name`（`nanaichi`）とアカウントの workers.dev サブドメイン
-   （`onori-black1984`）で決まる。Worker 名やサブドメインを変えたら、Google 側と
-   `apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` の両方を直す。
+   本番の URL は `wrangler.jsonc` の `routes` のカスタムドメイン（`nanaichi.app`）で決まる（ADR 0021）。
+   workers.dev の URL へのアクセスは、Worker が `https://nanaichi.app` の同じパスへ転送するので、
+   Google には登録しない。ドメインを変えたら、Google 側と `apps/web/src/server/base-url.ts` の
+   `CANONICAL_ORIGIN` の両方を直す。
 
    パスは Better Auth の既定（`/api/auth/callback/google`）。`apps/web/src/server/app.ts` が Hono の
    `basePath("/api")` に `/auth/*` を載せているため、この形になる。
@@ -27,7 +29,7 @@ Google ログインに使う OAuth 2.0 クライアントを作る。
 4. 表示された**クライアント ID** と**クライアント シークレット**を控える
 
 > リダイレクト URI が1文字でも違うと `redirect_uri_mismatch` で失敗する。
-> ホストを変えたときは Google 側と `apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` の両方を直す。
+> ホストを変えたときは Google 側と `apps/web/src/server/base-url.ts` の `CANONICAL_ORIGIN` の両方を直す。
 
 ## 2. Cloudflare
 
@@ -96,17 +98,17 @@ Setup Script が、worktree を作るときに元のチェックアウトの `ap
 - Orca の設定画面（リポジトリの Hooks）に Setup Script が書いてあると、Orca はそちらだけを使い `orca.yaml` を読まない。
   設定画面の Setup Script は空にしておく（または実行するコマンドの取り方を `orca.yaml` を使うほうにする）。
 
-`apps/web/src/server/base-url.ts` の `ALLOWED_HOSTS` は `localhost:5173` を前提にしている。
+`apps/web/src/server/base-url.ts` の `DEV_SERVER_HOSTS` は `localhost:5173` を前提にしている。
 Vite が別のポートを使うとログインが 400 で弾かれる。
 
 ### MCP クライアントをつなぐ
 
-MCP サーバー（ADR 0017）は `/api/mcp` にある。本番なら `https://nanaichi.onori-black1984.workers.dev/api/mcp`、
+MCP サーバー（ADR 0017）は `/api/mcp` にある。本番なら `https://nanaichi.app/api/mcp`、
 ローカルなら `http://localhost:5173/api/mcp`。初めてつなぐとブラウザが開き、nanaichi へのログインと連携の許可を求められる。
 
 ```bash
 # Claude Code
-claude mcp add --transport http nanaichi https://nanaichi.onori-black1984.workers.dev/api/mcp
+claude mcp add --transport http nanaichi https://nanaichi.app/api/mcp
 # つないだら Claude Code の中で /mcp を開き、nanaichi の Authenticate を選ぶ
 
 # MCP Inspector（ツールを1つずつ試す）
@@ -174,7 +176,8 @@ gh secret set CLOUDFLARE_ACCOUNT_ID
 
 登録したあとの最初の main への push からデプロイされる。すぐに試したいときは、
 Actions の画面で main の最新の「CI」を「Re-run all jobs」すればよい。
-デプロイできたかは `deploy` ジョブのログの末尾に出る URL（`https://nanaichi.onori-black1984.workers.dev`）を開いて確かめる。
+デプロイできたかは `https://nanaichi.app` を開いて確かめる。`deploy` ジョブのログの末尾には workers.dev の URL も出るが、
+そこを開くと `https://nanaichi.app` へ転送される（ADR 0021）。
 
 ## 5. E2E テスト
 

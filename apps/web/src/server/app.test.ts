@@ -72,9 +72,9 @@ describe("ログインの入口", () => {
     expect(res.status).toBe(400);
   });
 
-  test("本番の workers.dev のホストは受け付ける", async () => {
+  test("本番の nanaichi.app のホストは受け付ける", async () => {
     const res = await app.request(
-      "https://nanaichi.onori-black1984.workers.dev/api/auth/get-session",
+      "https://nanaichi.app/api/auth/get-session",
       undefined,
       unauthenticatedEnv,
     );

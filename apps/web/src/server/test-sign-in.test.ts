@@ -18,7 +18,7 @@ const cookieFrom = (res: Response): Headers =>
       .join("; "),
   });
 
-const PRODUCTION_ORIGIN = "https://nanaichi.onori-black1984.workers.dev";
+const PRODUCTION_ORIGIN = "https://nanaichi.app";
 /** portless が worktree（ブランチ fix-ui）に割り振る URL */
 const PORTLESS_ORIGIN = "https://fix-ui.nanaichi.localhost";
 

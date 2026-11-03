@@ -6,10 +6,16 @@
   // Better Auth は AsyncLocalStorage を使うため nodejs_compat が必要
   // https://better-auth.com/docs/integrations/hono#cloudflare-workers
   "compatibility_flags": ["nodejs_compat"],
+  // 本番の正の URL（ADR 0021）。workers.dev へのリクエストは Worker が nanaichi.app へ転送する
+  "routes": [{ "pattern": "nanaichi.app", "custom_domain": true }],
+  // wrangler は routes があると workers.dev を既定で止める。止めると古い URL を転送できないので明示する
+  "workers_dev": true,
   "assets": {
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    // MCP クライアントが OAuth のサーバーを見つける文書（/.well-known/*）も Worker が答える（ADR 0017）
-    "run_worker_first": ["/api/*", "/.well-known/*"],
+    // workers.dev から転送するため、静的アセットへのリクエストも Worker が先に受ける（ADR 0021）。
+    // API でないリクエストは Worker が ASSETS に渡す（src/server/app.ts）
+    "run_worker_first": true,
   },
   "d1_databases": [
     {
