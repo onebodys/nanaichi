@@ -36,8 +36,16 @@ const AccountMenu = ({ name }: Readonly<{ name: string }>) => {
 };
 
 const SignInLink = () => (
-  <LinkButton href="/login" variant="outline" size="lg" className="rounded-[10px]">
-    ログインして同期
+  // 狭い画面（iPhone の Safari など）では「ログイン」だけを見せ、ヘッダーを1行に収める（Issue #118）。
+  // ボタンは flex なので文字が別々の要素に分かれ、読み上げの名前に空白が入る。名前は aria-label で「ログインして同期」に保つ
+  <LinkButton
+    href="/login"
+    variant="outline"
+    size="lg"
+    className="rounded-[10px]"
+    aria-label="ログインして同期"
+  >
+    ログイン<span className="max-sm:hidden">して同期</span>
   </LinkButton>
 );
 
@@ -61,7 +69,7 @@ const TodayFocusBadge = ({ today }: Readonly<{ today: TodayFocus }>) => {
     <span className="font-mono font-medium text-foreground">{text}</span>
   );
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className="text-xs whitespace-nowrap text-muted-foreground">
       <span className="flex items-baseline gap-1.5 lg:hidden">
         今日 {value(focus.kind === "Counted" ? focus.label : "—")}
       </span>
@@ -84,12 +92,13 @@ export const AppHeader = ({
 }: Readonly<{ today: TodayFocus; openStats: () => void; openSettings: () => void }>) => (
   <header className="shrink-0 border-b bg-card">
     {/* 広い画面では中身をタイマーとジャーナルの2ペインと同じ幅にそろえる（home-page.tsx） */}
-    <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-4 px-4 lg:h-16 lg:px-8">
+    <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center justify-between gap-3 px-4 sm:gap-4 lg:h-16 lg:px-8">
       <div className="flex items-center gap-2.5">
         <LogoMark className="size-7 rounded-lg text-xs" />
-        <h1 className="text-lg font-bold tracking-tight">nanaichi</h1>
+        {/* 狭い画面ではロゴの印だけにして右側のボタンの場所を空ける（Issue #118）。見出しは読み上げに残す */}
+        <h1 className="text-lg font-bold tracking-tight max-sm:sr-only">nanaichi</h1>
       </div>
-      <div className="flex items-center gap-2 lg:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3">
         <TodayFocusBadge today={today} />
         <Button
           variant="outline"
