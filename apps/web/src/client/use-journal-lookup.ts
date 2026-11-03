@@ -5,7 +5,8 @@ import type { JournalEntry } from "../domain/journal-entry.ts";
 import type { LocalDate } from "../domain/local-date.ts";
 import type { TagName } from "../domain/tag.ts";
 import { TaggedEntries, type TaggedEntriesCursor } from "../domain/tagged-entries.ts";
-import { useBackend, type BackendError } from "./backend.ts";
+import type { BackendError } from "../domain/backend.ts";
+import { useBackend } from "./backend.ts";
 import { deviceTimeZone } from "./use-stats.ts";
 
 /** 読み込んだものの様子。読み込み直している間は、前に読み込んだ同じものを出し続ける */

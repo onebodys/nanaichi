@@ -125,7 +125,8 @@ const decodeWith =
       Result.andThen((json) => Result.pipe(schemaResult(schema)(json), Result.mapError(malformed))),
     );
 
-const assemble = (
+/** 読み込んだセッションの記録と進め方の履歴を、この端末の記録にまとめる。開いているセッションは多くて1つ */
+export const assembleRecords = (
   advanceModeChanges: DeviceRecords["advanceModeChanges"],
   records: ReadonlyArray<SessionRecord>,
 ): Result.Result<DeviceRecords, RecordsUnreadable> => {
@@ -183,6 +184,10 @@ export const encodeSessionRecord = (record: SessionRecord): string => {
 export const encodeMetaRecord = (records: DeviceRecords): string =>
   JSON.stringify({ version: FORMAT_VERSION, advanceModeChanges: records.advanceModeChanges });
 
+export const decodeSessionRecord = decodeWith(SessionRecordJsonSchema);
+
+export const decodeMetaRecord = decodeWith(MetaRecordJsonSchema);
+
 /** 保存した1件ずつを検証して、この端末の記録に戻す。1件でも読めなければ全体を読めないとする */
 export const decodeRecords = (
   meta: string,
@@ -190,7 +195,7 @@ export const decodeRecords = (
 ): Result.Result<DeviceRecords, RecordsUnreadable> =>
   Result.pipe(
     Result.do(),
-    Result.bind("meta", () => decodeWith(MetaRecordJsonSchema)(meta)),
-    Result.bind("sessions", () => Result.sequence(sessions, decodeWith(SessionRecordJsonSchema))),
-    Result.andThen(({ meta, sessions }) => assemble(meta.advanceModeChanges, sessions)),
+    Result.bind("meta", () => decodeMetaRecord(meta)),
+    Result.bind("sessions", () => Result.sequence(sessions, decodeSessionRecord)),
+    Result.andThen(({ meta, sessions }) => assembleRecords(meta.advanceModeChanges, sessions)),
   );

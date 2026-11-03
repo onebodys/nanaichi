@@ -1,6 +1,5 @@
-import { Result } from "@praha/byethrow";
-import { schemaResult } from "../domain/schema-result.ts";
-import { SyncMessageJsonSchema, type SyncMessage } from "../domain/sync-message.ts";
+import type { SyncConnection, SyncHandlers } from "../domain/backend.ts";
+import { SyncMessage } from "../domain/sync-message.ts";
 
 /**
  * 同期の WebSocket（`GET /api/ws`、ADR 0012）を張り続ける。
@@ -42,35 +41,6 @@ export const openBrowserSocket =
     ws.addEventListener("close", onClose);
     return { send: (data) => ws.send(data), close: () => ws.close() };
   };
-
-export type SyncHandlers = Readonly<{
-  onConnected: () => void;
-  onMessage: (message: SyncMessage) => void;
-}>;
-
-export type SyncConnection = Readonly<{
-  /**
-   * 今すぐ繋がっているかを確かめる。画面に戻ってきたときやオンラインに戻ったときに呼ぶ。
-   * 繋ぎ直しを待っている間なら待たずに繋ぎ直し、繋がっているなら `ping` で確かめる
-   */
-  check: () => void;
-  /** 接続を閉じ、繋ぎ直しもやめる */
-  close: () => void;
-}>;
-
-const parseMessage = schemaResult(SyncMessageJsonSchema);
-
-/** 届いた文字列を同期メッセージにする。JSON でないか、スキーマに合わなければ undefined */
-const decode = (data: unknown): SyncMessage | undefined => {
-  if (typeof data !== "string") {
-    return undefined;
-  }
-  const parsed = Result.pipe(
-    Result.try({ try: (): unknown => JSON.parse(data), catch: () => undefined }),
-    Result.andThen(parseMessage),
-  );
-  return Result.isSuccess(parsed) ? parsed.value : undefined;
-};
 
 /** 接続の状態 */
 type Phase =
@@ -142,7 +112,7 @@ export const connectSync = (handlers: SyncHandlers, openSocket: OpenSyncSocket):
           pongTimer = undefined;
           return;
         }
-        const message = decode(data);
+        const message = SyncMessage.deserialize(data);
         if (message !== undefined) {
           handlers.onMessage(message);
         }

@@ -1,3 +1,4 @@
+import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { AdvanceModeJsonSchema, type AdvanceMode } from "./advance-mode.ts";
 import {
@@ -7,6 +8,7 @@ import {
   type DeletedJournalEntry,
   type JournalEntryJson,
 } from "./journal-entry.ts";
+import { schemaResult } from "./schema-result.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "./session.ts";
 import { DeletedTagJsonSchema, type DeletedTag } from "./tag.ts";
 
@@ -49,6 +51,8 @@ export const SyncMessageJsonSchema: v.GenericSchema<unknown, SyncMessage> = v.va
   v.object({ kind: v.literal("AdvanceModeChanged"), mode: AdvanceModeJsonSchema }),
 ]);
 
+const parseMessage = schemaResult(SyncMessageJsonSchema);
+
 export const SyncMessage = {
   /** 送る文字列にする。記入の本文は送るときだけ取り出す（`Sensitive` は JSON にすると伏せ字になる） */
   serialize: (message: SyncMessage): string => {
@@ -64,5 +68,16 @@ export const SyncMessage = {
       case "AdvanceModeChanged":
         return JSON.stringify(message satisfies SyncMessageJson);
     }
+  },
+  /** 届いた値を同期メッセージに戻す。文字列でないか、JSON でないか、スキーマに合わなければ undefined */
+  deserialize: (data: unknown): SyncMessage | undefined => {
+    if (typeof data !== "string") {
+      return undefined;
+    }
+    const parsed = Result.pipe(
+      Result.try({ try: (): unknown => JSON.parse(data), catch: () => undefined }),
+      Result.andThen(parseMessage),
+    );
+    return Result.isSuccess(parsed) ? parsed.value : undefined;
   },
 } as const;

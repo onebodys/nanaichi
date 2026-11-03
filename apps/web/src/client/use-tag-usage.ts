@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { DeletedTag, TagDeletion, TagName, TagUsage } from "../domain/tag.ts";
-import { useBackend, type BackendError } from "./backend.ts";
+import type { BackendError } from "../domain/backend.ts";
+import { useBackend } from "./backend.ts";
 
 /** 設定画面のタグの一覧の読み込みの様子 */
 export type TagUsageView =

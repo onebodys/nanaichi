@@ -218,6 +218,9 @@ catalogs:
     e2e:
       specifier: 0.21.3
       version: 0.21.3
+    fake-indexeddb:
+      specifier: 6.2.7
+      version: 6.2.7
     hono:
       specifier: 4.13.14
       version: 4.13.14
@@ -359,6 +362,9 @@ importers:
       e2e:
         specifier: 'catalog:'
         version: 0.21.3
+      fake-indexeddb:
+        specifier: 'catalog:'
+        version: 6.2.7
       miniflare:
         specifier: 'catalog:'
         version: 5.20261006.1-alpha(@types/node@25.9.9)
@@ -2522,6 +2528,10 @@ packages:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
 
+  fake-indexeddb@6.2.7:
+    resolution: {integrity: sha512-g0ghQ+BmU3CSZaHup5FigEAAtCmtNyxkrmID7OAeK2qONHghw1aQ2l2T1RxmfhP1H1tEXVRWArUTGVCk5832ww==}
+    engines: {node: '>=18'}
+
   fast-png@8.0.0:
     resolution: {integrity: sha512-gCysNasJ8KEMgfdYIKd/wTDo6ENK1PWT0RJO7O+0pgmuHPw2O6tA1WvdxFRJoLf9V8yFYpG0FA1YgI8X97OhJA==}
 
@@ -4564,6 +4574,8 @@ snapshots:
       '@types/estree': 1.0.9
 
   expect-type@1.4.0: {}
+
+  fake-indexeddb@6.2.7: {}
 
   fast-png@8.0.0:
     dependencies:

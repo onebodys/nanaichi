@@ -14,7 +14,7 @@ import { StatsReportJsonSchema } from "../domain/stats.ts";
 import { DeletedTagJsonSchema, TagListJsonSchema, TagUsageListJsonSchema } from "../domain/tag.ts";
 import { TaggedEntriesPageJsonSchema } from "../domain/tagged-entries.ts";
 import { TimelinePageJsonSchema } from "../domain/timeline.ts";
-import type { Backend, BackendError } from "./backend.ts";
+import type { Backend, BackendError } from "../domain/backend.ts";
 import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-connection.ts";
 
 type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
