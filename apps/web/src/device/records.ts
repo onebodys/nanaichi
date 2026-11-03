@@ -438,13 +438,8 @@ export const recordsDeps = (draft: Draft): RecordsDeps => {
       const current = records();
       const sessionRecords = sessionRecordsOf(current);
       return {
-        // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らない（stats-sqlite.ts と同じ）
-        sessions: sessionRecords.map(({ session }) =>
-          sessionFrom(
-            session,
-            AdvanceModeChange.relevantSince(current.advanceModeChanges, startedAtOf(session)),
-          ),
-        ),
+        // 閉じたセッションは閉じた時刻までの変更で計算する（stats-sqlite.ts、タイムラインと同じ）
+        sessions: sessionRecords.map((record) => sessionOf(current, record)),
         entries: sessionRecords
           .flatMap(({ session }) => writtenEntriesIn(session))
           .toSorted(byWrittenAt)

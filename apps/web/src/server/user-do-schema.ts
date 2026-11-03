@@ -104,6 +104,14 @@ const MIGRATIONS: ReadonlyArray<string> = [
   -- スタッツで、ジャーナルのカレンダーの月や選んだ日の記入を、書いた時刻の範囲で読む（Issue #83）
   CREATE INDEX journal_entries_by_written_at ON journal_entries (written_at);
   `,
+  `
+  -- 取り込み（ADR 0020）で足した行の印。「アカウントに取り込み以外の記録があるか」を、
+  -- 束を分けてもやり直しても同じに判断するため。これまでの行はすべてアカウントで記録したもの
+  ALTER TABLE sessions ADD COLUMN origin TEXT NOT NULL DEFAULT 'Account'
+    CHECK (origin IN ('Account', 'Import'));
+  ALTER TABLE advance_mode_changes ADD COLUMN origin TEXT NOT NULL DEFAULT 'Account'
+    CHECK (origin IN ('Account', 'Import'));
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

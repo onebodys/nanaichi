@@ -89,6 +89,13 @@ describe("同期メッセージの送受信", () => {
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
   });
 
+  test("この端末の記録を取り込んだら、取り込んだことだけを受け取れる", () => {
+    const message: SyncMessage = { kind: "RecordsImported" };
+
+    expect(SyncMessage.serialize(message)).toBe('{"kind":"RecordsImported"}');
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
   test("知らない種類のメッセージは検証で失敗する", () => {
     expect(Result.isFailure(receive(JSON.stringify({ kind: "Unknown" })))).toBe(true);
   });

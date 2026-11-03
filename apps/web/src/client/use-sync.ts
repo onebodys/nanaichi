@@ -45,6 +45,12 @@ const deliver = (
       return tagUsage.refresh();
     case "AdvanceModeChanged":
       return advanceMode.receive(message.mode);
+    case "RecordsImported":
+      // 取り込んだ記録は届かないので、繋ぎ直したときと同じく読み込み直す（ADR 0020）
+      timer.refresh();
+      timeline.refresh();
+      tags.refresh();
+      return tagUsage.refresh();
   }
 };
 

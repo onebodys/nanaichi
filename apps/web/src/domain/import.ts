@@ -33,7 +33,7 @@ export type ImportBatch = Readonly<{
 }>;
 
 /** JSON にした束。本文は取り出してある */
-export type ImportBatchJson = Readonly<{
+type ImportBatchJson = Readonly<{
   sessions: ReadonlyArray<SessionRecordJson>;
   advanceModeChanges: ReadonlyArray<AdvanceModeChange>;
 }>;

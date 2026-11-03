@@ -241,9 +241,10 @@ export const storeContract = (freshStore: FreshStore): void => {
 
         const replayed = inSession(succeeded(store.start(at(4), startId)));
         expect(replayed.session.advanceModeChanges).toEqual([effective, during]);
-        // スタッツは閉じた時刻で絞らない（閉じたあとの変更は計算に影響しない）
+        // スタッツも閉じた時刻までの変更で計算する。取り込みで閉じた時刻の直後に足した行を、
+        // 自動終了したセッションの操作として数えないため（ADR 0020）
         expect(deps.findStatsRecords().sessions.map((s) => s.advanceModeChanges)).toEqual([
-          [effective, during, after],
+          [effective, during],
         ]);
         expect(succeeded(store.advanceMode(at(5)))).toEqual(after.mode);
       });
