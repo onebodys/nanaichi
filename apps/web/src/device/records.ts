@@ -61,6 +61,17 @@ export const changedSessionRecords = (
   return sessionRecordsOf(current).filter(({ session }) => !unchanged.has(session));
 };
 
+/** `base` にあって `current` にないセッション。この端末から消したもの（取り込み、ADR 0020） */
+export const removedSessionIds = (
+  base: DeviceRecords,
+  current: DeviceRecords,
+): ReadonlyArray<SessionId> => {
+  const kept = new Set(sessionRecordsOf(current).map(({ session }) => session.id));
+  return sessionRecordsOf(base)
+    .map(({ session }) => session.id)
+    .filter((id) => !kept.has(id));
+};
+
 const latestRecordedAt = (records: DeviceRecords): Date | undefined => {
   let latest = Number.NEGATIVE_INFINITY;
   const see = (time: Date) => {

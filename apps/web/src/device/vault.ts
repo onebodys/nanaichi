@@ -2,7 +2,12 @@ import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import type { SessionRecord } from "../domain/session-record.ts";
 import { SessionId } from "../domain/session.ts";
-import { changedSessionRecords, DeviceRecords, sessionRecordsOf } from "./records.ts";
+import {
+  changedSessionRecords,
+  DeviceRecords,
+  removedSessionIds,
+  sessionRecordsOf,
+} from "./records.ts";
 import {
   assembleRecords,
   decodeMetaRecord,
@@ -13,7 +18,7 @@ import {
   type RecordsUnreadable,
 } from "./records-json.ts";
 
-/** 保存先から読み込んだ記録。`revision` は書き込むたびに1つ進む */
+/** 保存先から読み込んだ記録。`revision` は書き込むたびに進む（`nextRevision`） */
 export type VaultContent = Readonly<{ revision: number; records: DeviceRecords }>;
 
 export const VaultContent = {
@@ -35,7 +40,7 @@ export type VaultFailure =
 export type Vault = Readonly<{
   /** `cached` のあとに書かれたものだけを読み直す */
   load: (cached: VaultContent) => Result.ResultAsync<VaultContent, VaultFailure>;
-  /** `previous` から変わったセッションと進め方の履歴を、1つのトランザクションで書く */
+  /** `previous` から変わったセッションと進め方の履歴を書き、なくなったセッションを消す。1つのトランザクションで */
   commit: (
     previous: VaultContent,
     records: DeviceRecords,
@@ -68,9 +73,19 @@ type RawStore = Readonly<{
     expectedRevision: number,
     meta: StoredMeta,
     sessions: ReadonlyArray<EncodedSession>,
+    removed: ReadonlyArray<SessionId>,
   ) => Promise<void>;
   keepFirstUnreadable: (key: string, copy: UnreadableCopy) => Promise<void>;
 }>;
+
+/**
+ * 書き込んだあとの版。ほかのタブは、版が1つだけ進んでいれば `meta.changed` のセッションだけを読み直し、
+ * それ以外は全部を読み直す（`readSince`）。差分の読み直しは消したセッションを知らないので、
+ * セッションを消したときは版を2つ進め、どのタブにも（古い版のアプリのタブにも）全部を読み直させる。
+ * meta の形を変えずに済む
+ */
+const nextRevision = (previous: number, removed: ReadonlyArray<SessionId>): number =>
+  previous + (removed.length === 0 ? 1 : 2);
 
 const revisionOf = (meta: unknown): number => {
   const parsed = v.safeParse(RevisionSchema, meta);
@@ -199,7 +214,8 @@ const vaultOver = (raw: RawStore): Vault => {
           return Result.fail(latchedFailure);
         }
         const changed = changedSessionRecords(previous.records, records);
-        const revision = previous.revision + 1;
+        const removed = removedSessionIds(previous.records, records);
+        const revision = nextRevision(previous.revision, removed);
         await raw.write(
           previous.revision,
           {
@@ -208,6 +224,7 @@ const vaultOver = (raw: RawStore): Vault => {
             records: encodeMetaRecord(records),
           },
           changed.map((record) => ({ id: record.session.id, raw: encodeSessionRecord(record) })),
+          removed,
         );
         return Result.succeed({ revision, records });
       }),
@@ -235,7 +252,7 @@ export const memoryVault = (store: MemoryStore = MemoryStore.empty()): Vault =>
     readMeta: async () => store.meta,
     readSessions: async (ids) => ids.map((id) => store.sessions.get(id)),
     readAllSessions: async () => [...store.sessions.values()],
-    write: async (expectedRevision, meta, sessions) => {
+    write: async (expectedRevision, meta, sessions, removed) => {
       if (revisionOf(store.meta) !== expectedRevision) {
         throw staleRevision();
       }
@@ -244,6 +261,9 @@ export const memoryVault = (store: MemoryStore = MemoryStore.empty()): Vault =>
       }
       for (const { id, raw } of sessions) {
         store.sessions.set(id, raw);
+      }
+      for (const id of removed) {
+        store.sessions.delete(id);
       }
       store.meta = meta;
     },
@@ -295,7 +315,8 @@ const openDatabase = (factory: IDBFactory | undefined): Promise<IDBDatabase> =>
 
 /**
  * IndexedDB の保存先。オブジェクトストア1つに、セッションごとに1件（`session:<id>`）と `meta` を1件置く。
- * 1回の書き込みは、変わったセッションと `meta` を1つのトランザクションで書くので、全部書くか何も書かないか。
+ * 1回の書き込みは、変わったセッションと `meta` を書き、消したセッションを消すのを1つのトランザクションで行うので、
+ * 全部書くか何も書かないか。
  */
 export const indexedDbVault = (factory: IDBFactory | undefined): Vault => {
   let opened: Promise<IDBDatabase> | undefined;
@@ -343,11 +364,14 @@ export const indexedDbVault = (factory: IDBFactory | undefined): Vault => {
       return values.filter((_, index) => keys[index] !== META_KEY);
     },
 
-    write: async (expectedRevision, meta, sessions) => {
+    write: async (expectedRevision, meta, sessions, removed) => {
       const { transaction, store: records } = await store(RECORDS, "readwrite");
       const done = completed(transaction);
       for (const { id, raw } of sessions) {
         records.put(raw, sessionKey(id));
+      }
+      for (const id of removed) {
+        records.delete(sessionKey(id));
       }
       let stale = false;
       const current = records.get(META_KEY);
