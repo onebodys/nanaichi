@@ -65,7 +65,11 @@ export const writeJournalEntry =
         Result.do(),
         Result.bind("session", () => ensureSessionInProgress(loadOpenSession(deps)(now))),
         Result.bind("tags", () =>
-          Tag.ensureWithinLimit(deps.listTagsOfOtherEntries(input.id), input.tags),
+          Tag.ensureWithinLimit({
+            inUse: deps.listTagsOfOtherEntries(input.id),
+            kept: [],
+            tags: input.tags,
+          }),
         ),
         Result.andThen(({ session, tags }) =>
           JournalEntry.write({

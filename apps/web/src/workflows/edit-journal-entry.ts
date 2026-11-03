@@ -47,7 +47,7 @@ const findWritten =
 /**
  * ジャーナル記入の本文とタグを書き直す。
  *
- * 入力の検証 → 削除していない記入の読み込み → 使っているタグの種類が上限を超えないかの確認
+ * 入力の検証 → 削除していない記入の読み込み → まだ使っていないタグをつけるなら上限を超えないかの確認
  * → 書き直す → 記録。新しく書くのではないので、
  * セッションが終わったあとでもできる（ADR 0010）。書いた時刻と紐付きは変えない。
  */
@@ -59,8 +59,12 @@ export const editJournalEntry =
       Result.bind("id", () => parseId(rawId)),
       Result.bind("input", () => parseInput(raw)),
       Result.bind("entry", ({ id }) => findWritten(deps)(id)),
-      Result.bind("tags", ({ id, input }) =>
-        Tag.ensureWithinLimit(deps.listTagsOfOtherEntries(id), input.tags),
+      Result.bind("tags", ({ id, input, entry }) =>
+        Tag.ensureWithinLimit({
+          inUse: deps.listTagsOfOtherEntries(id),
+          kept: entry.tags,
+          tags: input.tags,
+        }),
       ),
       Result.map(({ entry, input, tags }) =>
         JournalEntry.edit(entry, { body: input.body, tags }, now),
