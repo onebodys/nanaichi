@@ -8,9 +8,17 @@ import {
 import * as v from "valibot";
 import { STATS_PERIODS } from "../domain/stats.ts";
 import { authClient } from "./auth-client.ts";
+import { BackendProvider } from "./backend.ts";
 import { ConsentPage } from "./consent-page.tsx";
 import { HomePage } from "./home-page.tsx";
 import { LoginPage } from "./login-page.tsx";
+import { createRemoteBackend } from "./remote-backend.ts";
+
+const backend = createRemoteBackend({
+  onSignedOut: () => {
+    window.location.href = "/login";
+  },
+});
 
 const rootRoute = createRootRoute({ component: Outlet });
 
@@ -96,20 +104,22 @@ const homeRoute = createRoute({
     // 閉じた画面に戻るで戻らないよう、履歴を置き換える
     const close = () => void navigate({ search: {}, replace: true });
     return (
-      <HomePage
-        settings={{
-          open: settings === "open",
-          show: () => void navigate({ search: { settings: "open" } }),
-          close,
-        }}
-        stats={{
-          period: stats,
-          // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
-          show: () => void navigate({ search: { stats: "Week" } }),
-          changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
-          close,
-        }}
-      />
+      <BackendProvider backend={backend}>
+        <HomePage
+          settings={{
+            open: settings === "open",
+            show: () => void navigate({ search: { settings: "open" } }),
+            close,
+          }}
+          stats={{
+            period: stats,
+            // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
+            show: () => void navigate({ search: { stats: "Week" } }),
+            changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
+            close,
+          }}
+        />
+      </BackendProvider>
     );
   },
 });

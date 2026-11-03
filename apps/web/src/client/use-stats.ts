@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { StatsPeriod, StatsReport } from "../domain/stats.ts";
-import { createApiClient } from "./api.ts";
-
-const api = createApiClient();
+import { useBackend } from "./backend.ts";
 
 /** 端末のタイムゾーン。スタッツの日付と時間帯はこのタイムゾーンで区切る（ADR 0014） */
 export const deviceTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -21,6 +19,7 @@ type Loaded = Readonly<{ period: StatsPeriod; report: StatsReport }>;
  * `enabled` が false の間は読み込まない（スタッツを閉じている間など）
  */
 export const useStats = (period: StatsPeriod, refreshKey: string, enabled = true): StatsView => {
+  const backend = useBackend();
   const [loaded, setLoaded] = useState<Loaded | undefined>(undefined);
   const [failed, setFailed] = useState<StatsPeriod | undefined>(undefined);
   // 期間を続けて切り替えたとき、古い応答で新しい期間の表示を上書きしないよう、最後の読み込みだけを受け取る
@@ -32,7 +31,7 @@ export const useStats = (period: StatsPeriod, refreshKey: string, enabled = true
     }
     latest.current += 1;
     const request = latest.current;
-    void api.getStats(period, deviceTimeZone()).then((result) => {
+    void backend.getStats(period, deviceTimeZone()).then((result) => {
       if (request !== latest.current) {
         return;
       }
@@ -41,13 +40,9 @@ export const useStats = (period: StatsPeriod, refreshKey: string, enabled = true
         setFailed(undefined);
         return;
       }
-      if (result.error.kind === "ApiRejected" && result.error.code === "UNAUTHENTICATED") {
-        window.location.href = "/login";
-        return;
-      }
       setFailed(period);
     });
-  }, [period, refreshKey, enabled]);
+  }, [backend, period, refreshKey, enabled]);
 
   if (loaded !== undefined && loaded.period === period) {
     return { kind: "Loaded", report: loaded.report };

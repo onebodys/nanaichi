@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Result } from "@praha/byethrow";
 import type { AdvanceMode } from "../domain/advance-mode.ts";
-import { createApiClient } from "./api.ts";
-
-const api = createApiClient();
+import { useBackend } from "./backend.ts";
 
 /** フェーズの進め方の読み込みの様子 */
 export type AdvanceModeView =
@@ -29,11 +27,12 @@ export const useAdvanceMode = (
   refresh: () => void;
   receive: (mode: AdvanceMode) => void;
 }> => {
+  const backend = useBackend();
   const [view, setView] = useState<AdvanceModeView>({ kind: "Loading" });
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
   const refresh = useCallback(() => {
-    void api.getAdvanceMode().then((result) => {
+    void backend.getAdvanceMode().then((result) => {
       setView((current) =>
         Result.isSuccess(result)
           ? { kind: "Loaded", mode: result.value }
@@ -42,7 +41,7 @@ export const useAdvanceMode = (
             : { kind: "LoadFailed" },
       );
     });
-  }, []);
+  }, [backend]);
 
   useEffect(refresh, [refresh]);
 
@@ -50,7 +49,7 @@ export const useAdvanceMode = (
     const before = view;
     setView({ kind: "Loaded", mode });
     setErrorMessage(undefined);
-    void api.changeAdvanceMode(mode).then((result) => {
+    void backend.changeAdvanceMode(mode).then((result) => {
       if (Result.isSuccess(result)) {
         setView({ kind: "Loaded", mode: result.value });
         onChanged();

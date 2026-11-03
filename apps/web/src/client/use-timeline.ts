@@ -11,10 +11,9 @@ import {
   type TimelineDay,
   type TimelineSession,
 } from "../domain/timeline.ts";
-import { createApiClient, type ApiError } from "./api.ts";
+import type { ApiErrorCode } from "../domain/api-error.ts";
+import { useBackend, type BackendError } from "./backend.ts";
 import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
-
-const api = createApiClient();
 
 // `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）
 const newEntryId = (): JournalEntryId => v.parse(JournalEntryId.schema, crypto.randomUUID());
@@ -51,26 +50,30 @@ const isSameDraft = (draft: FailedDraft, body: string, tags: ReadonlyArray<TagNa
   draft.tags.every((tag, i) => tag === tags[i]);
 
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
-const messageOf = (error: ApiError): string => {
-  if (error.kind === "NetworkError") {
-    return "通信できませんでした。もう一度お試しください。";
+const messageOf = (error: BackendError): string => {
+  switch (error.kind) {
+    case "Unreachable":
+      return "通信できませんでした。もう一度お試しください。";
+    case "Rejected":
+      return rejectedMessageOf(error.code);
+    case "StorageFailed":
+      return "この端末に記録を保存できませんでした。";
+    case "Broken":
+      return "保存できませんでした。";
   }
-  if (error.kind === "ApiRejected" && error.code === "NO_SESSION_IN_PROGRESS") {
+};
+
+const rejectedMessageOf = (code: ApiErrorCode): string => {
+  if (code === "NO_SESSION_IN_PROGRESS") {
     return "セッションの外では書けません。";
   }
-  if (error.kind === "ApiRejected" && error.code === "TAG_LIMIT_EXCEEDED") {
+  if (code === "TAG_LIMIT_EXCEEDED") {
     return `タグは${TAG_KINDS_MAX}種類までです。使っていないタグを外してください。`;
   }
-  if (error.kind === "ApiRejected" && error.code === "JOURNAL_ENTRY_NOT_FOUND") {
+  if (code === "JOURNAL_ENTRY_NOT_FOUND") {
     return "この記入は削除されています。";
   }
   return "保存できませんでした。";
-};
-
-const redirectToLoginIfSignedOut = (error: ApiError) => {
-  if (error.kind === "ApiRejected" && error.code === "UNAUTHENTICATED") {
-    window.location.href = "/login";
-  }
 };
 
 /**
@@ -109,6 +112,7 @@ export const useTimeline = (
   /** 削除したタグを、読み込んだ記入から外す（自分で削除したときも、同期メッセージで届いたときも） */
   receiveTagDeletion: (deleted: DeletedTag) => void;
 }> => {
+  const backend = useBackend();
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
@@ -139,7 +143,7 @@ export const useTimeline = (
   const loadLatest = useCallback(async () => {
     const since = lastSeq.current;
     loadsInFlight.current += 1;
-    const result = await api.getTimeline();
+    const result = await backend.getTimeline();
     loadsInFlight.current -= 1;
     const changes = changesWhileLoading.current
       .filter(({ seq }) => seq > since)
@@ -161,9 +165,8 @@ export const useTimeline = (
       );
       return;
     }
-    redirectToLoginIfSignedOut(result.error);
     setLoading((state) => (state.kind === "Loaded" ? state : { kind: "LoadFailed" }));
-  }, []);
+  }, [backend]);
 
   useEffect(() => {
     void loadLatest();
@@ -176,8 +179,7 @@ export const useTimeline = (
     }
   }, [current, apply]);
 
-  const fail = (error: ApiError) => {
-    redirectToLoginIfSignedOut(error);
+  const fail = (error: BackendError) => {
     setErrorMessage(messageOf(error));
   };
 
@@ -210,7 +212,7 @@ export const useTimeline = (
         failedDraft !== undefined && isSameDraft(failedDraft, body, tags)
           ? failedDraft.id
           : newEntryId();
-      const result = await api.writeJournalEntry(id, body, tags);
+      const result = await backend.writeJournalEntry(id, body, tags);
       if (Result.isFailure(result)) {
         setFailedDraft({ id, body, tags });
         fail(result.error);
@@ -224,7 +226,7 @@ export const useTimeline = (
     },
     edit: async (id, body, tags) => {
       setErrorMessage(undefined);
-      const result = await api.editJournalEntry(id, body, tags);
+      const result = await backend.editJournalEntry(id, body, tags);
       if (Result.isFailure(result)) {
         fail(result.error);
         return false;
@@ -235,7 +237,7 @@ export const useTimeline = (
     },
     remove: async (id) => {
       setErrorMessage(undefined);
-      const result = await api.deleteJournalEntry(id);
+      const result = await backend.deleteJournalEntry(id);
       if (Result.isFailure(result)) {
         fail(result.error);
         return;
@@ -248,7 +250,7 @@ export const useTimeline = (
       }
       const { before } = loading.next;
       setLoadingMore(true);
-      void api.getTimeline(before).then((result) => {
+      void backend.getTimeline(before).then((result) => {
         setLoadingMore(false);
         if (Result.isFailure(result)) {
           fail(result.error);

@@ -5,10 +5,8 @@ import type { JournalEntry } from "../domain/journal-entry.ts";
 import type { LocalDate } from "../domain/local-date.ts";
 import type { TagName } from "../domain/tag.ts";
 import { TaggedEntries, type TaggedEntriesCursor } from "../domain/tagged-entries.ts";
-import { createApiClient, type ApiError } from "./api.ts";
+import { useBackend, type BackendError } from "./backend.ts";
 import { deviceTimeZone } from "./use-stats.ts";
-
-const api = createApiClient();
 
 /** 読み込んだものの様子。読み込み直している間は、前に読み込んだ同じものを出し続ける */
 export type LoadView<T> =
@@ -16,22 +14,13 @@ export type LoadView<T> =
   | Readonly<{ kind: "LoadFailed" }>
   | Readonly<{ kind: "Loaded"; value: T }>;
 
-/** ログインが切れていればログイン画面へ移る。そうでなければ読み込めなかったとして扱う */
-const handleFailure = (error: ApiError, failed: () => void): void => {
-  if (error.kind === "ApiRejected" && error.code === "UNAUTHENTICATED") {
-    window.location.href = "/login";
-    return;
-  }
-  failed();
-};
-
 /**
  * `key` が変わるたびに `load` で読み込む。続けて切り替えたとき、古い応答で新しい表示を上書きしないよう、
  * 最後の読み込みだけを受け取る（`useStats` と同じ）
  */
 const useLoad = <T>(
   key: string,
-  load: () => Result.ResultAsync<T, ApiError>,
+  load: () => Result.ResultAsync<T, BackendError>,
 ): Readonly<{ view: LoadView<T>; reload: () => void }> => {
   const [loaded, setLoaded] = useState<Readonly<{ key: string; value: T }> | undefined>(undefined);
   const [failed, setFailed] = useState<string | undefined>(undefined);
@@ -54,7 +43,7 @@ const useLoad = <T>(
         setFailed(undefined);
         return;
       }
-      handleFailure(result.error, () => setFailed(key));
+      setFailed(key);
     });
   }, [key, attempt]);
 
@@ -66,14 +55,18 @@ const useLoad = <T>(
 };
 
 /** ジャーナルのカレンダー（GLOSSARY）の1か月分。日付は端末のタイムゾーンで区切る */
-export const useJournalCalendar = (month: JournalMonth) =>
-  useLoad<JournalCalendar>(`${month.year}-${month.month}`, () =>
-    api.getJournalCalendar(month, deviceTimeZone()),
+export const useJournalCalendar = (month: JournalMonth) => {
+  const backend = useBackend();
+  return useLoad<JournalCalendar>(`${month.year}-${month.month}`, () =>
+    backend.getJournalCalendar(month, deviceTimeZone()),
   );
+};
 
 /** 選んだ日の記入 */
-export const useEntriesOnDate = (date: LocalDate) =>
-  useLoad<EntriesOnDate>(date.key, () => api.getEntriesOnDate(date, deviceTimeZone()));
+export const useEntriesOnDate = (date: LocalDate) => {
+  const backend = useBackend();
+  return useLoad<EntriesOnDate>(date.key, () => backend.getEntriesOnDate(date, deviceTimeZone()));
+};
 
 /** タグのついた記入。読み込んだページを重ねたもの */
 export type TaggedEntriesView = LoadView<
@@ -92,7 +85,8 @@ export const useTaggedEntries = (
   loadMore: () => void;
   reload: () => void;
 }> => {
-  const first = useLoad(tag, () => api.getEntriesWithTag(tag));
+  const backend = useBackend();
+  const first = useLoad(tag, () => backend.getEntriesWithTag(tag));
   // 足したページ。タグを切り替えたら捨てる
   const [more, setMore] = useState<
     Readonly<{ tag: TagName; entries: ReadonlyArray<JournalEntry>; next: TaggedEntriesCursor }>
@@ -118,7 +112,7 @@ export const useTaggedEntries = (
       return;
     }
     setLoadingMore(true);
-    void api.getEntriesWithTag(tag, view.value.next.before).then((result) => {
+    void backend.getEntriesWithTag(tag, view.value.next.before).then((result) => {
       setLoadingMore(false);
       if (Result.isSuccess(result)) {
         setMore((current) => ({
@@ -132,7 +126,6 @@ export const useTaggedEntries = (
         return;
       }
       // 続きを読めなければ、ボタンを残してもう一度押せるようにする
-      handleFailure(result.error, () => undefined);
     });
   };
 

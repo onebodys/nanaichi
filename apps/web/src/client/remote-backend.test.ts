@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { AdvanceMode } from "../domain/advance-mode.ts";
@@ -10,7 +10,9 @@ import { Stats } from "../domain/stats.ts";
 import { TagName } from "../domain/tag.ts";
 import { TaggedEntries } from "../domain/tagged-entries.ts";
 import { Timeline } from "../domain/timeline.ts";
-import { createApiClient } from "./api.ts";
+import { createRemoteBackend } from "./remote-backend.ts";
+import type { OpenSyncSocket } from "./sync-connection.ts";
+import { SyncMessage } from "../domain/sync-message.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -34,7 +36,11 @@ const respondWith = (status: number, body: unknown) => {
       headers: { "content-type": "application/json" },
     });
   };
-  return { client: createApiClient(fetchApi), paths, requests };
+  return {
+    client: createRemoteBackend({ fetchApi, onSignedOut: () => undefined }),
+    paths,
+    requests,
+  };
 };
 
 describe("現在のセッションの取得", () => {
@@ -68,44 +74,44 @@ describe("現在のセッションの取得", () => {
     });
   });
 
-  test("ログインしていなければ、UNAUTHENTICATED の ApiRejected を返す", async () => {
+  test("ログインしていなければ、UNAUTHENTICATED の Rejected を返す", async () => {
     const { client } = respondWith(401, { error: "UNAUTHENTICATED" });
 
     expect(await client.getCurrentSession()).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 401, code: "UNAUTHENTICATED" }),
+      Result.fail({ kind: "Rejected", code: "UNAUTHENTICATED" }),
     );
   });
 
-  test("応答がスナップショットのスキーマに合わなければ UnexpectedResponse を返す", async () => {
+  test("応答がスナップショットのスキーマに合わなければ Broken を返す", async () => {
     const { client } = respondWith(200, { kind: "Session", serverTime: at(0) });
 
-    expect(await client.getCurrentSession()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
+    expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "Broken" }));
   });
 
-  test("知らない種類のエラーの応答は UnexpectedResponse を返す", async () => {
+  test("知らない種類のエラーの応答は Broken を返す", async () => {
     const { client } = respondWith(500, { message: "Internal Server Error" });
 
-    expect(await client.getCurrentSession()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 500 }),
-    );
+    expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "Broken" }));
   });
 
-  test("応答が JSON でなければ UnexpectedResponse を返す", async () => {
-    const client = createApiClient(async () => new Response("<!doctype html>", { status: 200 }));
-
-    expect(await client.getCurrentSession()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
-  });
-
-  test("通信できなければ NetworkError を返す", async () => {
-    const client = createApiClient(async () => {
-      throw new TypeError("Failed to fetch");
+  test("応答が JSON でなければ Broken を返す", async () => {
+    const client = createRemoteBackend({
+      fetchApi: async () => new Response("<!doctype html>", { status: 200 }),
+      onSignedOut: () => undefined,
     });
 
-    expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "NetworkError" }));
+    expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "Broken" }));
+  });
+
+  test("通信できなければ Unreachable を返す", async () => {
+    const client = createRemoteBackend({
+      fetchApi: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      onSignedOut: () => undefined,
+    });
+
+    expect(await client.getCurrentSession()).toEqual(Result.fail({ kind: "Unreachable" }));
   });
 });
 
@@ -131,11 +137,11 @@ describe("セッションの開始", () => {
     expect(await client.startSession(operationId)).toEqual(Result.succeed(snapshot));
   });
 
-  test("セッション中に開始すると、SESSION_ALREADY_IN_PROGRESS の ApiRejected を返す", async () => {
+  test("セッション中に開始すると、SESSION_ALREADY_IN_PROGRESS の Rejected を返す", async () => {
     const { client } = respondWith(409, { error: "SESSION_ALREADY_IN_PROGRESS" });
 
     expect(await client.startSession(operationId)).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 409, code: "SESSION_ALREADY_IN_PROGRESS" }),
+      Result.fail({ kind: "Rejected", code: "SESSION_ALREADY_IN_PROGRESS" }),
     );
   });
 });
@@ -153,7 +159,7 @@ describe("セッションへの操作", () => {
     });
   });
 
-  test("その状態ではできない操作なら、OPERATION_REJECTED の ApiRejected を返す", async () => {
+  test("その状態ではできない操作なら、OPERATION_REJECTED の Rejected を返す", async () => {
     const { client } = respondWith(409, {
       error: "OPERATION_REJECTED",
       operation: "SkipBreak",
@@ -161,7 +167,7 @@ describe("セッションへの操作", () => {
     });
 
     expect(await client.operateSession(operationId, "SkipBreak")).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 409, code: "OPERATION_REJECTED" }),
+      Result.fail({ kind: "Rejected", code: "OPERATION_REJECTED" }),
     );
   });
 });
@@ -210,19 +216,19 @@ describe("ジャーナル記入", () => {
     expect(unwrapped(result)).toEqual(JournalEntry.toJson(written));
   });
 
-  test("セッションの外で書くと、NO_SESSION_IN_PROGRESS の ApiRejected を返す", async () => {
+  test("セッションの外で書くと、NO_SESSION_IN_PROGRESS の Rejected を返す", async () => {
     const { client } = respondWith(409, { error: "NO_SESSION_IN_PROGRESS" });
 
     expect(await client.writeJournalEntry(entryId, "メモ", [])).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 409, code: "NO_SESSION_IN_PROGRESS" }),
+      Result.fail({ kind: "Rejected", code: "NO_SESSION_IN_PROGRESS" }),
     );
   });
 
-  test("使えるタグの種類の上限を超えると、TAG_LIMIT_EXCEEDED の ApiRejected を返す", async () => {
+  test("使えるタグの種類の上限を超えると、TAG_LIMIT_EXCEEDED の Rejected を返す", async () => {
     const { client } = respondWith(409, { error: "TAG_LIMIT_EXCEEDED", limit: 20 });
 
     expect(await client.writeJournalEntry(entryId, "メモ", [readingTag])).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 409, code: "TAG_LIMIT_EXCEEDED" }),
+      Result.fail({ kind: "Rejected", code: "TAG_LIMIT_EXCEEDED" }),
     );
   });
 
@@ -254,11 +260,11 @@ describe("ジャーナル記入", () => {
     expect(result).toEqual(Result.succeed({ id: entryId, deletedAt: at(9) }));
   });
 
-  test("記入が見つからなければ、JOURNAL_ENTRY_NOT_FOUND の ApiRejected を返す", async () => {
+  test("記入が見つからなければ、JOURNAL_ENTRY_NOT_FOUND の Rejected を返す", async () => {
     const { client } = respondWith(404, { error: "JOURNAL_ENTRY_NOT_FOUND" });
 
     expect(await client.deleteJournalEntry(entryId)).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 404, code: "JOURNAL_ENTRY_NOT_FOUND" }),
+      Result.fail({ kind: "Rejected", code: "JOURNAL_ENTRY_NOT_FOUND" }),
     );
   });
 });
@@ -292,12 +298,10 @@ describe("タイムライン", () => {
     );
   });
 
-  test("応答がページのスキーマに合わなければ UnexpectedResponse を返す", async () => {
+  test("応答がページのスキーマに合わなければ Broken を返す", async () => {
     const { client } = respondWith(200, { sessions: [] });
 
-    expect(await client.getTimeline()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
+    expect(await client.getTimeline()).toEqual(Result.fail({ kind: "Broken" }));
   });
 });
 
@@ -322,11 +326,11 @@ describe("タグ", () => {
     expect(result).toEqual(Result.succeed({ name: "読書", deletion }));
   });
 
-  test("削除するタグが使われていなければ、TAG_NOT_FOUND の ApiRejected を返す", async () => {
+  test("削除するタグが使われていなければ、TAG_NOT_FOUND の Rejected を返す", async () => {
     const { client } = respondWith(404, { error: "TAG_NOT_FOUND" });
 
     expect(await client.deleteTag(readingTag, { kind: "Detach" })).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 404, code: "TAG_NOT_FOUND" }),
+      Result.fail({ kind: "Rejected", code: "TAG_NOT_FOUND" }),
     );
   });
 
@@ -339,12 +343,10 @@ describe("タグ", () => {
     expect(result).toEqual(Result.succeed({ tags: ["読書", "設計"] }));
   });
 
-  test("応答のタグが名前の規則に合わなければ UnexpectedResponse を返す", async () => {
+  test("応答のタグが名前の規則に合わなければ Broken を返す", async () => {
     const { client } = respondWith(200, { tags: ["空白 を含む"] });
 
-    expect(await client.getTags()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
+    expect(await client.getTags()).toEqual(Result.fail({ kind: "Broken" }));
   });
 });
 
@@ -370,12 +372,10 @@ describe("スタッツ", () => {
     expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(Result.succeed(report));
   });
 
-  test("応答がスキーマに合わなければ UnexpectedResponse を返す", async () => {
+  test("応答がスキーマに合わなければ Broken を返す", async () => {
     const { client } = respondWith(200, { ...report, period: "Year" });
 
-    expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
+    expect(await client.getStats("Week", "Asia/Tokyo")).toEqual(Result.fail({ kind: "Broken" }));
   });
 });
 
@@ -396,11 +396,11 @@ describe("ジャーナルのカレンダー", () => {
     expect(paths).toEqual(["/api/journal-calendar?month=2026-10&timeZone=Asia%2FTokyo"]);
   });
 
-  test("応答がスキーマに合わなければ UnexpectedResponse を返す", async () => {
+  test("応答がスキーマに合わなければ Broken を返す", async () => {
     const { client } = respondWith(200, { ...calendar, days: [{ kind: "Day" }] });
 
     expect(await client.getJournalCalendar({ year: 2026, month: 10 }, "Asia/Tokyo")).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
+      Result.fail({ kind: "Broken" }),
     );
   });
 });
@@ -444,11 +444,11 @@ describe("タグのついた記入", () => {
     ]);
   });
 
-  test("ログインしていなければ、UNAUTHENTICATED の ApiRejected を返す", async () => {
+  test("ログインしていなければ、UNAUTHENTICATED の Rejected を返す", async () => {
     const { client } = respondWith(401, { error: "UNAUTHENTICATED" });
 
     expect(await client.getEntriesWithTag(readingTag)).toEqual(
-      Result.fail({ kind: "ApiRejected", status: 401, code: "UNAUTHENTICATED" }),
+      Result.fail({ kind: "Rejected", code: "UNAUTHENTICATED" }),
     );
   });
 });
@@ -471,11 +471,72 @@ describe("フェーズの進め方", () => {
     expect(requests[0]).toMatchObject({ method: "PUT", body: JSON.stringify(mode) });
   });
 
-  test("応答の進め方が自動・手動のどちらでもなければ UnexpectedResponse を返す", async () => {
+  test("応答の進め方が自動・手動のどちらでもなければ Broken を返す", async () => {
     const { client } = respondWith(200, { ...mode, BreakToFocus: "Sometimes" });
 
-    expect(await client.getAdvanceMode()).toEqual(
-      Result.fail({ kind: "UnexpectedResponse", status: 200 }),
-    );
+    expect(await client.getAdvanceMode()).toEqual(Result.fail({ kind: "Broken" }));
+  });
+});
+
+describe("ログイン切れの知らせ", () => {
+  test("UNAUTHENTICATED の応答なら、失敗を返す前に onSignedOut を呼ぶ", async () => {
+    const calls: Array<string> = [];
+    const backend = createRemoteBackend({
+      fetchApi: async () =>
+        new Response(JSON.stringify({ error: "UNAUTHENTICATED" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }),
+      onSignedOut: () => calls.push("signedOut"),
+    });
+
+    const result = await backend.getTags();
+    calls.push("returned");
+
+    expect(result).toEqual(Result.fail({ kind: "Rejected", code: "UNAUTHENTICATED" }));
+    expect(calls).toEqual(["signedOut", "returned"]);
+  });
+
+  test("ほかの失敗では onSignedOut を呼ばない", async () => {
+    const onSignedOut = vi.fn<() => void>();
+    const backend = createRemoteBackend({
+      fetchApi: async () =>
+        new Response(JSON.stringify({ error: "TAG_NOT_FOUND" }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        }),
+      onSignedOut,
+    });
+
+    await backend.getTags();
+
+    expect(onSignedOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("同期メッセージの購読", () => {
+  test("差し替えた WebSocket に届いた同期メッセージを、検証して handlers に渡す", () => {
+    const received: Array<unknown> = [];
+    let deliver: (data: unknown) => void = () => undefined;
+    let open: () => void = () => undefined;
+    const openSocket: OpenSyncSocket = ({ onOpen, onMessage }) => {
+      open = onOpen;
+      deliver = onMessage;
+      return { send: () => undefined, close: () => undefined };
+    };
+    const backend = createRemoteBackend({ openSocket, onSignedOut: () => undefined });
+    const onConnected = vi.fn<() => void>();
+
+    const subscription = backend.subscribe({ onConnected, onMessage: (m) => received.push(m) });
+    open();
+    const message: SyncMessage = {
+      kind: "SessionChanged",
+      snapshot: Session.snapshot(started, at(1)),
+    };
+    deliver(SyncMessage.serialize(message));
+
+    expect(onConnected).toHaveBeenCalledTimes(1);
+    expect(received).toEqual([message]);
+    subscription.close();
   });
 });
