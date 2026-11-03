@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
 import { Sensitive } from "../domain/sensitive.ts";
+import type { ClosedSession, StoredEntry } from "../domain/session-record.ts";
 import { SessionEventId } from "../domain/session-event.ts";
 import { SessionId } from "../domain/session.ts";
 import { TagName } from "../domain/tag.ts";
@@ -15,9 +16,7 @@ import {
   DeviceRecords,
   recordsDeps,
   sessionRecordsOf,
-  type ClosedSession,
   type Draft,
-  type StoredEntry,
 } from "./records.ts";
 import { decodeRecords, encodeMetaRecord, encodeSessionRecord } from "./records-json.ts";
 

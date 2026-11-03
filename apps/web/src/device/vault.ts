@@ -1,12 +1,8 @@
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import type { SessionRecord } from "../domain/session-record.ts";
 import { SessionId } from "../domain/session.ts";
-import {
-  changedSessionRecords,
-  DeviceRecords,
-  sessionRecordsOf,
-  type SessionRecord,
-} from "./records.ts";
+import { changedSessionRecords, DeviceRecords, sessionRecordsOf } from "./records.ts";
 import {
   assembleRecords,
   decodeMetaRecord,
