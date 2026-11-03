@@ -35,6 +35,10 @@ const asOtherDevice = async (app: App, browser: Browser) => {
 /**
  * ページの同期の WebSocket を、テストから切断できるように差し替える。`__disconnect()` で開いている接続を閉じ、
  * `__reconnect()` を呼ぶまでは繋ぎ直しても繋がらない（繋がらない宛先に向ける）。
+ *
+ * `__settled()` は、同期の接続が開いていて、読み込み中の API がないときに true を返す。画面は繋がったときに
+ * スナップショットとタイムラインを読み込み直すので、その応答が切断のあとに返ると、切断している間の
+ * PC の操作が画面に届いてしまう。切断する前にこれを待つ。
  */
 const installDisconnectableSocket = () => {
   if ("__disconnect" in window) {
@@ -43,6 +47,16 @@ const installDisconnectableSocket = () => {
   const RealWebSocket = WebSocket;
   const sockets: Array<WebSocket> = [];
   let blocked = false;
+  let pendingRequests = 0;
+  const realFetch = window.fetch;
+  window.fetch = async (...args) => {
+    pendingRequests += 1;
+    try {
+      return await realFetch(...args);
+    } finally {
+      pendingRequests -= 1;
+    }
+  };
   window.WebSocket = class extends RealWebSocket {
     constructor(url: string | URL, protocols?: string | Array<string>) {
       // 同期の接続だけを扱う。開発サーバー（Vite）の接続まで閉じると、ページが読み込み直される
@@ -54,6 +68,8 @@ const installDisconnectableSocket = () => {
     }
   };
   Object.assign(window, {
+    __settled: () =>
+      pendingRequests === 0 && sockets.some((socket) => socket.readyState === RealWebSocket.OPEN),
     __disconnect: () => {
       blocked = true;
       for (const socket of sockets.splice(0)) {
@@ -136,6 +152,7 @@ describe("複数の端末の同期", { serial: true, session: "syncWatcher" }, (
     // ローカルの記録は実行のあいだで残るので、前の実行の記入と見分けられる本文にする
     const body = `切断中に PC で書いた記入 ${crypto.randomUUID().slice(0, 8)}`;
 
+    await expect.poll(() => browser.evaluate<boolean>("window.__settled()")).toBe(true);
     await browser.evaluate<null>("(window.__disconnect(), null)");
     await pc.operate("Pause");
     await pc.write(crypto.randomUUID(), body);
