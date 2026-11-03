@@ -19,7 +19,10 @@
       property="og:description"
       content="7分集中して、1分書く。そのくり返しがリズムになり、集中が続く。"
     />
-    <meta property="og:image" content="/landing/og.png" />
+    <!-- SNS のプレビューは相対パスの画像を読まないので、og:image は絶対 URL にする -->
+    <meta property="og:url" content="https://nanaichi.app/lp" />
+    <meta property="og:image" content="https://nanaichi.app/landing/og.png" />
+    <link rel="canonical" href="https://nanaichi.app/lp" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
