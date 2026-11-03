@@ -21,6 +21,22 @@ describe("ログインしないで使う", () => {
     await expect(screen.getByRole("button", { name: "Google でログイン" })).toBeVisible();
   });
 
+  test("スマホの狭い幅（320px と iPhone 12 mini の 375px）でも、ヘッダーがはみ出さず横スクロールが出ない", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    for (const width of [320, 375]) {
+      await browser.setViewport({ width, height: 812 });
+      await app.open("/");
+      await expect(screen.getByRole("link", { name: "ログインして同期" })).toBeVisible();
+      const overflow = await browser.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${width}px`).toBe(0);
+    }
+  });
+
   test("設定画面のアカウントの欄に、記録がこのブラウザにあることとログインして同期が出る", async ({
     app,
     screen,
