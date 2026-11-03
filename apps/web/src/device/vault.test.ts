@@ -177,6 +177,34 @@ describe("この端末の保存先（IndexedDB）", () => {
     expect(encoded(await unwrap(tabB.load(seen)))).toEqual(encoded(second));
   });
 
+  test("閉じたセッションを除いてコミットすると、そのセッションを消し、版を2つ進める", async () => {
+    const factory = new IDBFactory();
+    const vault = indexedDbVault(factory);
+    const first = await commit(vault, VaultContent.empty, twoSessions());
+    const closedId = closedIdOf(first.records);
+
+    const second = await commit(vault, first, { ...first.records, closed: [] });
+
+    expect(await rawGet(factory, "records", `session:${closedId}`)).toBeUndefined();
+    expect(await metaOf(factory)).toEqual({ revision: first.revision + 2, changed: [] });
+    const reloaded = await unwrap(indexedDbVault(factory).load(VaultContent.empty));
+    expect(encoded(reloaded)).toEqual(encoded(second));
+  });
+
+  test("別のタブがセッションを消したら、全部を読み直して消えたセッションを読まない", async () => {
+    const factory = new IDBFactory();
+    const tabA = indexedDbVault(factory);
+    const tabB = indexedDbVault(factory);
+    const first = await commit(tabA, VaultContent.empty, twoSessions());
+    const seen = await unwrap(tabB.load(VaultContent.empty));
+
+    const second = await commit(tabA, first, { ...first.records, closed: [] });
+
+    const reloaded = await unwrap(tabB.load(seen));
+    expect(encoded(reloaded)).toEqual(encoded(second));
+    expect(reloaded.records.closed).toEqual([]);
+  });
+
   test("新しい版のアプリが IndexedDB の版を上げていたら 読みも書きもせず NewerFormat を返す", async () => {
     const factory = new IDBFactory();
     const newer = await database(factory, 2, (db) => {

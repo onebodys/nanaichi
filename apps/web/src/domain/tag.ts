@@ -50,25 +50,38 @@ export type TagLimitExceeded = Readonly<{ kind: "TagLimitExceeded"; limit: numbe
 
 export const Tag = {
   /**
-   * 記入に `tags` をつけても、使っているタグの種類が上限を超えないことを確かめる。
+   * 記入に `tags` をつけてよいかを確かめる。まだ使っていないタグをつけるときだけ、
+   * 合わせた種類が上限を超えないかを見る（ADR 0020）。
    *
-   * `inUse` はその記入以外の削除していない記入についているタグ。どの記入にもついていない
-   * タグは存在しないので数えない（ADR 0013）。
+   * - `inUse`: その記入以外の削除していない記入についているタグ。どの記入にもついていない
+   *   タグは存在しないので数えない（ADR 0013）
+   * - `kept`: その記入にいまついているタグ（書き直すとき）。新しく書くときは空
+   *
+   * `inUse` と `kept` にあるタグだけなら、上限を超えていてもつけられる。取り込みでは上限を超えうるので、
+   * そのあともタグをつけない記入や使っているタグだけの記入は書ける。
    */
   ensureWithinLimit: (
-    inUse: ReadonlyArray<TagName>,
-    tags: ReadonlyArray<TagName>,
-  ): Result.Result<ReadonlyArray<TagName>, TagLimitExceeded> =>
-    new Set([...inUse, ...tags]).size > TAG_KINDS_MAX
+    input: Readonly<{
+      inUse: ReadonlyArray<TagName>;
+      kept: ReadonlyArray<TagName>;
+      tags: ReadonlyArray<TagName>;
+    }>,
+  ): Result.Result<ReadonlyArray<TagName>, TagLimitExceeded> => {
+    const known = new Set([...input.inUse, ...input.kept]);
+    const addsNew = input.tags.some((tag) => !known.has(tag));
+    // 数えるのは書いたあとに使われているタグ。`kept` のうち外すものは数えない（付け替えて種類が増えなければつけられる）
+    return addsNew && new Set([...input.inUse, ...input.tags]).size > TAG_KINDS_MAX
       ? Result.fail({ kind: "TagLimitExceeded", limit: TAG_KINDS_MAX })
-      : Result.succeed(tags),
+      : Result.succeed(input.tags);
+  },
 
   /** 新しいタグ `name` を作れるか（つけているもの・使っているものなら作るのではないので、いつでもつけられる） */
   canAdd: (
     inUse: ReadonlyArray<TagName>,
     attached: ReadonlyArray<TagName>,
     name: TagName,
-  ): boolean => Result.isSuccess(Tag.ensureWithinLimit(inUse, [...attached, name])),
+  ): boolean =>
+    Result.isSuccess(Tag.ensureWithinLimit({ inUse, kept: [], tags: [...attached, name] })),
 } as const;
 
 // ---------------------------------------------------------------------------

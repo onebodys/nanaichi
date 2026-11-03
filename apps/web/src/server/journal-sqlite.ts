@@ -56,7 +56,19 @@ export const writtenDuringOf = (
   return phase === null ? { kind: "Idle", round, setNumber } : { kind: phase, round, setNumber };
 };
 
-const JournalEntryRowSchema = v.pipe(
+/**
+ * 削除した記入の行。本文と紐付きは読まない。取り込んだ削除済みの記入は本文も紐付きも持たず
+ * （端末が捨てている、ADR 0010）、列には埋め草の値が入っている（import-sqlite.ts）
+ */
+const DeletedJournalEntryRowSchema = v.pipe(
+  v.object({ id: JournalEntryId.schema, deleted_at: epochMs }),
+  v.transform((row): StoredJournalEntry => ({
+    kind: "Deleted",
+    deleted: { id: row.id, deletedAt: new Date(row.deleted_at) },
+  })),
+);
+
+const WrittenJournalEntryRowSchema = v.pipe(
   v.object({
     id: JournalEntryId.schema,
     session_id: SessionId.schema,
@@ -67,13 +79,10 @@ const JournalEntryRowSchema = v.pipe(
     round: positiveInt,
     set_number: v.nullable(positiveInt),
     phase: v.nullable(v.picklist(["Focus", "Journal", "Break"])),
-    deleted_at: v.nullable(epochMs),
+    deleted_at: v.null(),
   }),
   v.rawTransform(({ dataset, addIssue, NEVER }): StoredJournalEntry => {
     const row = dataset.value;
-    if (row.deleted_at !== null) {
-      return { kind: "Deleted", deleted: { id: row.id, deletedAt: new Date(row.deleted_at) } };
-    }
     const writtenDuring = writtenDuringOf(row.round, row.set_number, row.phase);
     if (writtenDuring === undefined) {
       addIssue({ message: "紐付きの列の組み合わせが不正", path: undefined });
@@ -93,6 +102,8 @@ const JournalEntryRowSchema = v.pipe(
     };
   }),
 );
+
+const JournalEntryRowSchema = v.union([DeletedJournalEntryRowSchema, WrittenJournalEntryRowSchema]);
 
 const parseJournalEntryRow = parseRow(JournalEntryRowSchema, "journal_entries");
 

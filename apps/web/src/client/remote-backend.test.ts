@@ -10,7 +10,8 @@ import { Stats } from "../domain/stats.ts";
 import { TagName } from "../domain/tag.ts";
 import { TaggedEntries } from "../domain/tagged-entries.ts";
 import { Timeline } from "../domain/timeline.ts";
-import { createRemoteBackend } from "./remote-backend.ts";
+import { createImportApi, createRemoteBackend } from "./remote-backend.ts";
+import { ImportBatch } from "../domain/import.ts";
 import type { OpenSyncSocket } from "./sync-connection.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 
@@ -538,5 +539,87 @@ describe("同期メッセージの購読", () => {
     expect(onConnected).toHaveBeenCalledTimes(1);
     expect(received).toEqual([message]);
     subscription.close();
+  });
+});
+
+describe("取り込みの束の送信", () => {
+  const sessionId = v.parse(SessionId.schema, "00000000-0000-4000-8000-0000000000aa");
+  const batch: ImportBatch = {
+    sessions: [
+      {
+        id: sessionId,
+        events: [
+          {
+            kind: "Start",
+            id: v.parse(SessionEventId.schema, "00000000-0000-4000-8000-0000000000ab"),
+            at: at(0),
+          },
+        ],
+        entries: [],
+        endedAt: at(10),
+        endedBy: "AutoEnd",
+      },
+    ],
+    advanceModeChanges: [],
+  };
+
+  const importApiReplying = (response: () => Response) => {
+    const requests: Array<Readonly<{ path: string; init: RequestInit | undefined }>> = [];
+    const onSignedOut = vi.fn<() => void>();
+    const api = createImportApi({
+      fetchApi: async (path, init) => {
+        requests.push({ path, init });
+        return response();
+      },
+      onSignedOut,
+    });
+    return { api, requests, onSignedOut };
+  };
+
+  test("束を POST /api/imports に送り、セッションごとの結果を Result で返す", async () => {
+    const receipt = { outcomes: [{ sessionId, kind: "Imported" }] } as const;
+    const { api, requests } = importApiReplying(() => Response.json(receipt));
+
+    expect(await api.sendBatch(batch)).toEqual(Result.succeed(receipt));
+    expect(requests.map(({ path, init }) => [path, init?.method])).toEqual([
+      ["/api/imports", "POST"],
+    ]);
+    const body: unknown = JSON.parse(v.parse(v.string(), requests[0]?.init?.body));
+    expect(body).toEqual(JSON.parse(JSON.stringify(ImportBatch.toJson(batch))));
+  });
+
+  test("429 なら Retry-After の秒数とともに RateLimited を返す", async () => {
+    const { api } = importApiReplying(
+      () => new Response(null, { status: 429, headers: { "retry-after": "3" } }),
+    );
+
+    expect(await api.sendBatch(batch)).toEqual(
+      Result.fail({ kind: "RateLimited", retryAfterMs: 3000 }),
+    );
+  });
+
+  test("429 で Retry-After が読めなければ 10 秒待つ", async () => {
+    const { api } = importApiReplying(() => new Response(null, { status: 429 }));
+
+    expect(await api.sendBatch(batch)).toEqual(
+      Result.fail({ kind: "RateLimited", retryAfterMs: 10_000 }),
+    );
+  });
+
+  test("ログインが切れていれば UNAUTHENTICATED の Rejected を返し、ログインが切れたと知らせる", async () => {
+    const { api, onSignedOut } = importApiReplying(() =>
+      Response.json({ error: "UNAUTHENTICATED" }, { status: 401 }),
+    );
+
+    expect(await api.sendBatch(batch)).toEqual(
+      Result.fail({ kind: "Rejected", code: "UNAUTHENTICATED" }),
+    );
+    expect(onSignedOut).toHaveBeenCalledTimes(1);
+  });
+
+  test("応答の形が違えば Broken を返す", async () => {
+    const { api } = importApiReplying(() => Response.json({ outcomes: [{ kind: "Imported" }] }));
+
+    expect(await api.sendBatch(batch)).toEqual(Result.fail({ kind: "Broken" }));
   });
 });

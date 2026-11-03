@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import type { EntryCount } from "../domain/session-summary.ts";
 import { Stats, type StatsPeriod } from "../domain/stats.ts";
 import { Timeline } from "../domain/timeline.ts";
@@ -100,9 +100,19 @@ export const HomePage = ({
     applyTagDeletionToAttached(attachedTagsKey, deleted);
     tags.refresh();
   });
-  useSync({ timer, timeline, tags, tagUsage, advanceMode, attachedTagsKey });
-  // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
-  const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
+  // 記録を取り込んだ（同期メッセージ）ときに数を進め、スタッツを読み込み直す（ADR 0020）
+  const [importsReceived, receiveImport] = useReducer((count: number) => count + 1, 0);
+  useSync({
+    timer,
+    stats: { refresh: receiveImport },
+    timeline,
+    tags,
+    tagUsage,
+    advanceMode,
+    attachedTagsKey,
+  });
+  // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときと、記録を取り込んだときだけ読み込み直す（ADR 0014）
+  const statsRefreshKey = `${statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone())}|${importsReceived}`;
   const todayStats = useStats("Today", statsRefreshKey);
   const statsPeriod = stats.period ?? "Week";
   const statsView = useStats(statsPeriod, statsRefreshKey, stats.period !== undefined);

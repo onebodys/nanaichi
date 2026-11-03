@@ -14,6 +14,7 @@ import { authClient, redirectToLogin } from "./auth-client.ts";
 import { BackendProvider } from "./backend.ts";
 import { ConsentPage } from "./consent-page.tsx";
 import { HomePage } from "./home-page.tsx";
+import { ImportDialog } from "./import-dialog.tsx";
 import { LoginPage } from "./login-page.tsx";
 import {
   RecordStoreProvider,
@@ -23,6 +24,7 @@ import {
 } from "./record-store.ts";
 import { RecordStoreUnknownPage } from "./record-store-unknown-page.tsx";
 import { createRemoteBackend } from "./remote-backend.ts";
+import { ImportProvider } from "./use-import.ts";
 
 type HomeSetup = Result.Result<
   Readonly<{ recordStore: RecordStore; backend: Backend }>,
@@ -55,6 +57,14 @@ const prepareHome = async (): Promise<HomeSetup> => {
  */
 let homeSetup: Promise<HomeSetup> | undefined;
 const setupHome = (): Promise<HomeSetup> => (homeSetup ??= prepareHome());
+
+/** ログインした直後の印を URL から消す。読み込み直したときや戻ったときに、もう一度尋ねない */
+const forgetFromLogin = () =>
+  void router.navigate({
+    to: "/",
+    search: (search) => ({ ...search, from: undefined }),
+    replace: true,
+  });
 
 const rootRoute = createRootRoute({ component: Outlet });
 
@@ -112,12 +122,14 @@ const consentRoute = createRoute({
 });
 
 /**
- * 設定画面・スタッツを重ねて開いているか（`?settings=open`、`?stats=<期間>`）。ホーム画面の上に重ねるだけなので、
+ * 設定画面・スタッツを重ねて開いているか（`?settings=open`、`?stats=<期間>`）と、ログインした直後か（`?from=login`）。ホーム画面の上に重ねるだけなので、
  * 別のルートにはしない（ルートを移るとホーム画面が外れ、タイマーと知らせが止まる）。外から来る値なのでスキーマで検証する
  */
 const HomeSearchSchema = v.object({
   settings: v.optional(v.literal("open")),
   stats: v.optional(v.picklist(STATS_PERIODS)),
+  /** ログインした直後（ログイン画面の `callbackURL`）。この端末の記録を取り込むかを尋ねる（ADR 0020） */
+  from: v.optional(v.literal("login")),
 });
 
 const homeRoute = createRoute({
@@ -129,7 +141,7 @@ const homeRoute = createRoute({
   },
   beforeLoad: async () => ({ setup: await setupHome() }),
   component: () => {
-    const { settings, stats } = homeRoute.useSearch();
+    const { settings, stats, from } = homeRoute.useSearch();
     const { setup } = homeRoute.useRouteContext();
     const navigate = homeRoute.useNavigate();
     if (Result.isFailure(setup)) {
@@ -138,24 +150,34 @@ const homeRoute = createRoute({
     const { recordStore, backend } = setup.value;
     // 閉じた画面に戻るで戻らないよう、履歴を置き換える
     const close = () => void navigate({ search: {}, replace: true });
+    const home = (
+      <HomePage
+        attachedTagsKey={attachedTagsKeyOf(recordStore)}
+        settings={{
+          open: settings === "open",
+          show: () => void navigate({ search: { settings: "open" } }),
+          close,
+        }}
+        stats={{
+          period: stats,
+          // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
+          show: () => void navigate({ search: { stats: "Week" } }),
+          changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
+          close,
+        }}
+      />
+    );
     return (
       <RecordStoreProvider recordStore={recordStore}>
         <BackendProvider backend={backend}>
-          <HomePage
-            attachedTagsKey={attachedTagsKeyOf(recordStore)}
-            settings={{
-              open: settings === "open",
-              show: () => void navigate({ search: { settings: "open" } }),
-              close,
-            }}
-            stats={{
-              period: stats,
-              // 最初は週を開く。期間を切り替えても戻るで1つずつ戻らないよう、履歴を置き換える
-              show: () => void navigate({ search: { stats: "Week" } }),
-              changePeriod: (period) => void navigate({ search: { stats: period }, replace: true }),
-              close,
-            }}
-          />
+          {recordStore.kind === "Account" ? (
+            <ImportProvider>
+              {home}
+              <ImportDialog fromLogin={from === "login"} forgetFromLogin={forgetFromLogin} />
+            </ImportProvider>
+          ) : (
+            home
+          )}
         </BackendProvider>
       </RecordStoreProvider>
     );

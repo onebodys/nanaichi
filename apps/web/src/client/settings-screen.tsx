@@ -21,6 +21,29 @@ import {
   SelectValue,
 } from "./components/ui/select.tsx";
 import { Switch } from "./components/ui/switch.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./components/ui/alert-dialog.tsx";
+import { Import } from "../domain/import.ts";
+import type { ClosedSession } from "../domain/session-record.ts";
+import { ReadOnlyEntry } from "./entry-parts.tsx";
+import {
+  deviceRecordsLabelOf,
+  deviceSessionLabelOf,
+  deviceUnreadableMessageOf,
+  importProgressLabelOf,
+  lastImportLinesOf,
+} from "./import-text.ts";
+import { useImports } from "./use-import.ts";
+import { deviceTimeZone } from "./use-stats.ts";
 import { useRecordStore } from "./record-store.ts";
 import {
   notificationPermission,
@@ -82,7 +105,7 @@ const Row = ({
   label,
   description,
   children,
-}: Readonly<{ label: string; description?: string | undefined; children: ReactNode }>) => (
+}: Readonly<{ label: string; description?: string | undefined; children?: ReactNode }>) => (
   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4">
     <div className="flex flex-col gap-0.5">
       <span className="text-[15px] font-medium">{label}</span>
@@ -440,6 +463,129 @@ const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
   );
 };
 
+/** この端末に残っているセッション1つ。開くと記入の本文を読める。捨てるときは確かめる */
+const DeviceSessionRow = ({
+  session,
+  discard,
+}: Readonly<{ session: ClosedSession; discard: () => Promise<boolean> }>) => {
+  const [expanded, setExpanded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const label = deviceSessionLabelOf(session, deviceTimeZone());
+  const written = session.entries.flatMap((stored) =>
+    stored.kind === "Written" ? [stored.entry] : [],
+  );
+  return (
+    <div className="flex flex-col">
+      <Row label={label} description={entryCountLabelOf(written.length)}>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            aria-expanded={expanded}
+            aria-label={`${label}の記入を${expanded ? "閉じる" : "見る"}`}
+            disabled={written.length === 0}
+            onClick={() => setExpanded(!expanded)}
+          >
+            {expanded ? "閉じる" : "記入を見る"}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={<Button variant="outline" aria-label={`${label}を捨てる`} />}
+            >
+              捨てる
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>このセッションを捨てますか？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {label}（{entryCountLabelOf(written.length)}）をこの端末から消します。
+                  アカウントには取り込まれず、元に戻せません。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>やめる</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => void discard().then((ok) => setFailed(!ok))}
+                >
+                  捨てる
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </Row>
+      {expanded && (
+        <ul className="flex flex-col gap-3 bg-muted/40 px-5 py-4">
+          {written.map((entry) => (
+            <li key={entry.id}>
+              <ReadOnlyEntry entry={entry} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {failed && (
+        <p role="alert" className="px-5 pb-3 text-sm text-destructive">
+          捨てられませんでした。もう一度お試しください。
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** ログインする前にこの端末で記録した、まだアカウントにないセッション（ADR 0020）。いつでも取り込める */
+const DeviceRecordsRows = () => {
+  const { state, start, discard } = useImports();
+  switch (state.kind) {
+    case "Checking":
+      return <Row label="この端末の記録" description="読み込み中…" />;
+    case "Unreadable":
+      return <Row label="この端末の記録" description={deviceUnreadableMessageOf(state.error)} />;
+    case "Running":
+      return (
+        <Row
+          label="この端末の記録"
+          description={importProgressLabelOf(state.progress.done, state.progress.total)}
+        />
+      );
+    case "Idle": {
+      const { sessions, open } = state.records;
+      const notes = lastImportLinesOf(state.last, open);
+      return (
+        <>
+          <Row
+            label="この端末の記録"
+            description={
+              sessions.length === 0
+                ? "アカウントに取り込んでいない記録はありません"
+                : `アカウントに取り込んでいない${deviceRecordsLabelOf(Import.summaryOf(sessions))}があります`
+            }
+          >
+            {sessions.length > 0 && (
+              <Button variant="outline" onClick={start}>
+                {state.last.kind === "Failed" ? "やり直す" : "取り込む"}
+              </Button>
+            )}
+          </Row>
+          {notes.length > 0 && (
+            <div className="flex flex-col gap-1 px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
+              {notes.map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+            </div>
+          )}
+          {sessions.map((session) => (
+            <DeviceSessionRow
+              key={session.id}
+              session={session}
+              discard={() => discard(session.id)}
+            />
+          ))}
+        </>
+      );
+    }
+  }
+};
+
 const AccountSection = () => {
   const recordStore = useRecordStore();
   switch (recordStore.kind) {
@@ -464,6 +610,7 @@ const AccountSection = () => {
               ログアウト
             </Button>
           </Row>
+          <DeviceRecordsRows />
         </Section>
       );
   }

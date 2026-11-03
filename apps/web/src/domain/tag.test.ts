@@ -45,16 +45,21 @@ describe("1件の記入につけるタグ", () => {
 });
 
 describe("使えるタグの種類の上限", () => {
+  const within = (input: Parameters<typeof Tag.ensureWithinLimit>[0]) =>
+    Result.isSuccess(Tag.ensureWithinLimit(input));
+
   test(`ほかの記入で使っているタグとあわせて${TAG_KINDS_MAX}種類までならつけられる`, () => {
     const inUse = tagsNumbered(TAG_KINDS_MAX - 1);
 
-    expect(Tag.ensureWithinLimit(inUse, [tag("読書")])).toEqual(Result.succeed([tag("読書")]));
+    expect(Tag.ensureWithinLimit({ inUse, kept: [], tags: [tag("読書")] })).toEqual(
+      Result.succeed([tag("読書")]),
+    );
   });
 
   test(`${TAG_KINDS_MAX}種類を使っていると、新しいタグはつけられない`, () => {
     const inUse = tagsNumbered(TAG_KINDS_MAX);
 
-    expect(Tag.ensureWithinLimit(inUse, [tag("読書")])).toEqual(
+    expect(Tag.ensureWithinLimit({ inUse, kept: [], tags: [tag("読書")] })).toEqual(
       Result.fail({ kind: "TagLimitExceeded", limit: TAG_KINDS_MAX }),
     );
   });
@@ -62,7 +67,46 @@ describe("使えるタグの種類の上限", () => {
   test(`${TAG_KINDS_MAX}種類を使っていても、使っているタグならつけられる`, () => {
     const inUse = tagsNumbered(TAG_KINDS_MAX);
 
-    expect(Result.isSuccess(Tag.ensureWithinLimit(inUse, [tag("tag1"), tag("tag2")]))).toBe(true);
+    expect(within({ inUse, kept: [], tags: [tag("tag1"), tag("tag2")] })).toBe(true);
+  });
+
+  test(`使っているタグが${TAG_KINDS_MAX}種類を超えていても、タグをつけない記入は書ける`, () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX + 5);
+
+    expect(within({ inUse, kept: [], tags: [] })).toBe(true);
+  });
+
+  test(`使っているタグが${TAG_KINDS_MAX}種類を超えていても、使っているタグだけをつける記入は書ける`, () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX + 5);
+
+    expect(within({ inUse, kept: [], tags: [tag("tag3"), tag("tag25")] })).toBe(true);
+  });
+
+  test("上限を超えたアカウントで、その記入にしかないタグをつけた記入の本文を書き直せる", () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX + 1);
+
+    expect(within({ inUse, kept: [tag("読書")], tags: [tag("読書")] })).toBe(true);
+    expect(within({ inUse, kept: [tag("読書")], tags: [] })).toBe(true);
+  });
+
+  test("上限を超えたアカウントで、まだ使っていないタグをつけて書き直すことはできない", () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX + 1);
+
+    expect(within({ inUse, kept: [tag("読書")], tags: [tag("読書"), tag("本")] })).toBe(false);
+  });
+
+  test("その記入にしかないタグを外して新しいタグに付け替えるなら、種類が増えないのでつけられる", () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX - 1);
+
+    expect(within({ inUse, kept: [tag("読書")], tags: [tag("本")] })).toBe(true);
+    expect(within({ inUse, kept: [tag("読書")], tags: [tag("読書"), tag("本")] })).toBe(false);
+  });
+
+  test("まだ使っていないタグをつけて合わせて上限を超えるなら、タグの上限で断る", () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX - 1);
+
+    expect(within({ inUse, kept: [], tags: [tag("読書"), tag("本")] })).toBe(false);
+    expect(within({ inUse, kept: [], tags: [tag("読書")] })).toBe(true);
   });
 
   test("入力欄でつけているタグとあわせて上限を超えるなら、新しいタグは作れない", () => {
@@ -71,6 +115,13 @@ describe("使えるタグの種類の上限", () => {
     expect(Tag.canAdd(inUse, [], tag("読書"))).toBe(true);
     expect(Tag.canAdd(inUse, [tag("読書")], tag("本"))).toBe(false);
     expect(Tag.canAdd(inUse, [tag("読書")], tag("tag1"))).toBe(true);
+  });
+
+  test(`使っているタグが${TAG_KINDS_MAX}種類を超えていても、使っているタグは入力欄でつけられる`, () => {
+    const inUse = tagsNumbered(TAG_KINDS_MAX + 5);
+
+    expect(Tag.canAdd(inUse, [tag("tag1")], tag("tag2"))).toBe(true);
+    expect(Tag.canAdd(inUse, [], tag("本"))).toBe(false);
   });
 });
 

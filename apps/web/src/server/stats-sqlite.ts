@@ -34,7 +34,12 @@ const EntryRowsSchema = v.array(
   }),
 );
 
+const SessionRowsSchema = v.array(
+  v.object({ id: SessionId.schema, ended_at: v.nullable(epochMs) }),
+);
+
 const parseEventRows = parseRow(EventRowsSchema, "session_events");
+const parseSessionRows = parseRow(SessionRowsSchema, "sessions");
 const parseEntryRows = parseRow(EntryRowsSchema, "journal_entries");
 
 type EventRow = v.InferOutput<typeof EventRowsSchema>[number];
@@ -42,6 +47,7 @@ type EventRow = v.InferOutput<typeof EventRowsSchema>[number];
 /** 1つのセッションの操作イベントの行（時刻の順）を、開始から始まる操作イベントにする */
 const sessionOf = (
   id: SessionId,
+  endedAt: number | null,
   rows: ReadonlyArray<EventRow>,
   journalEntryTimes: ReadonlyArray<Date>,
   advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
@@ -62,8 +68,12 @@ const sessionOf = (
       }),
     ],
     journalEntryTimes,
-    // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らなくてよい（ADR 0016）
-    advanceModeChanges: AdvanceModeChange.relevantSince(advanceModeChanges, new Date(start.at)),
+    // 閉じたセッションは閉じた時刻までの変更で計算する（sessionLoader と同じ）。自動終了したセッションの
+    // 閉じた時刻は最後の記入・操作の時刻なので、そのあとに取り込みで足した行（ADR 0020）を操作として数えないため
+    advanceModeChanges: AdvanceModeChange.relevantSince(
+      advanceModeChanges,
+      new Date(start.at),
+    ).filter((change) => endedAt === null || change.at.getTime() <= endedAt),
   };
 };
 
@@ -99,10 +109,16 @@ export const statsSqlite = (sql: SqlStorage): Readonly<{ findStatsRecords: FindS
     );
     const entriesBySession = groupBy(entryRows, (row) => row.session_id);
     const advanceModeChanges = advanceModeChangesOf(sql);
+    const endedAtById = new Map(
+      parseSessionRows(sql.exec("SELECT id, ended_at FROM sessions").toArray()).map(
+        ({ id, ended_at }) => [id, ended_at],
+      ),
+    );
 
     const sessions = [...groupBy(events, (row) => row.session_id)].map(([id, rows]) =>
       sessionOf(
         id,
+        endedAtById.get(id) ?? null,
         rows,
         (entriesBySession.get(id) ?? []).map((row) => new Date(row.written_at)),
         advanceModeChanges,
