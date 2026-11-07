@@ -1,0 +1,190 @@
+{
+  "function": "roundProgressOf",
+  "cases": [
+    {
+      "name": "2セット目の集中中は、1セット目を終え、2セット目を進めていて、3セット目と休憩はまだ",
+      "input": {
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 252,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Current",
+            "elapsedRatio": 0.4
+          },
+          {
+            "kind": "Pending"
+          }
+        ],
+        "break": {
+          "kind": "Pending"
+        }
+      }
+    },
+    {
+      "name": "ジャーナル中はそのセットの集中を終えたとみなす",
+      "input": {
+        "state": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 2,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Pending"
+          }
+        ],
+        "break": {
+          "kind": "Pending"
+        }
+      }
+    },
+    {
+      "name": "休憩中は3セットとも終えていて、休憩を進めている",
+      "input": {
+        "state": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 200,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          }
+        ],
+        "break": {
+          "kind": "Current",
+          "elapsedRatio": 0.33333333333333337
+        }
+      }
+    },
+    {
+      "name": "集中中に中断して待機になると、中断したセットはまだに戻る",
+      "input": {
+        "state": {
+          "kind": "Idle",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Pending"
+          },
+          {
+            "kind": "Pending"
+          }
+        ],
+        "break": {
+          "kind": "Pending"
+        }
+      }
+    },
+    {
+      "name": "集中のあとの切り替え待ちでは、そのセットを終えたとみなす",
+      "input": {
+        "state": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 2
+          },
+          "completedSets": 2,
+          "since": "1970-01-01T00:00:00.000Z"
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Pending"
+          }
+        ],
+        "break": {
+          "kind": "Pending"
+        }
+      }
+    },
+    {
+      "name": "休憩のあとの切り替え待ちでは、休憩までこのラウンドをすべて終えたとみなす",
+      "input": {
+        "state": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Break",
+            "round": 1
+          },
+          "completedSets": 3,
+          "since": "1970-01-01T00:00:00.000Z"
+        }
+      },
+      "expected": {
+        "sets": [
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          },
+          {
+            "kind": "Done"
+          }
+        ],
+        "break": {
+          "kind": "Done"
+        }
+      }
+    }
+  ]
+}

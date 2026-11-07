@@ -1,0 +1,33 @@
+{
+  "function": "AdvanceMode.isManual",
+  "cases": [
+    {
+      "name": "ジャーナルの終わりは、次が休憩かどうかで別の切り替わりとして選ぶ（次が休憩）",
+      "input": {
+        "mode": {
+          "FocusToJournal": "Auto",
+          "JournalToFocus": "Auto",
+          "JournalToBreak": "Manual",
+          "BreakToFocus": "Auto"
+        },
+        "from": "Journal",
+        "to": "Break"
+      },
+      "expected": true
+    },
+    {
+      "name": "ジャーナルの終わりは、次が休憩かどうかで別の切り替わりとして選ぶ（次が集中）",
+      "input": {
+        "mode": {
+          "FocusToJournal": "Auto",
+          "JournalToFocus": "Auto",
+          "JournalToBreak": "Manual",
+          "BreakToFocus": "Auto"
+        },
+        "from": "Journal",
+        "to": "Focus"
+      },
+      "expected": false
+    }
+  ]
+}

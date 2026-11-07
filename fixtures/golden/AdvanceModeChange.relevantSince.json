@@ -1,0 +1,132 @@
+{
+  "function": "AdvanceModeChange.relevantSince",
+  "cases": [
+    {
+      "name": "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更",
+      "input": {
+        "changes": [
+          {
+            "at": "2026-10-17T00:01:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:02:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:10:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ],
+        "startedAt": "2026-10-17T00:05:00.000Z"
+      },
+      "expected": [
+        {
+          "at": "2026-10-17T00:02:00.000Z",
+          "mode": {
+            "FocusToJournal": "Auto",
+            "JournalToFocus": "Auto",
+            "JournalToBreak": "Auto",
+            "BreakToFocus": "Auto"
+          }
+        },
+        {
+          "at": "2026-10-17T00:10:00.000Z",
+          "mode": {
+            "FocusToJournal": "Manual",
+            "JournalToFocus": "Auto",
+            "JournalToBreak": "Auto",
+            "BreakToFocus": "Auto"
+          }
+        }
+      ]
+    },
+    {
+      "name": "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（始める前に変更がなければすべて）",
+      "input": {
+        "changes": [
+          {
+            "at": "2026-10-17T00:01:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:02:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:10:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ],
+        "startedAt": "2026-10-17T00:00:00.000Z"
+      },
+      "expected": [
+        {
+          "at": "2026-10-17T00:01:00.000Z",
+          "mode": {
+            "FocusToJournal": "Manual",
+            "JournalToFocus": "Auto",
+            "JournalToBreak": "Auto",
+            "BreakToFocus": "Auto"
+          }
+        },
+        {
+          "at": "2026-10-17T00:02:00.000Z",
+          "mode": {
+            "FocusToJournal": "Auto",
+            "JournalToFocus": "Auto",
+            "JournalToBreak": "Auto",
+            "BreakToFocus": "Auto"
+          }
+        },
+        {
+          "at": "2026-10-17T00:10:00.000Z",
+          "mode": {
+            "FocusToJournal": "Manual",
+            "JournalToFocus": "Auto",
+            "JournalToBreak": "Auto",
+            "BreakToFocus": "Auto"
+          }
+        }
+      ]
+    },
+    {
+      "name": "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（変更がなければ空）",
+      "input": {
+        "changes": [],
+        "startedAt": "2026-10-17T00:05:00.000Z"
+      },
+      "expected": []
+    }
+  ]
+}

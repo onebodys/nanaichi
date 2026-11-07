@@ -1,0 +1,323 @@
+{
+  "function": "phaseChangeBetween",
+  "cases": [
+    {
+      "name": "集中の時間が過ぎてジャーナルに移ったら、切り替わりとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:08:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1
+        }
+      }
+    },
+    {
+      "name": "ジャーナルの時間が過ぎて次のセットの集中に移ったら、切り替わりとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:08:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:15:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2
+        }
+      }
+    },
+    {
+      "name": "3セット目のジャーナルが終わって休憩に移ったら、切り替わりとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 3,
+          "completedSets": 3,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:24:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 300,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Break",
+          "round": 1
+        }
+      }
+    },
+    {
+      "name": "休憩が終わって次のラウンドの集中に移ったら、切り替わりとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:36:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1
+        }
+      }
+    },
+    {
+      "name": "同じフェーズのまま残り時間が減っただけなら、切り替わりではない",
+      "input": {
+        "previous": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 360,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 300,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Unchanged"
+      }
+    },
+    {
+      "name": "一時停止中は時間が過ぎてもフェーズが進まないので、切り替わりではない",
+      "input": {
+        "previous": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2026-10-17T00:06:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2026-10-17T00:06:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Unchanged"
+      }
+    },
+    {
+      "name": "間のフェーズを飛ばしたときは、最後に移った先だけを知らせる",
+      "input": {
+        "previous": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 360,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:15:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2
+        }
+      }
+    },
+    {
+      "name": "自動終了して終了になったのはフェーズの切り替わりではない",
+      "input": {
+        "previous": {
+          "kind": "Break",
+          "round": 2,
+          "completedSets": 6,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:58:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:00:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        }
+      },
+      "expected": {
+        "kind": "Unchanged"
+      }
+    },
+    {
+      "name": "フェーズの進め方が手動の切り替わりで、時間が過ぎて切り替え待ちになったら、移る先のフェーズとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1
+        }
+      }
+    },
+    {
+      "name": "フェーズの進め方が手動の切り替わりで、切り替え待ちのまま時間が過ぎても、もう一度は知らせない",
+      "input": {
+        "previous": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        },
+        "current": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        }
+      },
+      "expected": {
+        "kind": "Unchanged"
+      }
+    }
+  ]
+}

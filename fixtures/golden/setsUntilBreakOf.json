@@ -1,0 +1,95 @@
+{
+  "function": "setsUntilBreakOf",
+  "cases": [
+    {
+      "name": "2セット目の集中中は、休憩まであと2セット",
+      "input": {
+        "progress": {
+          "sets": [
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Current",
+              "elapsedRatio": 0.4
+            },
+            {
+              "kind": "Pending"
+            }
+          ],
+          "break": {
+            "kind": "Pending"
+          }
+        }
+      },
+      "expected": 2
+    },
+    {
+      "name": "ジャーナル中はそのセットを終えたとみなすので、休憩まであと何セットが減る",
+      "input": {
+        "progress": {
+          "sets": [
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Pending"
+            }
+          ],
+          "break": {
+            "kind": "Pending"
+          }
+        }
+      },
+      "expected": 1
+    },
+    {
+      "name": "休憩中は休憩まであと0セット",
+      "input": {
+        "progress": {
+          "sets": [
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Done"
+            }
+          ],
+          "break": {
+            "kind": "Current",
+            "elapsedRatio": 0.33333333333333337
+          }
+        }
+      },
+      "expected": 0
+    },
+    {
+      "name": "集中中に中断して待機になると、中断したセットが数えなおされる",
+      "input": {
+        "progress": {
+          "sets": [
+            {
+              "kind": "Done"
+            },
+            {
+              "kind": "Pending"
+            },
+            {
+              "kind": "Pending"
+            }
+          ],
+          "break": {
+            "kind": "Pending"
+          }
+        }
+      },
+      "expected": 2
+    }
+  ]
+}

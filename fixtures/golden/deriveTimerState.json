@@ -1,0 +1,2072 @@
+{
+  "function": "deriveTimerState",
+  "cases": [
+    {
+      "name": "開始すると1ラウンド目の1セット目の集中が7分で始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:00:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "集中の残り秒数と次の切り替わり時刻がわかる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:03:20.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 220,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "残り秒数は1秒未満の端数を切り上げる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:06:59.001Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "集中を最後まで終えるとジャーナルに切り替わり、完了セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:07:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:08:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナルが終わると次のセットの集中が始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:15:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "3セット目のジャーナルが終わると休憩が5分入る（終わる前はジャーナルのまま）",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:23:30.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 3,
+          "completedSets": 3,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:24:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "3セット目のジャーナルが終わると休憩が5分入る",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:24:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 300,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩が終わると次のラウンドの1セット目の集中が始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:29:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:36:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "集中中に一時停止すると残り時間が止まり、次の切り替わり時刻を持たない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:20:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2026-10-17T00:03:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "再開すると止めたところから進み、切り替わり時刻が一時停止した分だけ後ろにずれる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:10:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:14:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "再開すると止めたところから進み、一時停止した分だけ後ろにずれた時刻でジャーナルに移る",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:14:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:15:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "一時停止しても完了セットかどうかに影響しない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:14:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:15:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル中も一時停止できる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:07:30.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2026-10-17T00:07:30.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩中も一時停止でき、再開すると休憩の続きから進む（再開前は止まったまま）",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:25:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:40:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:39:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2026-10-17T00:25:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩中も一時停止でき、再開すると休憩の続きから進む",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:25:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:40:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:44:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:51:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "待機中は一時停止できない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Pause",
+          "at": "2026-10-17T00:04:00.000Z",
+          "during": "Idle"
+        }
+      }
+    },
+    {
+      "name": "一時停止していなければ再開できない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Resume",
+          "at": "2026-10-17T00:03:00.000Z",
+          "during": "Focus"
+        }
+      }
+    },
+    {
+      "name": "集中中に中断すると不成立セットになり待機に戻る",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Idle",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "中断した後の集中の再開始は、同じセット番号でやり直しになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:10:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:12:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:12:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:19:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "不成立セットはラウンド内のセット数に数えないので、休憩までのセットが1つ増える（3セット目のジャーナル）",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:28:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 3,
+          "completedSets": 3,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "不成立セットはラウンド内のセット数に数えないので、休憩までのセットが1つ増える",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:29:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 300,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:34:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "一時停止中の集中も中断できる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Idle",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "ジャーナル中は中断できない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:07:30.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Abort",
+          "at": "2026-10-17T00:07:30.000Z",
+          "during": "Journal"
+        }
+      }
+    },
+    {
+      "name": "休憩中は中断できない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:25:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:26:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Abort",
+          "at": "2026-10-17T00:25:00.000Z",
+          "during": "Break"
+        }
+      }
+    },
+    {
+      "name": "待機中でなければ集中の再開始はできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:04:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "RestartFocus",
+          "at": "2026-10-17T00:03:00.000Z",
+          "during": "Focus"
+        }
+      }
+    },
+    {
+      "name": "集中中に終了したセットは不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:10:00.000Z",
+          "endedBy": "End",
+          "completedSets": 1
+        }
+      }
+    },
+    {
+      "name": "ジャーナル中に終了したセットは完了セットのまま",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:07:30.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:07:30.000Z",
+          "endedBy": "End",
+          "completedSets": 1
+        }
+      }
+    },
+    {
+      "name": "休憩中に終了しても完了セットのまま",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:26:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:26:00.000Z",
+          "endedBy": "End",
+          "completedSets": 3
+        }
+      }
+    },
+    {
+      "name": "一時停止中の集中で終了したセットも不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:20:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:20:00.000Z",
+          "endedBy": "End",
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "待機中も終了できる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:04:00.000Z",
+          "endedBy": "End",
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "終了した後は操作できない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "RestartFocus",
+          "at": "2026-10-17T00:04:00.000Z",
+          "during": "Ended"
+        }
+      }
+    },
+    {
+      "name": "休憩スキップで次のラウンドの集中がすぐ始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "SkipBreak",
+            "at": "2026-10-17T00:25:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:25:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:32:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "一時停止中の休憩もスキップできる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:25:00.000Z"
+          },
+          {
+            "kind": "SkipBreak",
+            "at": "2026-10-17T00:40:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:40:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:47:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩中でなければスキップできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "SkipBreak",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:04:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "SkipBreak",
+          "at": "2026-10-17T00:03:00.000Z",
+          "during": "Focus"
+        }
+      }
+    },
+    {
+      "name": "記入も操作もないまま2ラウンド分（58分）過ぎると、最後の操作の時刻で閉じ、それ以降のセットは数えない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:58:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:00:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "2ラウンド分に満たなければ自動終了しない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:57:59.999Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Break",
+          "round": 2,
+          "completedSets": 6,
+          "remainingSeconds": 1,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:58:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル記入があれば、最後の記入の時刻で閉じ、そこまでの完了セットを数える（閉じる前）",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:13:00.000Z",
+        "journalEntryTimes": [
+          "2026-10-17T00:07:30.000Z",
+          "2026-10-17T00:15:30.000Z"
+        ],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 3,
+          "setNumber": 2,
+          "completedSets": 8,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T01:14:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル記入があれば、最後の記入の時刻で閉じ、そこまでの完了セットを数える",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:13:30.000Z",
+        "journalEntryTimes": [
+          "2026-10-17T00:07:30.000Z",
+          "2026-10-17T00:15:30.000Z"
+        ],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:15:30.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 2
+        }
+      }
+    },
+    {
+      "name": "最後の操作が集中の途中なら、そのセットは不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:10:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 1
+        }
+      }
+    },
+    {
+      "name": "一時停止したまま2ラウンド分過ぎても自動終了する",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:07:30.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:05:30.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:07:30.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 1
+        }
+      }
+    },
+    {
+      "name": "待機のまま2ラウンド分過ぎても自動終了する",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:01:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:03:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "自動終了した時刻より後の操作は受け付けない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T01:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:01:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Pause",
+          "at": "2026-10-17T01:00:00.000Z",
+          "during": "Ended"
+        }
+      }
+    },
+    {
+      "name": "手動で終了したセッションは自動終了に書き換わらない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T03:20:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:10:00.000Z",
+          "endedBy": "End",
+          "completedSets": 1
+        }
+      }
+    },
+    {
+      "name": "指定した時刻より後の操作イベントはまだ起きていないものとして扱う",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:04:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 180,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "操作イベントが時刻の順に並んでいなければ失敗する",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:05:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:06:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "EventOutOfOrder",
+          "at": "2026-10-17T00:04:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "集中 → ジャーナルが手動なら、集中の時間が過ぎると 0:00 の切り替え待ちで止まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:10:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちで進めると、押した時刻から次のフェーズが始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:09:30.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:10:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちで進めると、ジャーナルのあとは自動で次のセットの集中に進む",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:11:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 360,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:17:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル → 集中だけを手動にすると、集中 → ジャーナルは自動のまま進む",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:07:30.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Manual",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:08:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル → 集中だけを手動にすると、ジャーナルの終わりが切り替え待ちになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:12:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Manual",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Journal",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:08:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "ジャーナル → 休憩が手動なら、休憩に入る前の切り替え待ちになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:26:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Manual",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Journal",
+            "round": 1,
+            "setNumber": 3
+          },
+          "completedSets": 3,
+          "since": "2026-10-17T00:24:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "ジャーナル → 休憩が手動なら、休憩に入る前の切り替え待ちから休憩をスキップして次のラウンドに進める",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "SkipBreak",
+            "at": "2026-10-17T00:30:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:30:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Manual",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 2,
+          "setNumber": 1,
+          "completedSets": 3,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:37:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩 → 集中が手動なら、休憩が終わると次のラウンドの前で待つ",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:40:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Manual"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Break",
+            "round": 1
+          },
+          "completedSets": 3,
+          "since": "2026-10-17T00:29:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちでは一時停止はできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:08:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Pause",
+          "at": "2026-10-17T00:08:00.000Z",
+          "during": "AwaitingAdvance"
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちでは中断はできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:08:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Abort",
+          "at": "2026-10-17T00:08:00.000Z",
+          "during": "AwaitingAdvance"
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちでは集中の再開始はできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:08:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "RestartFocus",
+          "at": "2026-10-17T00:08:00.000Z",
+          "during": "AwaitingAdvance"
+        }
+      }
+    },
+    {
+      "name": "休憩に入る前でない切り替え待ちでは、休憩をスキップできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "SkipBreak",
+            "at": "2026-10-17T00:08:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "SkipBreak",
+          "at": "2026-10-17T00:08:00.000Z",
+          "during": "AwaitingAdvance"
+        }
+      }
+    },
+    {
+      "name": "進めるのは切り替え待ちでしかできない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:03:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Advance",
+          "at": "2026-10-17T00:03:00.000Z",
+          "during": "Focus"
+        }
+      }
+    },
+    {
+      "name": "セッションの途中で手動に変えると、そのとき進めているフェーズの終わりから効く（変える前の集中）",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:02:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-17T00:03:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 300,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "セッションの途中で手動に変えると、そのとき進めているフェーズの終わりから効く",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-17T00:03:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "待っている切り替わりを自動に変えると、変えた時刻から次のフェーズが始まる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:09:15.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:09:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 45,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:10:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "始める前に変えた進め方でセッションを計算し、その後の変更はその時刻から効く",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:07:30.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:55:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-16T23:58:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:08:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちのまま記入も操作もなく2ラウンド分過ぎると、最後の操作の時刻で自動終了する",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:58:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:00:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        }
+      }
+    },
+    {
+      "name": "セッション中に進め方を変えると、操作として自動終了までの時間が延びる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T01:00:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-17T00:30:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 2,
+            "setNumber": 1
+          },
+          "completedSets": 4,
+          "since": "2026-10-17T00:36:00.000Z"
+        }
+      }
+    }
+  ]
+}

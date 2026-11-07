@@ -1,0 +1,27 @@
+{
+  "function": "ClockOffset.measure",
+  "cases": [
+    {
+      "name": "サーバーの時刻と、送ってから受け取るまでの端末の時刻の中間との差を測る",
+      "input": {
+        "requestedAt": "2026-10-17T00:00:00.000Z",
+        "receivedAt": "2026-10-17T00:00:00.200Z",
+        "serverTime": "2026-10-17T00:00:05.100Z"
+      },
+      "expected": {
+        "serverAheadMs": 5000
+      }
+    },
+    {
+      "name": "端末の時計が進んでいれば、ずれは負になる",
+      "input": {
+        "requestedAt": "2026-10-17T00:00:03.000Z",
+        "receivedAt": "2026-10-17T00:00:03.000Z",
+        "serverTime": "2026-10-17T00:00:00.000Z"
+      },
+      "expected": {
+        "serverAheadMs": -3000
+      }
+    }
+  ]
+}

@@ -1,103 +1,210 @@
-import { describe, expect, test } from "vite-plus/test";
-import { Result } from "@praha/byethrow";
-import { AdvanceMode, type AdvanceModeChange } from "./advance-mode.ts";
-import type { SessionEvents } from "./session-event.ts";
+import { goldenCases } from "../testing/golden.ts";
 import { phaseChangeBetween } from "./phase-change.ts";
-import { deriveTimerState, type TimerState } from "./timer-state.ts";
+import type { TimerState } from "./timer-state.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number, seconds = 0) =>
   new Date(STARTED_AT + minutes * 60_000 + seconds * 1000);
 
-const start = [{ kind: "Start", at: at(0) }] as const satisfies SessionEvents;
+const running = (endsAt: Date) => ({ kind: "Running", endsAt }) as const;
+const paused = (pausedAt: Date) => ({ kind: "Paused", pausedAt }) as const;
 
-const stateAt = (
-  events: SessionEvents,
-  now: Date,
-  advanceModeChanges: ReadonlyArray<AdvanceModeChange> = [],
-): TimerState => {
-  const derived = deriveTimerState(events, now, [], advanceModeChanges);
-  if (Result.isFailure(derived)) {
-    throw new Error(`状態を計算できなかった: ${derived.error.kind}`);
-  }
-  return derived.value;
-};
+/** 同じ操作イベントから計算した、前後2つの時刻の状態を渡す */
+type Input = Readonly<{ previous: TimerState; current: TimerState }>;
 
-/** 同じ操作イベントから、2つの時刻の状態を計算して比べる */
-const changeBetween = (events: SessionEvents, from: Date, to: Date) =>
-  phaseChangeBetween(stateAt(events, from), stateAt(events, to));
+const awaitingFocus1 = {
+  kind: "AwaitingAdvance",
+  finished: { kind: "Focus", round: 1, setNumber: 1 },
+  completedSets: 1,
+  since: at(7),
+} as const satisfies TimerState;
 
-describe("フェーズの切り替わり", () => {
-  test("集中の時間が過ぎてジャーナルに移ったら、切り替わりとして知らせる", () => {
-    expect(changeBetween(start, at(6, 59), at(7))).toMatchObject({
-      kind: "PhaseChanged",
-      to: { kind: "Journal", round: 1, setNumber: 1 },
-    });
-  });
-
-  test("ジャーナルの時間が過ぎて次のセットの集中に移ったら、切り替わりとして知らせる", () => {
-    expect(changeBetween(start, at(7, 59), at(8))).toMatchObject({
-      kind: "PhaseChanged",
-      to: { kind: "Focus", round: 1, setNumber: 2 },
-    });
-  });
-
-  test("3セット目のジャーナルが終わって休憩に移ったら、切り替わりとして知らせる", () => {
-    expect(changeBetween(start, at(23, 59), at(24))).toMatchObject({
-      kind: "PhaseChanged",
-      to: { kind: "Break", round: 1 },
-    });
-  });
-
-  test("休憩が終わって次のラウンドの集中に移ったら、切り替わりとして知らせる", () => {
-    expect(changeBetween(start, at(28, 59), at(29))).toMatchObject({
-      kind: "PhaseChanged",
-      to: { kind: "Focus", round: 2, setNumber: 1 },
-    });
-  });
-
-  test("同じフェーズのまま残り時間が減っただけなら、切り替わりではない", () => {
-    expect(changeBetween(start, at(1), at(2))).toEqual({ kind: "Unchanged" });
-  });
-
-  test("一時停止中は時間が過ぎてもフェーズが進まないので、切り替わりではない", () => {
-    const paused = [...start, { kind: "Pause", at: at(6) }] as const satisfies SessionEvents;
-
-    expect(changeBetween(paused, at(6, 30), at(20))).toEqual({ kind: "Unchanged" });
-  });
-
-  test("間のフェーズを飛ばしたときは、最後に移った先だけを知らせる", () => {
+goldenCases("phaseChangeBetween", (i: Input) => phaseChangeBetween(i.previous, i.current), [
+  {
+    name: "集中の時間が過ぎてジャーナルに移ったら、切り替わりとして知らせる",
+    input: {
+      previous: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 1,
+        clock: running(at(7)),
+      },
+      current: {
+        kind: "Journal",
+        round: 1,
+        setNumber: 1,
+        completedSets: 1,
+        remainingSeconds: 60,
+        clock: running(at(8)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Journal", round: 1, setNumber: 1 } },
+  },
+  {
+    name: "ジャーナルの時間が過ぎて次のセットの集中に移ったら、切り替わりとして知らせる",
+    input: {
+      previous: {
+        kind: "Journal",
+        round: 1,
+        setNumber: 1,
+        completedSets: 1,
+        remainingSeconds: 1,
+        clock: running(at(8)),
+      },
+      current: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 2,
+        completedSets: 1,
+        remainingSeconds: 7 * 60,
+        clock: running(at(15)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Focus", round: 1, setNumber: 2 } },
+  },
+  {
+    name: "3セット目のジャーナルが終わって休憩に移ったら、切り替わりとして知らせる",
+    input: {
+      previous: {
+        kind: "Journal",
+        round: 1,
+        setNumber: 3,
+        completedSets: 3,
+        remainingSeconds: 1,
+        clock: running(at(24)),
+      },
+      current: {
+        kind: "Break",
+        round: 1,
+        completedSets: 3,
+        remainingSeconds: 5 * 60,
+        clock: running(at(29)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Break", round: 1 } },
+  },
+  {
+    name: "休憩が終わって次のラウンドの集中に移ったら、切り替わりとして知らせる",
+    input: {
+      previous: {
+        kind: "Break",
+        round: 1,
+        completedSets: 3,
+        remainingSeconds: 1,
+        clock: running(at(29)),
+      },
+      current: {
+        kind: "Focus",
+        round: 2,
+        setNumber: 1,
+        completedSets: 3,
+        remainingSeconds: 7 * 60,
+        clock: running(at(36)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Focus", round: 2, setNumber: 1 } },
+  },
+  {
+    name: "同じフェーズのまま残り時間が減っただけなら、切り替わりではない",
+    input: {
+      previous: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 6 * 60,
+        clock: running(at(7)),
+      },
+      current: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 5 * 60,
+        clock: running(at(7)),
+      },
+    },
+    expected: { kind: "Unchanged" },
+  },
+  {
+    name: "一時停止中は時間が過ぎてもフェーズが進まないので、切り替わりではない",
+    input: {
+      previous: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 60,
+        clock: paused(at(6)),
+      },
+      current: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 60,
+        clock: paused(at(6)),
+      },
+    },
+    expected: { kind: "Unchanged" },
+  },
+  {
     // 端末がスリープしていて、集中 → ジャーナル → 次の集中 を一度に進めた
-    expect(changeBetween(start, at(6), at(9))).toMatchObject({
-      kind: "PhaseChanged",
-      to: { kind: "Focus", round: 1, setNumber: 2 },
-    });
-  });
-
-  test("自動終了して終了になったのはフェーズの切り替わりではない", () => {
-    expect(changeBetween(start, at(57), at(58))).toEqual({ kind: "Unchanged" });
-  });
-
-  describe("フェーズの進め方が手動の切り替わり", () => {
-    const manual = [
-      { at: at(0), mode: { ...AdvanceMode.default, FocusToJournal: "Manual" } },
-    ] as const;
-
-    test("時間が過ぎて切り替え待ちになったら、移る先のフェーズとして知らせる", () => {
-      expect(
-        phaseChangeBetween(stateAt(start, at(6, 59), manual), stateAt(start, at(7), manual)),
-      ).toEqual({
-        kind: "PhaseChanged",
-        to: { kind: "Journal", round: 1, setNumber: 1 },
-      });
-    });
-
-    test("切り替え待ちのまま時間が過ぎても、もう一度は知らせない", () => {
-      expect(
-        phaseChangeBetween(stateAt(start, at(8), manual), stateAt(start, at(20), manual)),
-      ).toEqual({
-        kind: "Unchanged",
-      });
-    });
-  });
-});
+    name: "間のフェーズを飛ばしたときは、最後に移った先だけを知らせる",
+    input: {
+      previous: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 60,
+        clock: running(at(7)),
+      },
+      current: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 2,
+        completedSets: 1,
+        remainingSeconds: 6 * 60,
+        clock: running(at(15)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Focus", round: 1, setNumber: 2 } },
+  },
+  {
+    name: "自動終了して終了になったのはフェーズの切り替わりではない",
+    input: {
+      previous: {
+        kind: "Break",
+        round: 2,
+        completedSets: 6,
+        remainingSeconds: 60,
+        clock: running(at(58)),
+      },
+      current: { kind: "Ended", endedAt: at(0), endedBy: "AutoEnd", completedSets: 0 },
+    },
+    expected: { kind: "Unchanged" },
+  },
+  {
+    name: "フェーズの進め方が手動の切り替わりで、時間が過ぎて切り替え待ちになったら、移る先のフェーズとして知らせる",
+    input: {
+      previous: {
+        kind: "Focus",
+        round: 1,
+        setNumber: 1,
+        completedSets: 0,
+        remainingSeconds: 1,
+        clock: running(at(7)),
+      },
+      current: awaitingFocus1,
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Journal", round: 1, setNumber: 1 } },
+  },
+  {
+    name: "フェーズの進め方が手動の切り替わりで、切り替え待ちのまま時間が過ぎても、もう一度は知らせない",
+    input: { previous: awaitingFocus1, current: awaitingFocus1 },
+    expected: { kind: "Unchanged" },
+  },
+]);

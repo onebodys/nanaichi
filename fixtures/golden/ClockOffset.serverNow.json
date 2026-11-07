@@ -1,0 +1,27 @@
+{
+  "function": "ClockOffset.serverNow",
+  "cases": [
+    {
+      "name": "端末の時刻にずれを足す",
+      "input": {
+        "offset": {
+          "serverAheadMs": 5000
+        },
+        "deviceNow": "2026-10-17T00:00:10.000Z",
+        "snapshotServerTime": "2026-10-17T00:00:00.000Z"
+      },
+      "expected": "2026-10-17T00:00:15.000Z"
+    },
+    {
+      "name": "スナップショットのサーバー時刻より前には戻らない",
+      "input": {
+        "offset": {
+          "serverAheadMs": -50
+        },
+        "deviceNow": "2026-10-17T00:00:01.000Z",
+        "snapshotServerTime": "2026-10-17T00:00:01.000Z"
+      },
+      "expected": "2026-10-17T00:00:01.000Z"
+    }
+  ]
+}
