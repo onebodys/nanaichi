@@ -1,5 +1,8 @@
 import * as v from "valibot";
-import type { Settled } from "./golden.ts";
+import { JournalEntryBody, JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
+import { SessionId } from "../domain/session.ts";
+import { TagName } from "../domain/tag.ts";
+import type { Plain, Settled } from "./golden.ts";
 
 const pad = (value: number, length: number) => String(value).padStart(length, "0");
 
@@ -28,3 +31,17 @@ export const parsedBy =
       ? { kind: "Success", value: parsed.output }
       : { kind: "Failure", error: { kind: "Invalid" } };
   };
+
+/** ジャーナル記入を、期待する出力に書く素の値で表したもの */
+export type JournalEntryFields = Plain<JournalEntry>;
+
+/** 素の値のジャーナル記入から、ワークフローに渡す型（ブランドと `Sensitive`）のジャーナル記入を作る */
+export const journalEntryOf = (fields: JournalEntryFields): JournalEntry => ({
+  id: v.parse(JournalEntryId.schema, fields.id),
+  sessionId: v.parse(SessionId.schema, fields.sessionId),
+  body: v.parse(JournalEntryBody.schema, fields.body),
+  tags: fields.tags.map((name) => v.parse(TagName.schema, name)),
+  writtenAt: fields.writtenAt,
+  updatedAt: fields.updatedAt,
+  writtenDuring: fields.writtenDuring,
+});

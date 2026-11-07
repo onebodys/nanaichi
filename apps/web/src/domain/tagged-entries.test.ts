@@ -1,9 +1,15 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
-import { JournalEntryBody, JournalEntryId, type JournalEntry } from "./journal-entry.ts";
+import { goldenCases } from "../testing/golden.ts";
+import {
+  journalEntryOf,
+  uuid,
+  localDate,
+  type JournalEntryFields,
+} from "../testing/golden-values.ts";
+import type { JournalEntry } from "./journal-entry.ts";
 import { schemaResult } from "./schema-result.ts";
-import { SessionId } from "./session.ts";
 import { TagName } from "./tag.ts";
 import {
   TaggedEntries,
@@ -14,64 +20,106 @@ import {
 const TOKYO = "Asia/Tokyo";
 const reading = v.parse(TagName.schema, "読書");
 
-let seq = 0;
-const uuid = () => `00000000-0000-4000-8000-${String((seq += 1)).padStart(12, "0")}`;
-const sessionId = v.parse(SessionId.schema, uuid());
-
-const entryAt = (iso: string, text = iso): JournalEntry => ({
-  id: v.parse(JournalEntryId.schema, uuid()),
-  sessionId,
-  body: v.parse(JournalEntryBody.schema, text),
-  tags: [reading],
+/** 番号 `n` の記入。時刻 `iso` に書いた、タグ「読書」のついたジャーナルの記入 */
+const entryFields = (n: number, iso: string, text = iso): JournalEntryFields => ({
+  id: uuid(n),
+  sessionId: uuid(0),
+  body: text,
+  tags: ["読書"],
   writtenAt: new Date(iso),
   updatedAt: new Date(iso),
   writtenDuring: { kind: "Journal", round: 1, setNumber: 2 },
 });
 
-describe("タグのついた記入のページ", () => {
-  test("1件多く読めていれば、いちばん古い記入の時刻から次のページを読む", () => {
-    const found = [
-      entryAt("2026-10-20T03:00:00Z"),
-      entryAt("2026-10-19T03:00:00Z"),
-      entryAt("2026-10-18T03:00:00Z"),
-    ];
+const entryAt = (n: number, iso: string, text?: string): JournalEntry =>
+  journalEntryOf(entryFields(n, iso, text));
 
-    const page = TaggedEntries.page(reading, found, 2);
+goldenCases(
+  "TaggedEntries.page",
+  (input: { tag: TagName; found: ReadonlyArray<JournalEntry>; limit: number }) =>
+    TaggedEntries.page(input.tag, input.found, input.limit),
+  [
+    {
+      name: "1件多く読めていれば、いちばん古い記入の時刻から次のページを読む",
+      input: {
+        tag: reading,
+        found: [
+          entryAt(1, "2026-10-20T03:00:00Z"),
+          entryAt(2, "2026-10-19T03:00:00Z"),
+          entryAt(3, "2026-10-18T03:00:00Z"),
+        ],
+        limit: 2,
+      },
+      expected: {
+        tag: "読書",
+        entries: [entryFields(1, "2026-10-20T03:00:00Z"), entryFields(2, "2026-10-19T03:00:00Z")],
+        next: { kind: "More", before: new Date("2026-10-19T03:00:00Z") },
+      },
+    },
+    {
+      name: "読めた数がページの大きさまでなら、これより古い記入はない",
+      input: { tag: reading, found: [entryAt(1, "2026-10-20T03:00:00Z")], limit: 2 },
+      expected: {
+        tag: "読書",
+        entries: [entryFields(1, "2026-10-20T03:00:00Z")],
+        next: { kind: "End" },
+      },
+    },
+  ],
+);
 
-    expect(page.entries).toEqual(found.slice(0, 2));
-    expect(page.next).toEqual({ kind: "More", before: new Date("2026-10-19T03:00:00Z") });
-  });
+goldenCases(
+  "TaggedEntries.merge",
+  (input: { loaded: ReadonlyArray<JournalEntry>; more: ReadonlyArray<JournalEntry> }) =>
+    TaggedEntries.merge(input.loaded, input.more),
+  [
+    {
+      name: "続きのページを足すと、同じ記入は1つにして新しい順に並べる",
+      input: {
+        loaded: [entryAt(1, "2026-10-20T03:00:00Z")],
+        more: [entryAt(2, "2026-10-18T03:00:00Z"), entryAt(1, "2026-10-20T03:00:00Z")],
+      },
+      expected: [entryFields(1, "2026-10-20T03:00:00Z"), entryFields(2, "2026-10-18T03:00:00Z")],
+    },
+  ],
+);
 
-  test("読めた数がページの大きさまでなら、これより古い記入はない", () => {
-    const found = [entryAt("2026-10-20T03:00:00Z")];
+goldenCases(
+  "TaggedEntries.byDate",
+  (input: { entries: ReadonlyArray<JournalEntry>; timeZone: string }) =>
+    TaggedEntries.byDate(input.entries, input.timeZone),
+  [
+    {
+      name: "書いた日付（端末のタイムゾーン）ごとに、新しい日付から区切る",
+      // 2026-10-20 0:30 と 2026-10-19 23:30（日本時間）
+      input: {
+        entries: [
+          entryAt(1, "2026-10-19T01:00:00Z", "同じ日の朝"),
+          entryAt(2, "2026-10-19T15:30:00Z", "日付が変わったあと"),
+          entryAt(3, "2026-10-19T14:30:00Z", "日付が変わる前"),
+        ],
+        timeZone: TOKYO,
+      },
+      expected: [
+        {
+          date: localDate(2026, 10, 20),
+          entries: [entryFields(2, "2026-10-19T15:30:00Z", "日付が変わったあと")],
+        },
+        {
+          date: localDate(2026, 10, 19),
+          entries: [
+            entryFields(3, "2026-10-19T14:30:00Z", "日付が変わる前"),
+            entryFields(1, "2026-10-19T01:00:00Z", "同じ日の朝"),
+          ],
+        },
+      ],
+    },
+  ],
+);
 
-    expect(TaggedEntries.page(reading, found, 2).next).toEqual({ kind: "End" });
-  });
-
-  test("続きのページを足すと、同じ記入は1つにして新しい順に並べる", () => {
-    const newer = entryAt("2026-10-20T03:00:00Z");
-    const older = entryAt("2026-10-18T03:00:00Z");
-
-    expect(TaggedEntries.merge([newer], [older, newer])).toEqual([newer, older]);
-  });
-
-  test("書いた日付（端末のタイムゾーン）ごとに、新しい日付から区切る", () => {
-    // 2026-10-20 0:30 と 2026-10-19 23:30（日本時間）
-    const afterMidnight = entryAt("2026-10-19T15:30:00Z", "日付が変わったあと");
-    const beforeMidnight = entryAt("2026-10-19T14:30:00Z", "日付が変わる前");
-    const sameDay = entryAt("2026-10-19T01:00:00Z", "同じ日の朝");
-
-    const days = TaggedEntries.byDate([sameDay, afterMidnight, beforeMidnight], TOKYO);
-
-    expect(days.map((day) => day.date.key)).toEqual(["2026-10-20", "2026-10-19"]);
-    expect(days[1]?.entries.map((entry) => entry.body.unwrap())).toEqual([
-      "日付が変わる前",
-      "同じ日の朝",
-    ]);
-  });
-
+describe("タグのついた記入のページの応答", () => {
   test("応答をスキーマで検証して戻せる", () => {
-    const page = TaggedEntries.page(reading, [entryAt("2026-10-20T03:00:00Z", "本文")], 20);
+    const page = TaggedEntries.page(reading, [entryAt(1, "2026-10-20T03:00:00Z", "本文")], 20);
 
     const parsed = schemaResult(TaggedEntriesPageJsonSchema)(
       JSON.parse(JSON.stringify(TaggedEntries.toJson(page))),

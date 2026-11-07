@@ -1,0 +1,18 @@
+{
+  "function": "JournalCalendar.windowOfDate",
+  "cases": [
+    {
+      "name": "その日の記入を読む範囲は、前後1日ずつ広げる",
+      "input": {
+        "key": "2026-10-20",
+        "year": 2026,
+        "month": 10,
+        "day": 20
+      },
+      "expected": {
+        "from": "2026-10-19T00:00:00.000Z",
+        "until": "2026-10-22T00:00:00.000Z"
+      }
+    }
+  ]
+}

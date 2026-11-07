@@ -1,0 +1,13 @@
+{
+  "function": "JournalCalendar.keyOfMonth",
+  "cases": [
+    {
+      "name": "API のクエリに書く月は、0 で埋めた YYYY-MM",
+      "input": {
+        "year": 2026,
+        "month": 3
+      },
+      "expected": "2026-03"
+    }
+  ]
+}
