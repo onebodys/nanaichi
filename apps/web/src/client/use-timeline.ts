@@ -177,6 +177,9 @@ export const useTimeline = (
   // タイマーのスナップショットのほうが新しいので、受け取るたびに重ねる（開始・操作・終了）
   useEffect(() => {
     if (current !== undefined) {
+      // 描画中の計算にはできない。重ねたセッションは手元の記録に残し続ける必要がある。残さないと、
+      // 次のセッションを始めたときに前のセッションが古い内容に戻り、始めたばかりのセッションへの記入も捨てられる
+      // oxlint-disable-next-line react/set-state-in-effect
       apply((sessions) => Timeline.withCurrentSession(sessions, current));
     }
   }, [current, apply]);

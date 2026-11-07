@@ -39,17 +39,17 @@ type ConsentPageProps = Readonly<{
  * 送るリクエストには、`oauthProviderClient` が URL の署名つきのクエリを添える（auth-client.ts）。
  */
 export const ConsentPage = ({ clientId, scope, redirectUri }: ConsentPageProps) => {
-  const [client, setClient] = useState<ClientState>({ kind: "Loading" });
+  const [loaded, setLoaded] = useState<ClientState>({ kind: "Loading" });
+  const client: ClientState = clientId === undefined ? { kind: "NotFound" } : loaded;
   const [decision, setDecision] = useState<Decision>({ kind: "Undecided" });
 
   useEffect(() => {
     if (clientId === undefined) {
-      setClient({ kind: "NotFound" });
       return;
     }
     void authClient.oauth2.publicClient({ query: { client_id: clientId } }).then(({ data }) => {
       const parsed = v.safeParse(PublicClientSchema, data);
-      setClient(
+      setLoaded(
         parsed.success
           ? { kind: "Found", name: parsed.output.client_name ?? "名前のないクライアント" }
           : { kind: "NotFound" },
