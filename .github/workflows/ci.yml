@@ -85,6 +85,62 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  # PR ごとのプレビューを作り、URL を PR にコメントする（ADR 0022）。
+  # フォークと Dependabot の PR には secrets が渡らないので作らない。チェックだけで確かめる。
+  preview:
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.changes.outputs.code == 'true'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    # 同じ PR の古いプレビューは待たない。新しい push の分だけを作る
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp run -r build
+      # API トークンは本番と同じものなので、アップロードのステップにだけ渡す
+      - name: プレビューのアップロード
+        id: upload
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        run: |
+          vp exec wrangler versions upload -c wrangler.preview.jsonc --preview-alias "pr-$PR_NUMBER"
+          url=$(jq -r 'select(.type == "version-upload") | .preview_alias_url // empty' "$WRANGLER_OUTPUT_FILE_PATH")
+          test -n "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      # コメントは PR に1つだけ置き、更新のたびに書き換える
+      - name: プレビューの URL をコメントする
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          URL: ${{ steps.upload.outputs.url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          body=$(printf '<!-- nanaichi-preview -->\n**プレビュー:** %s\n\nコミット: %s\n\nログインせずに、この端末の記録で動きます（ADR 0022）。' "$URL" "$HEAD_SHA")
+          id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- nanaichi-preview -->"))) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" > /dev/null
+          fi
+
   # デプロイに必要な Actions secrets が登録されているかを確かめる。
   # secrets はジョブの `if` で直接参照できないため、ここで判定して output に出す。
   # 未登録でも失敗させず（main の CI を赤くしない）、その旨をログと注釈に出す。
