@@ -143,6 +143,14 @@ const MIGRATIONS: ReadonlyArray<string> = [
     PRIMARY KEY (entry_id, task_id)
   );
   `,
+
+  // ToDo の設定（ADR 0027）。1行だけ持ち、行がなければ無効
+  `
+  CREATE TABLE task_setting (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    kind TEXT NOT NULL CHECK (kind IN ('Enabled', 'Disabled'))
+  );
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

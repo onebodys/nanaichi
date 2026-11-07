@@ -10,6 +10,7 @@ import {
   type DecisionUnavailable,
   type JudgeCompletedTasks,
 } from "../domain/task-decision.ts";
+import { TaskSettingJsonSchema } from "../domain/task-setting.ts";
 import {
   DeletedTaskJsonSchema,
   Probability,
@@ -58,6 +59,12 @@ const reopenTask = (id: string) => request(`/api/tasks/${id}/reopen`, withBody("
 const deleteTask = (id: string) => request(`/api/tasks/${id}`, withBody("DELETE"));
 const listTasks = () => request("/api/tasks", { headers });
 const parseTask = (json: unknown) => v.parse(TaskJsonSchema, json);
+
+const getTaskSetting = (h: Headers = headers) => request("/api/settings/tasks", { headers: h });
+const putTaskSetting = (body: unknown) => request("/api/settings/tasks", withBody("PUT", body));
+const enableTasks = () => putTaskSetting({ kind: "Enabled" });
+const taskSettingNow = async () =>
+  v.parse(TaskSettingJsonSchema, await (await getTaskSetting()).json());
 
 const startSession = () => request("/api/session", withBody("POST", { id: crypto.randomUUID() }));
 const writeEntry = (body: string, id: string = crypto.randomUUID()) =>
@@ -133,6 +140,8 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 describe("ログインしていないとき", () => {
   test.each([
     ["GET", "/api/tasks"],
+    ["GET", "/api/settings/tasks"],
+    ["PUT", "/api/settings/tasks"],
     ["POST", "/api/tasks"],
     ["PATCH", `/api/tasks/${crypto.randomUUID()}`],
     ["POST", `/api/tasks/${crypto.randomUUID()}/complete`],
@@ -256,9 +265,94 @@ describe("タスクを変える", () => {
   });
 });
 
+describe("ToDo の設定", () => {
+  test("変えたことがなければ無効", async () => {
+    const res = await getTaskSetting();
+
+    expect(res.status).toBe(200);
+    expect(await taskSettingNow()).toEqual({ kind: "Disabled" });
+  });
+
+  test("有効にすると読み直しても有効で、開いている画面へ同期メッセージで届く", async () => {
+    const received = await connect();
+
+    const res = await enableTasks();
+
+    expect(res.status).toBe(200);
+    expect(v.parse(TaskSettingJsonSchema, await res.json())).toEqual({ kind: "Enabled" });
+    expect(await taskSettingNow()).toEqual({ kind: "Enabled" });
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    expect(decode(received[0])).toMatchObject({
+      type: "Success",
+      value: { kind: "TaskSettingChanged", setting: { kind: "Enabled" } },
+    });
+  });
+
+  test("有効にしてから無効に戻せる。いまと同じ設定にしても同期メッセージは送らない", async () => {
+    const received = await connect();
+
+    await enableTasks();
+    await enableTasks();
+    await putTaskSetting({ kind: "Disabled" });
+
+    expect(await taskSettingNow()).toEqual({ kind: "Disabled" });
+    await vi.waitFor(() => expect(received).toHaveLength(2));
+    await settle();
+    expect(received).toHaveLength(2);
+  });
+
+  test.each([
+    ["種類が不明", { kind: "Maybe" }],
+    ["本文が空", {}],
+  ])("%sなら 400 を返し、設定は変わらない", async (_, body) => {
+    const res = await putTaskSetting(body);
+
+    expect(res.status).toBe(400);
+    expect(await taskSettingNow()).toEqual({ kind: "Disabled" });
+  });
+
+  test("無効の間も、タスクは作れて、消えずに残る。有効に戻すと読める", async () => {
+    await enableTasks();
+    await newTask("README の更新");
+    await putTaskSetting({ kind: "Disabled" });
+
+    expect((await tasksNow()).map(({ title }) => title)).toEqual(["README の更新"]);
+    await enableTasks();
+    expect((await tasksNow()).map(({ title }) => title)).toEqual(["README の更新"]);
+  });
+
+  test("無効なら、未完了のタスクがあっても記入を書くときに判断モデルを呼ばず、判断の記録も残さない", async () => {
+    await startSession();
+    await newTask("ログイン画面のバグ修正");
+    const calls = await replaceJudge(() => 0.99);
+
+    const res = await writeEntry("ログイン画面のバグ修正が完了した");
+    await settle();
+
+    expect(res.status).toBe(200);
+    expect(calls).toEqual([]);
+    expect(await sqlOf((sql) => sql.exec("SELECT * FROM task_decision_runs").toArray())).toEqual(
+      [],
+    );
+    expect((await tasksNow())[0]?.kind).toBe("Open");
+  });
+
+  test("有効にすると、同じ記入の書き方で判断モデルを呼ぶ", async () => {
+    await startSession();
+    await newTask("ログイン画面のバグ修正");
+    const calls = await replaceJudge(() => 0.5);
+    await enableTasks();
+
+    await writeEntry("ログイン画面のバグ修正が完了した");
+
+    await vi.waitFor(() => expect(calls).toHaveLength(1));
+  });
+});
+
 describe("ジャーナルからの完了", () => {
   beforeEach(async () => {
     await startSession();
+    await enableTasks();
   });
 
   test("確率が 0.95 の判断なら、タスクが完了になり、完了にした記入と確率が残り、画面へ知らせる", async () => {

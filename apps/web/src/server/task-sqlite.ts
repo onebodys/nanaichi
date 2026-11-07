@@ -18,6 +18,7 @@ import {
   type Task,
   type TaskCompletion,
 } from "../domain/task.ts";
+import { TaskSetting, type LoadTaskSetting, type SaveTaskSetting } from "../domain/task-setting.ts";
 import { epochMs, parseRow } from "./session-sqlite.ts";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,9 @@ const completionOf = (
 
 const parseTaskRow = parseRow(TaskRowSchema, "tasks");
 
+// 設定の行は `{ kind }` の1列で、そのままドメインの型のスキーマで読める
+const parseTaskSettingRow = parseRow(TaskSetting.schema, "task_setting");
+
 const CountRowSchema = v.object({ count: v.pipe(v.number(), v.integer(), v.minValue(0)) });
 const parseCountRow = parseRow(CountRowSchema, "task_decision_runs");
 
@@ -103,6 +107,8 @@ const columnsOf = (completion: TaskCompletion) => {
 // ---------------------------------------------------------------------------
 
 export type TaskSqlite = Readonly<{
+  loadTaskSetting: LoadTaskSetting;
+  saveTaskSetting: SaveTaskSetting;
   findTask: FindTask;
   saveTask: SaveTask;
   deleteTask: DeleteTask;
@@ -115,6 +121,19 @@ export type TaskSqlite = Readonly<{
 }>;
 
 export const taskSqlite = (sql: SqlStorage): TaskSqlite => ({
+  loadTaskSetting: () => {
+    const [row] = sql.exec("SELECT kind FROM task_setting WHERE id = 1").toArray();
+    return row === undefined ? TaskSetting.default : parseTaskSettingRow(row);
+  },
+
+  saveTaskSetting: (setting) => {
+    sql.exec(
+      `INSERT INTO task_setting (id, kind) VALUES (1, ?)
+       ON CONFLICT (id) DO UPDATE SET kind = excluded.kind`,
+      setting.kind,
+    );
+  },
+
   findTask: (id) => {
     const [row] = sql.exec("SELECT * FROM tasks WHERE id = ?", id).toArray();
     return row === undefined ? undefined : parseTaskRow(row);

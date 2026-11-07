@@ -5,6 +5,7 @@ import type { SessionId, SessionSnapshot } from "../domain/session.ts";
 import type { SyncMessage } from "../domain/sync-message.ts";
 import type { DeletedTag } from "../domain/tag.ts";
 import type { DecisionUnavailable, TaskJudgments } from "../domain/task-decision.ts";
+import type { TaskSetting } from "../domain/task-setting.ts";
 import type { CompletedTask, DeletedTask, Task } from "../domain/task.ts";
 import {
   changeAdvanceMode,
@@ -12,6 +13,11 @@ import {
   type ChangeAdvanceModeDeps,
   type ChangeAdvanceModeError,
 } from "./change-advance-mode.ts";
+import {
+  changeTaskSetting,
+  type ChangeTaskSettingDeps,
+  type ChangeTaskSettingError,
+} from "./change-task-setting.ts";
 import { completeTask, type CompleteTaskDeps, type CompleteTaskError } from "./complete-task.ts";
 import {
   finishCompletionFromJournal,
@@ -139,6 +145,20 @@ export const changeAdvanceModeCommand =
     Result.pipe(
       changeAdvanceMode(deps)(raw, now),
       Result.map((changed) => ({ value: changed.mode, messages: advanceModeMessages(changed) })),
+    );
+
+export const changeTaskSettingCommand =
+  (deps: ChangeTaskSettingDeps) =>
+  (raw: unknown): Result.Result<Executed<TaskSetting>, ChangeTaskSettingError> =>
+    Result.pipe(
+      changeTaskSetting(deps)(raw),
+      Result.map((changed) => ({
+        value: changed.setting,
+        messages:
+          changed.kind === "Changed"
+            ? [{ kind: "TaskSettingChanged", setting: changed.setting }]
+            : [],
+      })),
     );
 
 const taskSaved = (task: Task): ReadonlyArray<SyncMessage> => [{ kind: "TaskSaved", task }];

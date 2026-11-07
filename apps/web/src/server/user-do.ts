@@ -15,6 +15,7 @@ import {
 } from "../domain/journal-calendar.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
+import type { TaskSetting } from "../domain/task-setting.ts";
 import type { JudgeCompletedTasks } from "../domain/task-decision.ts";
 import type { DeletedTask, Task, TaskList } from "../domain/task.ts";
 import type { StatsReport } from "../domain/stats.ts";
@@ -25,6 +26,7 @@ import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-sessi
 import type { CompleteTaskError } from "../workflows/complete-task.ts";
 import { prepareCompletionFromJournal } from "../workflows/complete-tasks-from-journal.ts";
 import type { CreateTaskError } from "../workflows/create-task.ts";
+import type { ChangeTaskSettingError } from "../workflows/change-task-setting.ts";
 import type { DeleteTaskError } from "../workflows/delete-task.ts";
 import type { ChangeAdvanceModeError } from "../workflows/change-advance-mode.ts";
 import type { DeleteJournalEntryError } from "../workflows/delete-journal-entry.ts";
@@ -45,6 +47,7 @@ import {
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTagUsage } from "../workflows/get-tag-usage.ts";
 import { getTags } from "../workflows/get-tags.ts";
+import { getTaskSetting } from "../workflows/get-task-setting.ts";
 import { getTasks } from "../workflows/get-tasks.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
 import type { OperateSessionError } from "../workflows/operate-session.ts";
@@ -53,6 +56,7 @@ import type { ReopenTaskError } from "../workflows/reopen-task.ts";
 import type { StartSessionError } from "../workflows/start-session.ts";
 import {
   changeAdvanceModeCommand,
+  changeTaskSettingCommand,
   completeTaskCommand,
   createTaskCommand,
   deleteJournalEntryCommand,
@@ -166,6 +170,21 @@ export class UserDO extends DurableObject<Env> {
     rawId: unknown,
   ): Promise<Result.Result<DeletedJournalEntry, DeleteJournalEntryError>> {
     return this.#execute((now) => deleteJournalEntryCommand(this.#journal)(rawId, now));
+  }
+
+  /** `GET /api/settings/tasks` */
+  async getTaskSetting(): Promise<Result.Result<TaskSetting, never>> {
+    return this.#run(() => getTaskSetting(this.#tasks)());
+  }
+
+  /**
+   * `PUT /api/settings/tasks`。`raw` はリクエストの本文で、検証はワークフローが行う。
+   * 変えたら、新しい設定を全接続へ送る（ADR 0027）
+   */
+  async changeTaskSetting(
+    raw: unknown,
+  ): Promise<Result.Result<TaskSetting, ChangeTaskSettingError>> {
+    return this.#execute(() => changeTaskSettingCommand(this.#tasks)(raw));
   }
 
   /** `GET /api/tasks` */

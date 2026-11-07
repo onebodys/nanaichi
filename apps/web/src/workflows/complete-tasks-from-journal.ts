@@ -18,6 +18,7 @@ import {
   type OpenTask,
   type SaveTask,
 } from "../domain/task.ts";
+import type { LoadTaskSetting } from "../domain/task-setting.ts";
 
 /**
  * ジャーナルからの完了（GLOSSARY）を、判断モデルを呼ぶ前と後の2つの同期的なワークフローに分ける。
@@ -31,6 +32,8 @@ import {
 
 /** 判断しない理由。どれも想定内で、記入には影響しない */
 export type NotDecided =
+  /** ToDo の設定が無効。判断モデルを呼ばない（ADR 0027） */
+  | Readonly<{ kind: "TasksDisabled" }>
   /** 未完了のタスクがない。判断モデルを呼ばない */
   | Readonly<{ kind: "NoOpenTasks" }>
   /** この記入はすでに判断を始めている（記入の再送や、判断の途中で止まった記入） */
@@ -46,11 +49,17 @@ export type PreparedDecision = Readonly<{
 }>;
 
 export type PrepareCompletionDeps = Readonly<{
+  loadTaskSetting: LoadTaskSetting;
   listTasks: ListTasks;
   hasDecisionRun: HasDecisionRun;
   countDecisionRunsSince: CountDecisionRunsSince;
   startDecisionRun: StartDecisionRun;
 }>;
+
+const ensureEnabled = (deps: PrepareCompletionDeps) => (): Result.Result<void, NotDecided> =>
+  deps.loadTaskSetting().kind === "Enabled"
+    ? Result.succeed()
+    : Result.fail({ kind: "TasksDisabled" });
 
 const ensureNotDecided =
   (deps: PrepareCompletionDeps) =>
@@ -78,7 +87,8 @@ const ensureWithinDailyLimit =
 /**
  * 記入を書いたあと、判断モデルに渡すものを用意する。
  *
- * すでに判断した記入でないことの確認 → 未完了のタスクの読み込み（なければ判断しない）
+ * ToDo の設定が有効であることの確認（無効なら何も読まず、判断モデルも呼ばない）
+ * → すでに判断した記入でないことの確認 → 未完了のタスクの読み込み（なければ判断しない）
  * → 今日の判断の回数が上限を超えないことの確認 → 判断を始めたと記録。
  */
 export const prepareCompletionFromJournal =
@@ -86,6 +96,7 @@ export const prepareCompletionFromJournal =
   (entry: JournalEntry, now: Date): Result.Result<PreparedDecision, NotDecided> =>
     Result.pipe(
       Result.do(),
+      Result.andThrough(ensureEnabled(deps)),
       Result.andThrough(() => ensureNotDecided(deps)(entry.id)),
       Result.bind("openTasks", loadOpenTasks(deps)),
       Result.andThrough(ensureWithinDailyLimit(deps, now)),

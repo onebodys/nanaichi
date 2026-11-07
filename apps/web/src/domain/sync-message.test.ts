@@ -90,6 +90,12 @@ describe("同期メッセージの送受信", () => {
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
   });
 
+  test("ToDo の設定を変えたら、新しい設定を受け取れる", () => {
+    const message: SyncMessage = { kind: "TaskSettingChanged", setting: { kind: "Enabled" } };
+
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
   test("タスクを保存したら、保存後のタスクを時刻を Date に戻して受け取れる", () => {
     const task = Task.create(
       v.parse(TaskId.schema, "00000000-0000-4000-8000-000000000003"),
