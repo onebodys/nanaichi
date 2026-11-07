@@ -11,6 +11,9 @@ export default defineConfig({
   plugins: [
     cloudflareTest(async () => ({
       wrangler: { configPath: `${import.meta.dirname}/wrangler.jsonc` },
+      // AI バインディング（wrangler.jsonc の `ai`）は本物の Workers AI につながり、呼ぶと上限に数えられる。
+      // テストでは決してつながない（ADR 0026）。判断モデルは偽物に差し替えて確かめる
+      remoteBindings: false,
       miniflare: {
         // レート制限の窓は実時間の区切りで、テストから動かせない。区切りをまたぐと「使い切ったあとは弾かれる」を
         // 確かめられないので、選べる中で長い 60 秒にする（workers-test-harness.ts の exhaustRateLimit）

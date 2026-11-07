@@ -33,6 +33,8 @@ export default {
             TEST_SIGN_IN: "enabled",
             // 同じユーザーで操作し続けるので、ユーザーごとのレート制限を外す（vite.config.ts の relaxRateLimitForE2E）
             E2E_RELAX_RATE_LIMIT: "enabled",
+            // CI には Cloudflare のログインがなく、手元でも E2E で本物の Workers AI を呼ばない（vite.config.ts、ADR 0026）
+            NANAICHI_REMOTE_AI: "disabled",
           },
           startupTimeout: 120_000,
           log: ".e2e/logs/app.log",

@@ -24,6 +24,7 @@ const statusOf = (code: ApiErrorCode): ContentfulStatusCode => {
       return 403;
     case "JOURNAL_ENTRY_NOT_FOUND":
     case "TAG_NOT_FOUND":
+    case "TASK_NOT_FOUND":
       return 404;
     case "SESSION_ALREADY_IN_PROGRESS":
     case "NO_SESSION_IN_PROGRESS":
@@ -54,6 +55,7 @@ const extrasOf = (error: WorkflowError): Omit<ApiErrorBody, "error"> => {
     case "EventIdConflict":
     case "JournalEntryNotFound":
     case "TagNotFound":
+    case "TaskNotFound":
       return {};
   }
 };

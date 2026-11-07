@@ -47,6 +47,22 @@ const endLeftoverSession = async (screen: Screen) => {
   await expect(start).toBeVisible();
 };
 
+/** 設定画面で ToDo を使うかどうかを切り替え、ホームに戻る。すでにその設定なら切り替えない */
+const setTaskSetting = async (screen: Screen, setting: "Enabled" | "Disabled") => {
+  await screen.getByRole("button", { name: "設定" }).tap();
+  const useTasks = screen.getByRole("switch", { name: "ToDo を使う" });
+  await expect(useTasks).toBeVisible();
+  if ((await useTasks.isChecked()) !== (setting === "Enabled")) {
+    await useTasks.tap();
+  }
+  if (setting === "Enabled") {
+    await expect(useTasks).toBeChecked();
+  } else {
+    await expect(useTasks).not.toBeChecked();
+  }
+  await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
+};
+
 /**
  * 主な画面を PC の幅とスマホの幅で撮る（docs/E2E.md「スクリーンショットを残す」）。
  * オーナーが手元で動かさずに画面を見られるよう、CI が artifact に載せる。
@@ -64,6 +80,8 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await browser.addInitScript(installPageClock);
       await app.open("/");
       await endLeftoverSession(screen);
+      // ToDo は設定で有効にしたときだけ出る（既定は無効）。手元の記録は残るので、まず無効にそろえて、従来の画面を撮る
+      await setTaskSetting(screen, "Disabled");
       await shoot("01-ホーム");
 
       await screen.getByRole("button", { name: "設定" }).tap();
@@ -94,6 +112,26 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await screen.getByRole("button", { name: "終了" }).tap();
       await expect(screen.getByText("セッションを終了しました")).toBeVisible();
       await shoot("07-終了");
+
+      // ToDo を使う設定では、左ペインの上に簡略のタイマー、下に ToDo が並ぶ。手元の記録は残るので、写したらタスクを消して無効に戻す
+      await setTaskSetting(screen, "Enabled");
+      await screen.getByRole("textbox", { name: "タスクを追加" }).fill("ログイン画面のバグ修正");
+      await screen.getByRole("button", { name: "追加" }).tap();
+      await expect(screen.getByText("ログイン画面のバグ修正")).toBeVisible();
+      await shoot("08-ToDo-終了");
+
+      await screen.getByRole("button", { name: START_BUTTON }).tap();
+      await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+      await shoot("09-ToDo-集中");
+
+      await screen.getByRole("button", { name: "終了" }).tap();
+      await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+      await screen
+        .getByRole("listitem", { name: "未完了のタスク" })
+        .getByRole("button", { name: "削除" })
+        .tap();
+      await expect(screen.getByText("未完了のタスクはありません")).toBeVisible();
+      await setTaskSetting(screen, "Disabled");
     });
   }
 });

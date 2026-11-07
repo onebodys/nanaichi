@@ -38,5 +38,9 @@
       "simple": { "limit": 100, "period": 10 },
     },
   ],
+  // 判断モデル（Workers AI の clef-flash、ADR 0026）。AI バインディングはローカルでも本物の Workers AI に
+  // つながる（ローカルの代用品がない）ので、開発サーバーとテストでは vite.config.ts / vitest.workers.config.ts が
+  // 既定で切り離している
+  "ai": { "binding": "AI" },
   "observability": { "enabled": true },
 }

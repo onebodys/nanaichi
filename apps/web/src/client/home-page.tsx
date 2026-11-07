@@ -4,9 +4,12 @@ import { Stats, type StatsPeriod } from "../domain/stats.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { AppHeader } from "./app-header.tsx";
 import type { TodayFocus } from "./focus-time-text.ts";
+import { homeLayoutOf } from "./home-layout.ts";
 import { JournalInput } from "./journal-input.tsx";
 import { createPhaseAlert } from "./phase-alert.ts";
 import { SettingsScreen } from "./settings-screen.tsx";
+import type { TaskApi } from "./task-api.ts";
+import { TaskPanel } from "./task-panel.tsx";
 import { statsRefreshKeyOf } from "./stats-refresh.ts";
 import { StatsScreen } from "./stats-screen.tsx";
 import { TimelinePanel } from "./timeline-panel.tsx";
@@ -19,6 +22,8 @@ import { deviceTimeZone, useStats, type StatsView } from "./use-stats.ts";
 import { useSync } from "./use-sync.ts";
 import { useTagUsage } from "./use-tag-usage.ts";
 import { useTags } from "./use-tags.ts";
+import { useTaskSetting } from "./use-task-setting.ts";
+import { useTasks } from "./use-tasks.ts";
 import { useTimeline, type TimelineState, type TimelineView } from "./use-timeline.ts";
 
 /** ジャーナルのフェーズにいれば、そのセットを見分ける値。フェーズに入ったことを見分けるのに使う */
@@ -67,13 +72,17 @@ const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
  * ホーム画面（docs/PRODUCT.md「画面」、Issue #34 の A 案）。
  * PC は左にタイマー、右にジャーナル（入力欄とタイムライン）の2ペインで、右のタイムラインだけがスクロールする（入力欄は上に固定）。
  * スマホは上にタイマーのカード、その下に入力欄とタイムラインを縦に並べる。
+ * ToDo を使うとき（ADR 0027）は、左ペインの上に簡略のタイマー、下に ToDo を置く。スマホではタイマーのカードの直後に ToDo が入る。
  */
 export const HomePage = ({
   attachedTagsKey,
+  taskApi,
   settings,
   stats,
 }: Readonly<{
   attachedTagsKey: AttachedTagsKey;
+  /** タスクの API。アカウントの記録先でだけ渡る（ADR 0026） */
+  taskApi: TaskApi | undefined;
   /** 設定画面を重ねて開いているか。開閉は URL（`?settings=open`）で持ち、ブラウザの戻るで閉じられる */
   settings: Readonly<{ open: boolean; show: () => void; close: () => void }>;
   /** スタッツを重ねて開いているなら、その期間（`?stats=<期間>`）。開いていなければ `undefined` */
@@ -88,6 +97,10 @@ export const HomePage = ({
   const [phaseAlert] = useState(createPhaseAlert);
   const timer = useSessionTimer(phaseAlert);
   const tags = useTags();
+  // タスクはアカウントの記録先でだけ使える（ADR 0026）。この端末の記録先では API も画面もない
+  const tasks = useTasks(taskApi);
+  // ToDo はアカウントの設定で有効にしたときだけ出す。無効の間もタスクは消さず、有効に戻すと現れる（ADR 0027）
+  const taskSetting = useTaskSetting(taskApi);
   const timeline = useTimeline(timer.session, timer.serverNow, () => {
     timer.refresh();
     tags.refresh();
@@ -100,12 +113,14 @@ export const HomePage = ({
     applyTagDeletionToAttached(attachedTagsKey, deleted);
     tags.refresh();
   });
-  useSync({ timer, timeline, tags, tagUsage, advanceMode, attachedTagsKey });
+  useSync({ timer, timeline, tags, tasks, taskSetting, tagUsage, advanceMode, attachedTagsKey });
   // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
   const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
   const todayStats = useStats("Today", statsRefreshKey);
   const statsPeriod = stats.period ?? "Week";
   const statsView = useStats(statsPeriod, statsRefreshKey, stats.period !== undefined);
+  const layout = homeLayoutOf(taskSetting.view);
+  const endedEntries = endedEntriesOf(timer.view, timeline.view);
   const overlayOpen = settings.open || stats.period !== undefined;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -129,11 +144,27 @@ export const HomePage = ({
         />
         {/* 4K のような広い画面でも左に寄らないよう、2ペインの幅を抑えて中央に置く。十分に広い画面では左右に線を引いて区切る */}
         <div className="flex flex-1 flex-col gap-4 py-4 lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[1400px] lg:flex-row lg:gap-0 lg:py-0 min-[1600px]:border-x">
-          <TimerPanel
-            timer={timer}
-            entries={endedEntriesOf(timer.view, timeline.view)}
-            className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
-          />
+          {layout.kind === "WithTasks" ? (
+            /* ToDo を使うときは、左ペインを上下に分ける。上は簡略のタイマー、下は ToDo（長ければ下だけスクロール）。スマホではタイマーのカードの直後に ToDo を置く */
+            <div className="flex flex-col gap-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
+              <TimerPanel
+                timer={timer}
+                entries={endedEntries}
+                layout={{ kind: "Compact" }}
+                className="px-4 lg:shrink-0 lg:px-8 lg:pt-8"
+              />
+              <div className="px-4 lg:min-h-64 lg:flex-1 lg:overflow-y-auto lg:px-8 lg:pb-8">
+                <TaskPanel tasks={tasks} />
+              </div>
+            </div>
+          ) : (
+            <TimerPanel
+              timer={timer}
+              entries={endedEntries}
+              layout={{ kind: "Full" }}
+              className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
+            />
+          )}
           {/* PC では入力欄を上に固定し、タイムラインだけをスクロールする（Issue #72）。過去を読んでいてもすぐ書ける */}
           <main className="flex flex-1 flex-col gap-6 lg:min-h-0 lg:gap-0">
             <div className="flex max-w-[760px] flex-col gap-2 px-4 lg:shrink-0 lg:px-12 lg:pt-8 lg:pb-5">
@@ -156,7 +187,7 @@ export const HomePage = ({
               `relative` がないと、バッジの読み上げ用の文言（`sr-only` は absolute）がこの領域の外に出て、ページ全体までスクロールしてしまう
             */}
             <div className="relative lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:border-t">
-              <div className="max-w-[760px] px-4 lg:px-12 lg:pt-6 lg:pb-8">
+              <div className="flex max-w-[760px] flex-col gap-6 px-4 lg:px-12 lg:pt-6 lg:pb-8">
                 <TimelinePanel
                   timeline={withTodayCounted(timeline, todayStats)}
                   knownTags={tags.known}
@@ -170,6 +201,7 @@ export const HomePage = ({
         <SettingsScreen
           phaseAlert={phaseAlert}
           advanceMode={advanceMode}
+          taskSetting={taskSetting}
           tagUsage={tagUsage}
           timer={timer.view}
           close={settings.close}

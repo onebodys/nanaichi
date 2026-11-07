@@ -11,6 +11,8 @@ import {
 import { schemaResult } from "./schema-result.ts";
 import { SessionSnapshotJsonSchema, type SessionSnapshot } from "./session.ts";
 import { DeletedTagJsonSchema, type DeletedTag } from "./tag.ts";
+import { TaskSettingJsonSchema, type TaskSetting } from "./task-setting.ts";
+import { DeletedTaskJsonSchema, TaskJsonSchema, type DeletedTask, type Task } from "./task.ts";
 
 /**
  * 同期メッセージ（GLOSSARY の「同期メッセージ」）。UserDO が記録を変えるたびに、
@@ -23,13 +25,19 @@ import { DeletedTagJsonSchema, type DeletedTag } from "./tag.ts";
  *   画面が読み込んだ記入に同じ削除を当てる（ADR 0017）
  * - `AdvanceModeChanged`: フェーズの進め方を変えた（ADR 0016）。進行中のセッションがあれば、
  *   あわせて `SessionChanged` も送る
+ * - `TaskSaved`: タスクを作った・タイトルを変えた・完了にした（ジャーナルからの完了を含む）・再開した。保存後のタスク
+ * - `TaskDeleted`: タスクを削除した（ADR 0026）
+ * - `TaskSettingChanged`: ToDo の設定を変えた（ADR 0027）
  */
 export type SyncMessage =
   | Readonly<{ kind: "SessionChanged"; snapshot: SessionSnapshot }>
   | Readonly<{ kind: "JournalEntrySaved"; entry: JournalEntry }>
   | Readonly<{ kind: "JournalEntryDeleted"; deleted: DeletedJournalEntry }>
   | Readonly<{ kind: "TagDeleted"; deleted: DeletedTag }>
-  | Readonly<{ kind: "AdvanceModeChanged"; mode: AdvanceMode }>;
+  | Readonly<{ kind: "AdvanceModeChanged"; mode: AdvanceMode }>
+  | Readonly<{ kind: "TaskSaved"; task: Task }>
+  | Readonly<{ kind: "TaskDeleted"; deleted: DeletedTask }>
+  | Readonly<{ kind: "TaskSettingChanged"; setting: TaskSetting }>;
 
 /** JSON にした同期メッセージ。記入の本文を取り出してある（ADR 0010） */
 type SyncMessageJson =
@@ -37,7 +45,10 @@ type SyncMessageJson =
   | Readonly<{ kind: "JournalEntrySaved"; entry: JournalEntryJson }>
   | Readonly<{ kind: "JournalEntryDeleted"; deleted: DeletedJournalEntry }>
   | Readonly<{ kind: "TagDeleted"; deleted: DeletedTag }>
-  | Readonly<{ kind: "AdvanceModeChanged"; mode: AdvanceMode }>;
+  | Readonly<{ kind: "AdvanceModeChanged"; mode: AdvanceMode }>
+  | Readonly<{ kind: "TaskSaved"; task: Task }>
+  | Readonly<{ kind: "TaskDeleted"; deleted: DeletedTask }>
+  | Readonly<{ kind: "TaskSettingChanged"; setting: TaskSetting }>;
 
 /**
  * JSON にした同期メッセージ（WebSocket で届いた文字列を `JSON.parse` したもの）を検証して戻す。
@@ -49,6 +60,9 @@ export const SyncMessageJsonSchema: v.GenericSchema<unknown, SyncMessage> = v.va
   v.object({ kind: v.literal("JournalEntryDeleted"), deleted: DeletedJournalEntryJsonSchema }),
   v.object({ kind: v.literal("TagDeleted"), deleted: DeletedTagJsonSchema }),
   v.object({ kind: v.literal("AdvanceModeChanged"), mode: AdvanceModeJsonSchema }),
+  v.object({ kind: v.literal("TaskSaved"), task: TaskJsonSchema }),
+  v.object({ kind: v.literal("TaskDeleted"), deleted: DeletedTaskJsonSchema }),
+  v.object({ kind: v.literal("TaskSettingChanged"), setting: TaskSettingJsonSchema }),
 ]);
 
 const parseMessage = schemaResult(SyncMessageJsonSchema);
@@ -66,6 +80,9 @@ export const SyncMessage = {
       case "JournalEntryDeleted":
       case "TagDeleted":
       case "AdvanceModeChanged":
+      case "TaskSaved":
+      case "TaskDeleted":
+      case "TaskSettingChanged":
         return JSON.stringify(message satisfies SyncMessageJson);
     }
   },
