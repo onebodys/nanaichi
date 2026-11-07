@@ -1,5 +1,6 @@
 import { applyD1Migrations, reset } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
+import { vi } from "vite-plus/test";
 import { createTestAuth } from "./test-auth.ts";
 
 /**
@@ -50,22 +51,32 @@ export const signInAs = async (
 export const request = (path: string, init?: RequestInit, origin = ORIGIN): Promise<Response> =>
   exports.default.fetch(new Request(`${origin}${path}`, init));
 
+/** テストでのレート制限の窓の長さ（vitest.workers.config.ts の `ratelimits`） */
+const RATE_LIMIT_WINDOW_MS = 60_000;
+/** 使い切ったあとの確認まで同じ窓に収めるために、窓に残っていてほしい時間 */
+const RATE_LIMIT_WINDOW_ROOM_MS = 40_000;
+
 /**
- * ログイン中のユーザーのレート制限（ADR 0018、10 秒で 100 回）を使い切る。429 が返るまで送り、
- * それまでに通った回数と、最初に弾かれた応答を返す。
+ * ログイン中のユーザーのレート制限（ADR 0018）を使い切る。通った回数と、弾かれた応答を返す。
  *
- * miniflare の窓は実時間の 10 秒ごとの区切りで、送っている途中で区切りをまたぐと数が 0 に戻る。
- * 決まった回数を送るとまたいだときに使い切れないので、弾かれるまで送る。
+ * miniflare の窓は実時間の区切りで、区切りをまたぐと数が 0 に戻り、続く確認のリクエストが通ってしまう。
+ * そこで窓の残りが少なければ次の窓を待つ。1回ずつ送るとマシンが混んだときに上限に届かないので、
+ * 上限より多くを同時に送る。
  */
 export const exhaustRateLimit = async (
   headers: Headers,
 ): Promise<Readonly<{ passed: number; rejected: Response }>> => {
-  // 区切りを2回またいでも使い切れるよう、上限の3倍で打ち切る
-  for (let passed = 0; passed < 300; passed += 1) {
-    const res = await request("/api/session/current", { headers });
-    if (res.status === 429) {
-      return { passed, rejected: res };
-    }
+  // `Date` を偽物にしているテストからも呼ぶので、本当の時刻を読む
+  const left = RATE_LIMIT_WINDOW_MS - (vi.getRealSystemTime() % RATE_LIMIT_WINDOW_MS);
+  if (left < RATE_LIMIT_WINDOW_ROOM_MS) {
+    await new Promise((resolve) => setTimeout(resolve, left));
   }
-  throw new Error("レート制限に達しなかった");
+  const responses = await Promise.all(
+    Array.from({ length: 150 }, () => request("/api/session/current", { headers })),
+  );
+  const rejected = responses.find((res) => res.status === 429);
+  if (rejected === undefined) {
+    throw new Error("レート制限に達しなかった");
+  }
+  return { passed: responses.filter((res) => res.status !== 429).length, rejected };
 };
