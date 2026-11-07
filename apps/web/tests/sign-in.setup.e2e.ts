@@ -60,3 +60,17 @@ test.setup(
     await session.save("syncWatcher");
   },
 );
+
+/**
+ * スクリーンショットのテスト（tests/screenshots.e2e.ts）用のログイン済みの状態。タイマーのテストと並べて走っても
+ * セッションが混ざらないよう、別のユーザーにする。
+ */
+test.setup(
+  "スクリーンショットのテスト用のログイン済みの状態を用意する",
+  { sessions: ["screenshotTaker"] },
+  async ({ app, browser, session }) => {
+    await app.open("/api/test/sign-in?email=e2e-screenshot%40example.com");
+    await expect(browser).toHaveURL("/");
+    await session.save("screenshotTaker");
+  },
+);
