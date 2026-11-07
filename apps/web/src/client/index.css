@@ -19,6 +19,17 @@
  */
 
 @custom-variant dark (&:is(.dark *));
+/*
+ * タイマーの PC 向けの見た目（円・大きな数字・中央寄せ）。画面が広く、かつタイマーが「全体」の配置のときだけ効く。
+ * 「簡略」の配置（ToDo を使うとき）は、広い画面でもスマホのカードの形のままにする（`timer-panel.tsx` の `data-timer-layout`）
+ */
+@custom-variant full {
+  @media (width >= 64rem) {
+    &:where([data-timer-layout="full"] *) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --font-sans: "IBM Plex Sans JP", ui-sans-serif, system-ui, sans-serif;

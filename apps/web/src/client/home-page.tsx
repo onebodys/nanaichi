@@ -4,6 +4,7 @@ import { Stats, type StatsPeriod } from "../domain/stats.ts";
 import { Timeline } from "../domain/timeline.ts";
 import { AppHeader } from "./app-header.tsx";
 import type { TodayFocus } from "./focus-time-text.ts";
+import { homeLayoutOf } from "./home-layout.ts";
 import { JournalInput } from "./journal-input.tsx";
 import { createPhaseAlert } from "./phase-alert.ts";
 import { SettingsScreen } from "./settings-screen.tsx";
@@ -71,6 +72,7 @@ const endedEntriesOf = (timer: TimerView, timeline: TimelineView): EntryCount =>
  * ホーム画面（docs/PRODUCT.md「画面」、Issue #34 の A 案）。
  * PC は左にタイマー、右にジャーナル（入力欄とタイムライン）の2ペインで、右のタイムラインだけがスクロールする（入力欄は上に固定）。
  * スマホは上にタイマーのカード、その下に入力欄とタイムラインを縦に並べる。
+ * ToDo を使うとき（ADR 0027）は、左ペインの上に簡略のタイマー、下に ToDo を置く。スマホではタイマーのカードの直後に ToDo が入る。
  */
 export const HomePage = ({
   attachedTagsKey,
@@ -117,6 +119,8 @@ export const HomePage = ({
   const todayStats = useStats("Today", statsRefreshKey);
   const statsPeriod = stats.period ?? "Week";
   const statsView = useStats(statsPeriod, statsRefreshKey, stats.period !== undefined);
+  const layout = homeLayoutOf(taskSetting.view);
+  const endedEntries = endedEntriesOf(timer.view, timeline.view);
   const overlayOpen = settings.open || stats.period !== undefined;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -140,11 +144,27 @@ export const HomePage = ({
         />
         {/* 4K のような広い画面でも左に寄らないよう、2ペインの幅を抑えて中央に置く。十分に広い画面では左右に線を引いて区切る */}
         <div className="flex flex-1 flex-col gap-4 py-4 lg:mx-auto lg:min-h-0 lg:w-full lg:max-w-[1400px] lg:flex-row lg:gap-0 lg:py-0 min-[1600px]:border-x">
-          <TimerPanel
-            timer={timer}
-            entries={endedEntriesOf(timer.view, timeline.view)}
-            className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
-          />
+          {layout.kind === "WithTasks" ? (
+            /* ToDo を使うときは、左ペインを上下に分ける。上は簡略のタイマー、下は ToDo（長ければ下だけスクロール）。スマホではタイマーのカードの直後に ToDo を置く */
+            <div className="flex flex-col gap-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:overflow-y-auto lg:border-r">
+              <TimerPanel
+                timer={timer}
+                entries={endedEntries}
+                layout={{ kind: "Compact" }}
+                className="px-4 lg:shrink-0 lg:px-8 lg:pt-8"
+              />
+              <div className="px-4 lg:min-h-64 lg:flex-1 lg:overflow-y-auto lg:px-8 lg:pb-8">
+                <TaskPanel tasks={tasks} />
+              </div>
+            </div>
+          ) : (
+            <TimerPanel
+              timer={timer}
+              entries={endedEntries}
+              layout={{ kind: "Full" }}
+              className="px-4 lg:w-[44%] lg:max-w-[640px] lg:shrink-0 lg:justify-center lg:border-r lg:px-8 lg:py-12"
+            />
+          )}
           {/* PC では入力欄を上に固定し、タイムラインだけをスクロールする（Issue #72）。過去を読んでいてもすぐ書ける */}
           <main className="flex flex-1 flex-col gap-6 lg:min-h-0 lg:gap-0">
             <div className="flex max-w-[760px] flex-col gap-2 px-4 lg:shrink-0 lg:px-12 lg:pt-8 lg:pb-5">
@@ -168,8 +188,6 @@ export const HomePage = ({
             */}
             <div className="relative lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:border-t">
               <div className="flex max-w-[760px] flex-col gap-6 px-4 lg:px-12 lg:pt-6 lg:pb-8">
-                {taskSetting.view.kind === "Loaded" &&
-                  taskSetting.view.setting.kind === "Enabled" && <TaskPanel tasks={tasks} />}
                 <TimelinePanel
                   timeline={withTodayCounted(timeline, todayStats)}
                   knownTags={tags.known}

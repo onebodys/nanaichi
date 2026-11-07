@@ -126,7 +126,7 @@ const Dial = ({
   <svg
     viewBox="0 0 340 340"
     aria-hidden
-    className="pointer-events-none absolute inset-0 hidden size-full lg:block"
+    className="pointer-events-none absolute inset-0 hidden size-full full:block"
   >
     <circle
       cx="170"
@@ -175,7 +175,7 @@ const Countdown = ({
       role={label ? "timer" : undefined}
       aria-label={label ? "残り時間" : undefined}
       className={cn(
-        "relative font-mono text-[56px] leading-none font-light tracking-[-0.03em] tabular-nums lg:text-[88px]",
+        "relative font-mono text-[56px] leading-none font-light tracking-[-0.03em] tabular-nums full:text-[88px]",
         dimmed && "text-muted-foreground",
       )}
     >
@@ -205,24 +205,24 @@ const SegmentBar = ({
 const RoundBar = ({ progress }: Readonly<{ progress: RoundProgress }>) => {
   const untilBreak = untilBreakLabelOf(progress);
   return (
-    <div className="flex items-center gap-1 lg:gap-1.5">
-      <div aria-hidden className="flex flex-1 items-center gap-1 lg:flex-none lg:gap-1.5">
+    <div className="flex items-center gap-1 full:gap-1.5">
+      <div aria-hidden className="flex flex-1 items-center gap-1 full:flex-none full:gap-1.5">
         {progress.sets.map((segment, i) => (
           <SegmentBar
             key={i}
             segment={segment}
             fill={TONES.Focus.fill}
-            className="h-1 flex-1 lg:h-1.5 lg:w-11 lg:flex-none"
+            className="h-1 flex-1 full:h-1.5 full:w-11 full:flex-none"
           />
         ))}
         <SegmentBar
           segment={progress.break}
           fill={TONES.Break.fill}
-          className="ml-1 h-1 flex-[0.5] lg:ml-1.5 lg:h-1.5 lg:w-5 lg:flex-none"
+          className="ml-1 h-1 flex-[0.5] full:ml-1.5 full:h-1.5 full:w-5 full:flex-none"
         />
       </div>
       {untilBreak !== undefined && (
-        <span className="ml-2 hidden text-xs text-muted-foreground lg:inline">{untilBreak}</span>
+        <span className="ml-2 hidden text-xs text-muted-foreground full:inline">{untilBreak}</span>
       )}
     </div>
   );
@@ -235,7 +235,7 @@ const PhasePill = ({ state }: Readonly<{ state: InSessionState }>) => {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold lg:px-3.5 lg:py-1.5 lg:text-[15px]",
+        "flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold full:px-3.5 full:py-1.5 full:text-[15px]",
         tone.soft,
         tone.text,
       )}
@@ -266,7 +266,7 @@ const Operations = ({
   pending: boolean;
   operate: (kind: SessionOperation["kind"]) => void;
 }>) => (
-  <div className="flex gap-2 lg:gap-2.5">
+  <div className="flex gap-2 full:gap-2.5">
     {operationButtonsOf(operations).map(({ kind, emphasis }) => (
       <Button
         key={kind}
@@ -274,8 +274,8 @@ const Operations = ({
         onClick={() => operate(kind)}
         disabled={pending}
         className={cn(
-          "h-11 rounded-xl px-4 text-sm lg:h-12 lg:px-6 lg:text-[15px]",
-          emphasis === "Primary" && "flex-1 font-semibold lg:flex-none lg:px-7",
+          "h-11 rounded-xl px-4 text-sm full:h-12 full:px-6 full:text-[15px]",
+          emphasis === "Primary" && "flex-1 font-semibold full:flex-none full:px-7",
           emphasis === "Primary" && primaryToneOf(kind, state)?.solid,
           emphasis === "Quiet" && "px-3 text-muted-foreground",
         )}
@@ -288,7 +288,7 @@ const Operations = ({
 
 /** スマホではカードに、PC では左のペインいっぱいに中央寄せで置く入れ物 */
 const Stage = ({ children }: Readonly<{ children: ReactNode }>) => (
-  <div className="flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 lg:items-center lg:gap-7 lg:border-0 lg:bg-transparent lg:p-0">
+  <div className="flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 full:items-center full:gap-7 full:border-0 full:bg-transparent full:p-0">
     {children}
   </div>
 );
@@ -300,12 +300,12 @@ const Stage = ({ children }: Readonly<{ children: ReactNode }>) => (
 const InPhaseBody = ({ state, now }: Readonly<{ state: InPhase; now: Date }>) => {
   const dimmed = state.clock.kind === "Paused";
   return (
-    <div className="relative flex items-end justify-between lg:size-[340px] lg:flex-col lg:items-center lg:justify-center lg:gap-1">
+    <div className="relative flex items-end justify-between full:size-[340px] full:flex-col full:items-center full:justify-center full:gap-1">
       <Dial>
         <RemainingArc ratio={remainingRatioOf(state)} tone={TONES[state.kind]} dimmed={dimmed} />
       </Dial>
       <Countdown remainingSeconds={state.remainingSeconds} dimmed={dimmed} />
-      <p className="relative pb-1.5 text-xs text-muted-foreground lg:pb-0 lg:text-sm">
+      <p className="relative pb-1.5 text-xs text-muted-foreground full:pb-0 full:text-sm">
         {state.clock.kind === "Paused"
           ? pausedForLabelOf(state.clock.pausedAt, now)
           : upcomingLabelOf(upcomingPhaseOf(state))}
@@ -316,12 +316,12 @@ const InPhaseBody = ({ state, now }: Readonly<{ state: InPhase; now: Date }>) =>
 
 /** 切り替え待ち。0:00 で止まり、何が終わってどれだけ待っているかを出す。円はこれから始まるフェーズの色で満たす */
 const AwaitingBody = ({ state, now }: Readonly<{ state: AwaitingAdvance; now: Date }>) => (
-  <div className="relative flex items-end justify-between lg:size-[340px] lg:flex-col lg:items-center lg:justify-center lg:gap-1">
+  <div className="relative flex items-end justify-between full:size-[340px] full:flex-col full:items-center full:justify-center full:gap-1">
     <Dial>
       <RemainingArc ratio={1} tone={toneOf(state)} dimmed />
     </Dial>
     <Countdown remainingSeconds={0} dimmed={false} />
-    <p className="relative pb-1.5 text-xs text-muted-foreground lg:pb-0 lg:text-sm">
+    <p className="relative pb-1.5 text-xs text-muted-foreground full:pb-0 full:text-sm">
       {awaitingLabelOf(state.finished, state.since, now)}
     </p>
   </div>
@@ -330,9 +330,9 @@ const AwaitingBody = ({ state, now }: Readonly<{ state: AwaitingAdvance; now: Da
 const IdleBody = ({ setNumber }: Readonly<{ setNumber: number }>) => {
   const { title, body } = idleMessageOf(setNumber);
   return (
-    <div className="relative flex flex-col gap-1 lg:size-[340px] lg:items-center lg:justify-center lg:gap-2.5 lg:px-12 lg:text-center">
+    <div className="relative flex flex-col gap-1 full:size-[340px] full:items-center full:justify-center full:gap-2.5 full:px-12 full:text-center">
       <Dial dashed />
-      <p className="relative font-semibold lg:text-[17px]">{title}</p>
+      <p className="relative font-semibold full:text-[17px]">{title}</p>
       <p className="relative text-sm leading-relaxed text-muted-foreground">{body}</p>
     </div>
   );
@@ -354,8 +354,8 @@ const InSession = ({
   operate: (kind: SessionOperation["kind"]) => void;
 }>) => (
   <Stage>
-    <div className="flex flex-row-reverse items-center justify-between lg:flex-col lg:gap-2.5">
-      <p className="text-xs text-muted-foreground lg:text-sm">{positionOf(state)}</p>
+    <div className="flex flex-row-reverse items-center justify-between full:flex-col full:gap-2.5">
+      <p className="text-xs text-muted-foreground full:text-sm">{positionOf(state)}</p>
       <PhasePill state={state} />
     </div>
     {state.kind === "Idle" ? (
@@ -367,7 +367,7 @@ const InSession = ({
     )}
     <RoundBar progress={roundProgressOf(state)} />
     <Operations state={state} operations={operations} pending={pending} operate={operate} />
-    <p className="hidden text-sm text-muted-foreground lg:block">
+    <p className="hidden text-sm text-muted-foreground full:block">
       {currentSessionLabelOf(session.events[0].at, state.completedSets)}
     </p>
   </Stage>
@@ -382,7 +382,7 @@ const StartButton = ({
     onClick={start}
     disabled={pending}
     className={cn(
-      "h-12 w-full rounded-xl text-base font-semibold lg:h-14 lg:w-auto lg:px-12 lg:text-[17px]",
+      "h-12 w-full rounded-xl text-base font-semibold full:h-14 full:w-auto full:px-12 full:text-[17px]",
       TONES.Focus.solid,
     )}
   >
@@ -394,16 +394,16 @@ const NoSession = ({ start, pending }: Readonly<{ start: () => void; pending: bo
   const rhythm = sessionRhythmOf();
   return (
     <Stage>
-      <p className="text-sm text-muted-foreground lg:text-[15px]">セッションを始める</p>
-      <div className="relative flex items-end justify-between lg:size-[340px] lg:flex-col lg:items-center lg:justify-center lg:gap-1">
+      <p className="text-sm text-muted-foreground full:text-[15px]">セッションを始める</p>
+      <div className="relative flex items-end justify-between full:size-[340px] full:flex-col full:items-center full:justify-center full:gap-1">
         <Dial />
         <Countdown remainingSeconds={rhythm.focusSeconds} dimmed label={false} />
-        <p className="relative pb-1.5 text-xs text-muted-foreground lg:pb-0 lg:text-sm">
+        <p className="relative pb-1.5 text-xs text-muted-foreground full:pb-0 full:text-sm">
           {rhythm.set}
         </p>
       </div>
       <StartButton start={start} pending={pending} />
-      <p className="text-xs text-muted-foreground lg:text-sm">{rhythm.round}</p>
+      <p className="text-xs text-muted-foreground full:text-sm">{rhythm.round}</p>
     </Stage>
   );
 };
@@ -436,7 +436,7 @@ const SetSequence = ({ sets }: Readonly<{ sets: ReadonlyArray<SetOutcome> }>) =>
 
 const SummaryStat = ({ value, label }: Readonly<{ value: string; label: string }>) => (
   <div className="flex flex-1 flex-col items-center gap-0.5">
-    <span className="font-mono text-xl lg:text-[26px]">{value}</span>
+    <span className="font-mono text-xl full:text-[26px]">{value}</span>
     <span className="text-xs text-muted-foreground">{label}</span>
   </div>
 );
@@ -449,18 +449,18 @@ const EndedBody = ({
   const abortedNote = abortedSetsNoteOf(summary.abortedSets);
   return (
     <Stage>
-      <div className="flex flex-col gap-1 lg:items-center lg:gap-2">
-        <p className="text-xs text-muted-foreground lg:text-sm">
+      <div className="flex flex-col gap-1 full:items-center full:gap-2">
+        <p className="text-xs text-muted-foreground full:text-sm">
           {endedMessageOf(summary.endedBy)}
         </p>
-        <h2 className="text-lg font-bold lg:text-2xl">おつかれさまでした</h2>
-        <p className="text-xs text-muted-foreground lg:text-sm">
+        <h2 className="text-lg font-bold full:text-2xl">おつかれさまでした</h2>
+        <p className="text-xs text-muted-foreground full:text-sm">
           {sessionSpanLabelOf(summary.startedAt, summary.endedAt)}
         </p>
       </div>
       <section
         aria-label="セッションのまとめ"
-        className="flex w-full flex-col gap-4 rounded-xl bg-muted px-4 py-4 lg:w-[400px] lg:gap-5 lg:rounded-2xl lg:border lg:bg-card lg:p-6"
+        className="flex w-full flex-col gap-4 rounded-xl bg-muted px-4 py-4 full:w-[400px] full:gap-5 full:rounded-2xl full:border full:bg-card full:p-6"
       >
         <div className="flex">
           <SummaryStat value={focusTimeLabelOf(summary.focusTimeMs)} label="集中" />
@@ -536,6 +536,12 @@ const Body = ({
 };
 
 /**
+ * タイマーの配置。`Full` は PC で円と大きな数字を出し、`Compact` は PC でもスマホのカードの形で出す（円なし）。
+ * 見た目の切り替えは CSS の `full:` バリアント（index.css）が `data-timer-layout` を見て行う
+ */
+export type TimerLayout = Readonly<{ kind: "Full" }> | Readonly<{ kind: "Compact" }>;
+
+/**
  * タイマー（docs/PRODUCT.md「画面」）。PC では左のペインに、スマホでは上のカードに置く（Issue #34 の A 案）。
  * カウントダウン、フェーズ、何ラウンド目・何セット目か、ラウンドの進み具合、その状態でできる操作を出す。
  * 状態の計算と判断は `useSessionTimer`（ホーム画面が持つ）とドメインにある。
@@ -543,11 +549,13 @@ const Body = ({
 export const TimerPanel = ({
   timer,
   entries,
+  layout,
   className,
 }: Readonly<{
   timer: SessionTimer;
   /** 終了したセッションの記入の数（セッションのまとめに出す） */
   entries: EntryCount;
+  layout: TimerLayout;
   className?: string;
 }>) => {
   const { view, serverNow, pending, errorMessage, start, operate, reload } = timer;
@@ -555,7 +563,11 @@ export const TimerPanel = ({
   useWakeLock(view.kind === "InSession");
 
   return (
-    <section aria-label="タイマー" className={cn("flex flex-col items-center gap-3", className)}>
+    <section
+      aria-label="タイマー"
+      data-timer-layout={layout.kind === "Full" ? "full" : "compact"}
+      className={cn("flex flex-col items-center gap-3", className)}
+    >
       <Body
         view={view}
         now={serverNow}
