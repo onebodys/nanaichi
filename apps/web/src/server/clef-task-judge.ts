@@ -52,19 +52,24 @@ export const clefTaskJudge =
         ai.run(MODEL, {
           model: "clef-flash",
           state: { journalEntry, openTasks: tasks.map(({ title }) => title) },
-          questions: tasks.map(({ title }, index) => ({
-            id: questionId(index),
-            type: "noul",
-            instructions: {
-              question:
-                "このジャーナル記入は、次のタスクをやり終えたことをはっきり述べていますか？着手した・進めている・予定しているだけなら no。",
-              task: title,
-            },
-            criteria: {
-              true: "タスクをやり終えた",
-              false: "やり終えていない、または触れていない",
-            },
-          })),
+          // 入力のスキーマでは、質問は「質問の ID → 質問」のオブジェクト。答えも同じ ID で返る
+          questions: Object.fromEntries(
+            tasks.map(({ title }, index) => [
+              questionId(index),
+              {
+                type: "noul",
+                instructions: {
+                  question:
+                    "このジャーナル記入は、次のタスクをやり終えたことをはっきり述べていますか？着手した・進めている・予定しているだけなら no。",
+                  task: title,
+                },
+                criteria: {
+                  true: "タスクをやり終えた",
+                  false: "やり終えていない、または触れていない",
+                },
+              },
+            ]),
+          ),
         }),
       catch: () => unavailable("RequestFailed"),
     });

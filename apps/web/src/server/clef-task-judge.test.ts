@@ -59,10 +59,10 @@ describe("判断モデルへの質問の組み立て", () => {
 
     await clefTaskJudge(ai)(body("書いた"), [openTask(1, "A"), openTask(2, "B")]);
 
-    expect(calls[0]?.input["questions"]).toMatchObject([
-      { id: "done.0", type: "noul", instructions: { task: "A" } },
-      { id: "done.1", type: "noul", instructions: { task: "B" } },
-    ]);
+    expect(calls[0]?.input["questions"]).toMatchObject({
+      "done.0": { type: "noul", instructions: { task: "A" } },
+      "done.1": { type: "noul", instructions: { task: "B" } },
+    });
   });
 
   test("長い本文は 2000 文字に切って送る", async () => {
@@ -79,7 +79,7 @@ describe("判断モデルへの質問の組み立て", () => {
 
     await clefTaskJudge(ai)(body("書いた"), many);
 
-    expect(calls[0]?.input["questions"]).toHaveLength(60);
+    expect(Object.keys(calls[0]?.input["questions"] ?? {})).toHaveLength(60);
   });
 });
 
