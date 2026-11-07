@@ -98,9 +98,10 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 
 - ツールチェーンは Vite+（`vp`）。`vp check`（Oxlint / Oxfmt / 型チェック）と `vp test`（Vitest）を使う。ESLint / Prettier は入れない。
 - 未使用のファイル・export・依存は knip（`pnpm knip`、設定は `knip.config.ts`）で検出する。Vite+ プラグインが各ワークスペースの `vite.config.ts` を読む。誤検知は設定で除外し、理由をコメントで書く。
-- チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は `vp check` と `vp test` と `knip` が走る。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
+- チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と `vp check` と `vp test` と `knip` が走る。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
 - 依存は正確なバージョンで固定し（`pnpm-workspace.yaml` の `savePrefix: ""`）、GitHub Actions は `.github/workflows/actions.lock` でコミットに固定している。更新は Dependabot の PR で受け取る（`.github/dependabot.yml`）。ワークフローに Action を足したり版を変えたりしたら `gh actions-lock`（`gh extension install github/gh-actions-lock`）で lockfile を更新する。更新しないと CI がジョブを始める前に `startup_failure` で落ちる。
-- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、`vp check` だけを走らせる。
+- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、ADR の番号の検査と `vp check` だけを走らせる。
 - Issue ごとにブランチを切り、PR で `Closes #N` を書く。main に直接 push しない。
 - ドキュメント、コードコメント、PR の本文、テスト名は日本語。識別子とコミットメッセージは英語。
 - 覆しにくい判断をしたら `docs/adr/` に ADR を書く（domain-modeling スキルの基準に従う）。
+- ADR の番号は、並行するワークツリーで同じ番号を取りやすい。PR をマージする直前に `git fetch origin main` で main の最大番号を見て、重なっていれば次の番号へ振り直す（ファイル名と、その ADR への参照）。
