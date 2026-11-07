@@ -1,0 +1,19 @@
+// PR ごとのプレビューの Worker（ADR 0022）。本番の設定は wrangler.jsonc。
+// バインディングを1つも持たないことで、本番の D1 と UserDO に届く経路をなくしている。
+// ここに足せる項目は wrangler-config.test.ts が許可したものだけ
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nanaichi-preview",
+  "main": "./src/server/preview-worker.ts",
+  "compatibility_date": "2026-10-01",
+  // PR ごとの alias の URL だけを開く。`nanaichi-preview.*.workers.dev` そのものは開かない
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    // 本番と同じ `vp run -r build` の出力を配る
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "observability": { "enabled": true },
+}
