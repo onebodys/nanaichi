@@ -153,11 +153,11 @@ const TaskSection = ({ taskSetting }: Readonly<{ taskSetting: TaskSettingState }
   const { view, errorMessage, change } = taskSetting;
   return (
     <Section id="settings-tasks" title="ToDo" perDevice={false}>
+      <p className="px-5 py-3.5 text-xs leading-relaxed text-muted-foreground">
+        オンにすると、「〜が完了した」とジャーナルに書いたとき、合うタスクを自動で完了にします。どの端末でも同じ設定になります。
+      </p>
       {view.kind === "Loaded" ? (
-        <Row
-          label="ToDo を使う"
-          description="オンにすると、「〜が完了した」とジャーナルに書いたとき、合うタスクを自動で完了にします。どの端末でも同じ設定になります。"
-        >
+        <Row label="ToDo を使う" description="ホームにタスクの一覧を出します">
           <Switch
             aria-label="ToDo を使う"
             checked={view.setting.kind === "Enabled"}
