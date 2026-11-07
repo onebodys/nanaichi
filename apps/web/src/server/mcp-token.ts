@@ -30,7 +30,7 @@ export const userIdOf = (authInfo: AuthInfo): string => {
 };
 
 /**
- * MCP のアクセストークンを確かめる（ADR 0017）。
+ * MCP のアクセストークンを確かめる（ADR 0023）。
  *
  * Better Auth の `requireMcpAuth` は JWKS を自分の `/api/auth/jwks` へ HTTP で取りに行くが、
  * Workers が自分自身の URL へ fetch すると届かないことがある。同じ Worker の中にある Better Auth から

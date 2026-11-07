@@ -59,7 +59,7 @@ export default defineConfig(({ mode, command }) => ({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   environments: {
-    // 画面は2枚。タイマーの SPA（index.html）と、`/lp` で見せる LP（lp.html、ADR 0018）。
+    // 画面は2枚。タイマーの SPA（index.html）と、`/lp` で見せる LP（lp.html、ADR 0024）。
     // Worker の環境にまで入口を足すと Worker のビルドが HTML を読もうとして失敗するので、client の環境にだけ書く
     client: {
       build: {

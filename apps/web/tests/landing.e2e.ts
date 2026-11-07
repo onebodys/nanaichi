@@ -1,7 +1,7 @@
 import { test } from "@e2e-dev/web";
 import { expect } from "e2e";
 
-// LP（Issue #90、ADR 0018）。ベータ版のあいだは `/lp` で見せ、`/` はアプリのまま
+// LP（Issue #90、ADR 0024）。ベータ版のあいだは `/lp` で見せ、`/` はアプリのまま
 
 test("未ログインで /lp を開くと、ベータ版の LP が出て、ログインへの導線はない", async ({
   app,

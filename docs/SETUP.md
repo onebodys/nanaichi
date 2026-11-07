@@ -103,7 +103,7 @@ Vite が別のポートを使うとログインが 400 で弾かれる。
 
 ### MCP クライアントをつなぐ
 
-MCP サーバー（ADR 0017）は `/api/mcp` にある。本番なら `https://nanaichi.app/api/mcp`、
+MCP サーバー（ADR 0023）は `/api/mcp` にある。本番なら `https://nanaichi.app/api/mcp`、
 ローカルなら `http://localhost:5173/api/mcp`。初めてつなぐとブラウザが開き、nanaichi へのログインと連携の許可を求められる。
 
 ```bash

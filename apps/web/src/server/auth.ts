@@ -68,7 +68,7 @@ export const createAuth = (config: AuthConfig, baseURL: string) =>
     // jwt プラグインの `/token`（セッションから JWT を作る）は使わない。MCP のトークンは OAuth の `/oauth2/token` で出す
     disabledPaths: ["/token"],
     plugins: [
-      // アクセストークンを JWT にして、MCP のルートが D1 を引かずに署名で確かめられるようにする（ADR 0017）
+      // アクセストークンを JWT にして、MCP のルートが D1 を引かずに署名で確かめられるようにする（ADR 0023）
       jwt(),
       // portless の `*.localhost` では MCP サーバーを出さない（base-url.ts の `servesMcpOn`）
       ...(servesMcpOn(baseURL)
@@ -79,7 +79,7 @@ export const createAuth = (config: AuthConfig, baseURL: string) =>
               consentPage: "/oauth/consent",
               scopes: ["openid", "offline_access", MCP_READ_SCOPE],
               // MCP クライアントは事前に登録できないので、動的登録（RFC 7591）を誰にでも開く。
-              // 登録しただけでは何も読めず、ユーザーが連携の許可で選んだクライアントだけが読める（ADR 0017）
+              // 登録しただけでは何も読めず、ユーザーが連携の許可で選んだクライアントだけが読める（ADR 0023）
               allowDynamicClientRegistration: true,
               allowUnauthenticatedClientRegistration: true,
               // Claude Code などは手元で待ち受ける `http://localhost:<port>/callback` に戻させる。application_type を
