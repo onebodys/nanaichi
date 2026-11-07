@@ -146,7 +146,8 @@ export default defineConfig({
         },
       },
     ],
-    options: { typeAware: true, typeCheck: true },
+    // 警告が残っていると新しい警告に気づけないので、警告があれば vp check を落とす（Issue #125）
+    options: { typeAware: true, typeCheck: true, denyWarnings: true },
   },
   run: {
     cache: true,
