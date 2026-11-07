@@ -87,7 +87,7 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
-  # PR ごとのプレビューを作り、URL を PR にコメントする（ADR 0022）。
+  # PR ごとのプレビューを作り、URL を PR にコメントする（ADR 0025）。
   # フォークと Dependabot の PR には secrets が渡らないので作らない。チェックだけで確かめる。
   preview:
     needs: changes
@@ -134,7 +134,7 @@ jobs:
           URL: ${{ steps.upload.outputs.url }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          body=$(printf '<!-- nanaichi-preview -->\n**プレビュー:** %s\n\nコミット: %s\n\nログインせずに、この端末の記録で動きます（ADR 0022）。' "$URL" "$HEAD_SHA")
+          body=$(printf '<!-- nanaichi-preview -->\n**プレビュー:** %s\n\nコミット: %s\n\nログインせずに、この端末の記録で動きます（ADR 0025）。' "$URL" "$HEAD_SHA")
           id=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- nanaichi-preview -->"))) | .id' | head -n 1)
           if [ -n "$id" ]; then

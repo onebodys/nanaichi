@@ -1,4 +1,4 @@
-// PR ごとのプレビューの Worker（ADR 0022）。本番の設定は wrangler.jsonc。
+// PR ごとのプレビューの Worker（ADR 0025）。本番の設定は wrangler.jsonc。
 // バインディングを1つも持たないことで、本番の D1 と UserDO に届く経路をなくしている。
 // ここに足せる項目は wrangler-config.test.ts が許可したものだけ
 {
