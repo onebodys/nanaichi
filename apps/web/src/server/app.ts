@@ -23,7 +23,7 @@ app.use("*", async (c, next) => {
 });
 
 // MCP クライアントが OAuth のサーバーを見つけるための文書（RFC 8414 / RFC 9728）。仕様でオリジンの直下に置く
-// ことになっているので `/api` の外で受け、Better Auth（`mcp()` プラグイン）に答えさせる（ADR 0017）
+// ことになっているので `/api` の外で受け、Better Auth（`mcp()` プラグイン）に答えさせる（ADR 0023）
 app.get("/.well-known/*", (c) => authFor(c).handler(c.req.raw));
 
 const api = new Hono<AppEnv>();

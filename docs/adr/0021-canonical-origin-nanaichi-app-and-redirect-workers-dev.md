@@ -10,8 +10,8 @@
 
 ## Consequences
 
-- オリジンが変わるので、次のものは nanaichi.app に引き継がれない。ログインしていない人の記録（IndexedDB、ADR 0019）、ログイン中のセッション（cookie）、インストール済みの PWA と Service Worker、MCP クライアントに登録した URL（OAuth の resource と issuer もホストから決まるため、登録し直しになる。ADR 0017）。
-- 静的アセットへのリクエストも Worker の呼び出しとして数えられ、課金の対象になる。いまの利用者の数では問題にならない。増えて気になれば、workers.dev への流入が十分に減ったところで `workers_dev: false` にして転送をやめ、`run_worker_first` を元の `["/api/*", "/.well-known/*"]` に戻す（そのときはルート `/` の出し分け（ADR 0018）で Worker が先に受けるパスと合わせて考える）。
+- オリジンが変わるので、次のものは nanaichi.app に引き継がれない。ログインしていない人の記録（IndexedDB、ADR 0019）、ログイン中のセッション（cookie）、インストール済みの PWA と Service Worker、MCP クライアントに登録した URL（OAuth の resource と issuer もホストから決まるため、登録し直しになる。ADR 0023）。
+- 静的アセットへのリクエストも Worker の呼び出しとして数えられ、課金の対象になる。いまの利用者の数では問題にならない。増えて気になれば、workers.dev への流入が十分に減ったところで `workers_dev: false` にして転送をやめ、`run_worker_first` を元の `["/api/*", "/.well-known/*"]` に戻す（そのときはルート `/` の出し分け（ADR 0024）で Worker が先に受けるパスと合わせて考える）。
 - Google の OAuth クライアントと同意画面には `nanaichi.app` を登録する（`docs/SETUP.md`）。デプロイの前に済ませておかないとログインできなくなる。
 - `canonical-redirect.workers.test.ts` が、wrangler.jsonc のとおりに起動した Worker で `/`・`/lp`・静的アセット・`/api/*` が転送されることを確かめる。`run_worker_first` を狭めると落ちる。
 

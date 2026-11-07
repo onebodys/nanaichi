@@ -41,7 +41,7 @@ export default defineConfig({
       "vite-plus/prefer-vite-plus-imports": "error",
       "react/rules-of-hooks": "error",
       "react/only-export-components": ["warn", { allowConstantExport: true }],
-      // 値を返さない switch は型チェックだけでは分岐の抜け漏れに気づけないので、lint で網羅性を検査する（ADR 0014）
+      // 値を返さない switch は型チェックだけでは分岐の抜け漏れに気づけないので、lint で網羅性を検査する（ADR 0022）
       "typescript/switch-exhaustiveness-check": "error",
     },
     // 依存の方向（AGENTS.md「3. Functional Core / Imperative Shell と依存の方向」）を機械的に検査する。

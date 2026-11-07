@@ -7,7 +7,7 @@ import { createAuthClient } from "better-auth/react";
  *
  * `oauthProviderClient` は、MCP クライアントの認可の途中で開いた画面（ログイン・連携の許可）の URL に
  * 署名つきの OAuth のクエリがあれば、ログインや許可のリクエストにそれを添える。ログインのあとに
- * 認可の続き（連携の許可の画面）へ進めるのはこのため（ADR 0017）。署名がなければ何もしない。
+ * 認可の続き（連携の許可の画面）へ進めるのはこのため（ADR 0023）。署名がなければ何もしない。
  */
 export const authClient = createAuthClient({ plugins: [oauthProviderClient()] });
 

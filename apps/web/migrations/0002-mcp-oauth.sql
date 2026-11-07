@@ -1,4 +1,4 @@
--- MCP サーバーの OAuth（jwt プラグインと @better-auth/mcp）のテーブル（ADR 0017）。
+-- MCP サーバーの OAuth（jwt プラグインと @better-auth/mcp）のテーブル（ADR 0023）。
 --
 -- 生成方法は 0001 と同じ。0001 を当てたメモリ上の SQLite（node:sqlite）に、auth.ts と同じ
 -- プラグイン（jwt() と mcp()）を入れた Better Auth の `getMigrations().compileMigrations()` が

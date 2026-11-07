@@ -66,7 +66,7 @@ const toToolResult = <T>(result: Result.Result<T, ValidationError>): CallToolRes
 /**
  * 1人のユーザーの記録を読む MCP サーバー（GLOSSARY「MCP サーバー」）。リクエストごとに作る。
  *
- * ツールはすべて読むだけ。書き換える操作は作らない（ADR 0017）。
+ * ツールはすべて読むだけ。書き換える操作は作らない（ADR 0023）。
  * 判断と読み出しは HTTP の API と同じく UserDO のワークフローが行い、ここは MCP の形に変えるだけ。
  */
 export const createMcpServer = (userDO: DurableObjectStub<UserDO>): McpServer => {

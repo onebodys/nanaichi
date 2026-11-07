@@ -12,7 +12,7 @@ import { createPhaseAlert } from "../phase-alert.ts";
 import { mountDemo } from "./demo-view.ts";
 
 /**
- * LP（Issue #90、ADR 0018）の入口。`/lp` で見せる。
+ * LP（Issue #90、ADR 0024）の入口。`/lp` で見せる。
  * サーバーとは通信しない。いちばん上のタイマーもページの中だけで動く（demo-view.ts）。
  */
 
