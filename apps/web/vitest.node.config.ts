@@ -11,5 +11,9 @@ export default defineConfig({
     name: "node",
     include: ["src/**/*.test.ts"],
     exclude: ["src/**/*.workers.test.ts"],
+    // 結合テストはテストごとに miniflare を起動するので、マシンが混むと既定の 5 秒を超える。
+    // 時間の上限は振る舞いの検証ではなく、止まったテストを見つけるためのもの
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });

@@ -22,6 +22,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 - **認証が絡む API はローカルの結合テストで確かめる**: `apps/web/src/server/auth-test-harness.ts` が miniflare の D1 と Better Auth の `testUtils` でログイン済みのセッションを作る。Cloudflare や Google に繋がずに `vp test` だけで検証できるので、`/api/*` にエンドポイントを足したら未ログイン（401）とログイン済みの振る舞いをこれでテストする。
   - UserDO（Durable Object）を通る API は Node では動かせないので、`*.workers.test.ts` に書き、`@cloudflare/vitest-plugin` で Workers ランタイムの上で動かす（`vitest.workers.config.ts`、土台は `apps/web/src/server/workers-test-harness.ts`）。時刻は `vi.setSystemTime` で進め、alarm は `runDurableObjectAlarm` で鳴らす。
 - **Issue の完了条件を満たしたことを示す**: PR は対応する Issue の完了条件を1つずつ、どう満たしたかに対応づける。
+- **flaky はその場で Issue にする**: テストがたまに落ちたら、作業と関係がなくても「無関係だから流す」で終わらせない。流し直して通っても、リトライで通っても同じ。Issue にはテスト名、落ちたときの出力、再現の頻度を書く。CI でリトライで通ったテストは、Step Summary の見出しに flaky の件数が出て、折りたたみの中に落ちたステップが出る（`docs/E2E.md`）。
 
 ## 2. ユースケースは ROP で読めるように書く
 
@@ -61,7 +62,7 @@ apps/web/src/
 kamae の「状態ごとに型を分ける」を、このプロジェクトでは徹底する。
 
 - optional / nullable なプロパティで状態を表さない。状態ごとに型を定義し、判別可能な union にする（例: タイマーは `Idle | Focus | Journal | Break | Ended` のように分け、「休憩中はセット番号がない」を `setNumber?: number` ではなく型の違いで表す）。
-- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。網羅性は Oxlint の `typescript/switch-exhaustiveness-check` で検査する。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0014）。
+- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。網羅性は Oxlint の `typescript/switch-exhaustiveness-check` で検査する。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
 - 境界（API の入力、DB の行、WebSocket のメッセージ）で受け取った値はスキーマで検証し、その場で状態ごとの型に変換する。DB の行の nullable な列をドメインに持ち込まない。
 - 型アサーション（`as`）は使わない。`as const` と `as const satisfies Type` のみ可。
 
@@ -98,9 +99,10 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 
 - ツールチェーンは Vite+（`vp`）。`vp check`（Oxlint / Oxfmt / 型チェック）と `vp test`（Vitest）を使う。ESLint / Prettier は入れない。
 - 未使用のファイル・export・依存は knip（`pnpm knip`、設定は `knip.config.ts`）で検出する。Vite+ プラグインが各ワークスペースの `vite.config.ts` を読む。誤検知は設定で除外し、理由をコメントで書く。
-- チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は `vp check` と `vp test` と `knip` が走る。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
+- チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と `vp check` と `vp test` と `knip` が走る。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
 - 依存は正確なバージョンで固定し（`pnpm-workspace.yaml` の `savePrefix: ""`）、GitHub Actions は `.github/workflows/actions.lock` でコミットに固定している。更新は Dependabot の PR で受け取る（`.github/dependabot.yml`）。ワークフローに Action を足したり版を変えたりしたら `gh actions-lock`（`gh extension install github/gh-actions-lock`）で lockfile を更新する。更新しないと CI がジョブを始める前に `startup_failure` で落ちる。
-- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、`vp check` だけを走らせる。
+- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、ADR の番号の検査と `vp check` だけを走らせる。
 - Issue ごとにブランチを切り、PR で `Closes #N` を書く。main に直接 push しない。
 - ドキュメント、コードコメント、PR の本文、テスト名は日本語。識別子とコミットメッセージは英語。
 - 覆しにくい判断をしたら `docs/adr/` に ADR を書く（domain-modeling スキルの基準に従う）。
+- ADR の番号は、並行するワークツリーで同じ番号を取りやすい。PR をマージする直前に `git fetch origin main` で main の最大番号を見て、重なっていれば次の番号へ振り直す（ファイル名と、その ADR への参照）。

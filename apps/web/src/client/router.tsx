@@ -75,7 +75,7 @@ const loginRoute = createRoute({
 });
 
 /**
- * 連携の許可の画面の URL の値（ADR 0017）。認可の入口が署名して付けるもののうち、画面に出すものだけを読む。
+ * 連携の許可の画面の URL の値（ADR 0023）。認可の入口が署名して付けるもののうち、画面に出すものだけを読む。
  * 署名を確かめて許可に使うのはサーバーで、画面は URL をそのまま `oauthProviderClient` に渡す（auth-client.ts）
  */
 const ConsentSearchSchema = v.object({

@@ -11,7 +11,7 @@ import { Session, type SessionId } from "../../domain/session.ts";
 import type { OperationRejected, TimerState } from "../../domain/timer-state.ts";
 
 /**
- * LP で試せるタイマー（Issue #90、ADR 0018）。
+ * LP で試せるタイマー（Issue #90、ADR 0024）。
  *
  * サーバーには何も送らず、ページの中だけで動く。状態の計算はアプリと同じドメイン（`Session`・`JournalEntry`）に
  * 任せるので、フェーズの切り替わりや操作できるかどうかはアプリと同じになる。

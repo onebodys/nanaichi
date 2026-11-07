@@ -14,7 +14,7 @@ import { accessTokenVerifier, userIdOf } from "./mcp-token.ts";
 const PROTECTED_RESOURCE_METADATA_PATH = `/.well-known/oauth-protected-resource${MCP_PATH}`;
 
 /**
- * MCP サーバー（GLOSSARY「MCP サーバー」、ADR 0017）。`/api/mcp` で Streamable HTTP を受ける。
+ * MCP サーバー（GLOSSARY「MCP サーバー」、ADR 0023）。`/api/mcp` で Streamable HTTP を受ける。
  *
  * 画面の cookie ではなく、OAuth のアクセストークンでユーザーを決めるので、`requireSession` の外に置く。
  * トークンがなければ 401 と `WWW-Authenticate`（Protected Resource Metadata の場所）を返し、

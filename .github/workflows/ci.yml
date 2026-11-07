@@ -30,7 +30,7 @@ jobs:
               echo "$files"
               if ! echo "$files" | grep -qvE '(\.md$|^docs/|^\.agents/|^\.claude/|^skills-lock\.json$)'; then
                 code=false
-                echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、vp check（書式・lint・型）だけを走らせます。"
+                echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、ADR の番号の検査と vp check（書式・lint・型）だけを走らせます。"
               fi
             fi
           fi
@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+      # ドキュメントだけの変更でも走らせる。ADR を足す PR はたいていドキュメントだけなので
+      - run: sh scripts/check-adr-numbers.sh
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: "24"

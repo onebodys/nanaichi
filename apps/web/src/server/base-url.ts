@@ -61,7 +61,7 @@ export const resolveBaseURL = (requestUrl: string): string => {
 };
 
 /**
- * このホストで MCP サーバーを出せるか（ADR 0017）。
+ * このホストで MCP サーバーを出せるか（ADR 0023）。
  *
  * MCP の仕様（と `@better-auth/mcp`）は、MCP サーバーの URL を https か loopback（`localhost`・`127.0.0.1`）に
  * 限っている。portless の `http://<ブランチ>.<名前>.localhost` はどちらでもないので、そこでは MCP サーバーを出さない。

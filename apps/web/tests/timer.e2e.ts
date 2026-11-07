@@ -113,6 +113,16 @@ const openWithoutSession = async (app: App, browser: Browser) => {
   await app.open("/");
 };
 
+/** サーバーに保存されているフェーズの進め方。画面は先に手元を替えるので、画面からは保存を確かめられない */
+const savedAdvanceMode = async (app: App, browser: Browser): Promise<unknown> => {
+  const baseUrl = app.baseUrl ?? "http://localhost:5173";
+  const cookie = (await browser.cookies()).map(({ name, value }) => `${name}=${value}`).join("; ");
+  const response = await fetch(new URL("/api/settings/advance-mode", baseUrl), {
+    headers: { cookie },
+  });
+  return response.json();
+};
+
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
 describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
   test("セッションを開始すると、1ラウンド目・1セット目の集中のカウントダウンが始まる", async ({
@@ -259,7 +269,11 @@ describe("タイマー画面", { serial: true, session: "signedIn" }, () => {
     await focusToJournal.getByText("手動", { exact: true }).tap();
     await expect(focusToJournal.getByRole("radio", { name: "手動" })).toBeChecked();
 
-    // アカウントの設定なので、開き直してもサーバーから読んだ値が手動のまま
+    // アカウントの設定なので、開き直してもサーバーから読んだ値が手動のまま。
+    // 保存の途中で開き直すと古い値を読むので、保存されてから開き直す
+    await expect
+      .poll(() => savedAdvanceMode(app, browser))
+      .toEqual({ ...ALL_AUTO, FocusToJournal: "Manual" });
     await browser.reload();
     await expect(
       screen
