@@ -12,6 +12,11 @@ export default defineConfig({
     cloudflareTest(async () => ({
       wrangler: { configPath: `${import.meta.dirname}/wrangler.jsonc` },
       miniflare: {
+        // レート制限の窓は実時間の区切りで、テストから動かせない。区切りをまたぐと「使い切ったあとは弾かれる」を
+        // 確かめられないので、選べる中で長い 60 秒にする（workers-test-harness.ts の exhaustRateLimit）
+        ratelimits: {
+          USER_RATE_LIMITER: { namespace_id: "1001", simple: { limit: 100, period: 60 } },
+        },
         // secret は wrangler.jsonc に書かないので、テスト用の値をここで渡す
         bindings: {
           BETTER_AUTH_SECRET: "test-secret-value-that-is-long-enough",
@@ -27,5 +32,9 @@ export default defineConfig({
   test: {
     name: "workers",
     include: ["src/**/*.workers.test.ts"],
+    // workerd の上で動くのでマシンが混むと既定の 5 秒を超える。
+    // 時間の上限は振る舞いの検証ではなく、止まったテストを見つけるためのもの
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });

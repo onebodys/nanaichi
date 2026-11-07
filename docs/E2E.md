@@ -18,6 +18,10 @@ pnpm test:e2e    # リポジトリのどこからでもよい
   落ちたときは、実行結果の画面の「Artifacts」から `e2e-results`（`apps/web/.e2e/` 一式）をダウンロードすれば、
   失敗したテストの `results/<テスト>/trace.md` と開発サーバーのログ `logs/app.log` を見られる。
   E2E が落ちた main ではデプロイしない。
+- CI ではリトライが1回入る。リトライで通ったテストは flaky として数え、ジョブは成功のままなので、実行結果の画面の Summary（`.e2e/summary.md`）で確かめる。
+  見出しに `7 flaky` のように件数が出て、`flaky tests passed on a retry` を開くと落ちたステップが読める。
+  `{ serial: true }` のグループは丸ごとやり直すので、1件落ちるとグループの全員が flaky になる。本当に落ちたのは、ステップの失敗が書かれているテストだけ。
+  flaky を見つけたら Issue にする（AGENTS.md §1）。
 - 1ファイルだけ: `pnpm --filter web exec e2e run tests/smoke.e2e.ts`。ブラウザを表示するなら `--headed`。
 
 ## テストを書く

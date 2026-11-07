@@ -22,6 +22,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 - **認証が絡む API はローカルの結合テストで確かめる**: `apps/web/src/server/auth-test-harness.ts` が miniflare の D1 と Better Auth の `testUtils` でログイン済みのセッションを作る。Cloudflare や Google に繋がずに `vp test` だけで検証できるので、`/api/*` にエンドポイントを足したら未ログイン（401）とログイン済みの振る舞いをこれでテストする。
   - UserDO（Durable Object）を通る API は Node では動かせないので、`*.workers.test.ts` に書き、`@cloudflare/vitest-plugin` で Workers ランタイムの上で動かす（`vitest.workers.config.ts`、土台は `apps/web/src/server/workers-test-harness.ts`）。時刻は `vi.setSystemTime` で進め、alarm は `runDurableObjectAlarm` で鳴らす。
 - **Issue の完了条件を満たしたことを示す**: PR は対応する Issue の完了条件を1つずつ、どう満たしたかに対応づける。
+- **flaky はその場で Issue にする**: テストがたまに落ちたら、作業と関係がなくても「無関係だから流す」で終わらせない。流し直して通っても、リトライで通っても同じ。Issue にはテスト名、落ちたときの出力、再現の頻度を書く。CI でリトライで通ったテストは、Step Summary の見出しに flaky の件数が出て、折りたたみの中に落ちたステップが出る（`docs/E2E.md`）。
 
 ## 2. ユースケースは ROP で読めるように書く
 
