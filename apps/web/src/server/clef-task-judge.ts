@@ -13,8 +13,11 @@ import { Probability, type TaskJudgment } from "../domain/task.ts";
 
 const MODEL = "@cf/cloudflare/clef-flash";
 
-/** clef-flash が1回の呼び出しで受ける質問の数の上限は 64。余裕を持たせて、渡すタスクはここまでにする */
-const OPEN_TASKS_MAX = 60;
+/**
+ * 渡すタスクの数の上限。トークンはタスク1件につき約120増え（60件で約7,400）、手元の試しでは
+ * 質問が多いほど同じタスクでも確率がばらついて下がった。1回を約3,500トークンまでに抑える（ADR 0026）
+ */
+const OPEN_TASKS_MAX = 20;
 
 /** 送る本文の長さの上限。長い記入でも、トークンの使用量を抑える */
 const BODY_MAX_LENGTH = 2000;

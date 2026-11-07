@@ -3,10 +3,10 @@ import type { JournalEntryBody, JournalEntryId } from "./journal-entry.ts";
 import type { OpenTask, TaskJudgment } from "./task.ts";
 
 /**
- * 判断モデルを呼べる回数の上限。1人あたり、UTC の1日に50回まで（ADR 0026）。
- * 判断は記入1件につき1回なので、1日に50件までの記入が判断の対象になる。
+ * 判断モデルを呼べる回数の上限。1人あたり、UTC の1日に200回まで（ADR 0026）。
+ * 判断は記入1件につき1回なので、1日に200件までの記入が判断の対象になる。
  */
-export const DAILY_DECISION_LIMIT = 50;
+export const DAILY_DECISION_LIMIT = 200;
 
 /**
  * 判断モデルに答えてもらえなかった（ADR 0026）。

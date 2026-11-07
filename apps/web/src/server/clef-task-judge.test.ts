@@ -73,13 +73,13 @@ describe("判断モデルへの質問の組み立て", () => {
     expect(calls[0]?.input).toMatchObject({ state: { journalEntry: "あ".repeat(2000) } });
   });
 
-  test("未完了のタスクが多いときは、先頭の60件だけを送る", async () => {
+  test("未完了のタスクが多いときは、先頭の20件だけを送る", async () => {
     const { ai, calls } = fakeAi(() => answered([]));
-    const many = Array.from({ length: 70 }, (_, index) => openTask(index + 1));
+    const many = Array.from({ length: 30 }, (_, index) => openTask(index + 1));
 
     await clefTaskJudge(ai)(body("書いた"), many);
 
-    expect(Object.keys(calls[0]?.input["questions"] ?? {})).toHaveLength(60);
+    expect(Object.keys(calls[0]?.input["questions"] ?? {})).toHaveLength(20);
   });
 });
 
