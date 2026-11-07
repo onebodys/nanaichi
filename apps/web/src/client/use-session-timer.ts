@@ -147,15 +147,18 @@ export const useSessionTimer = (
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
-  const load = useCallback(async () => {
-    const result = await receive(backend.getCurrentSession);
-    if (Result.isSuccess(result)) {
-      const received = result.value;
-      setLoading((current) => applyReceived(current, received));
-      return;
-    }
-    setLoading((current) => (current.kind === "Loaded" ? current : { kind: "LoadFailed" }));
-  }, [backend]);
+  const load = useCallback(
+    () =>
+      receive(backend.getCurrentSession).then((result) => {
+        if (Result.isSuccess(result)) {
+          const received = result.value;
+          setLoading((current) => applyReceived(current, received));
+          return;
+        }
+        setLoading((current) => (current.kind === "Loaded" ? current : { kind: "LoadFailed" }));
+      }),
+    [backend],
+  );
 
   useEffect(() => {
     void load();

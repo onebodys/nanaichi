@@ -39,15 +39,12 @@ export const useTagUsage = (
   onDeleted: (deleted: DeletedTag) => void,
 ): Readonly<{
   view: TagUsageView;
-  /** 直前の削除の失敗 */
-  errorMessage: string | undefined;
   refresh: () => void;
-  /** タグを削除する。成功したら true */
-  remove: (name: TagName, deletion: TagDeletion) => Promise<boolean>;
+  /** タグを削除する。失敗したら画面に出す文言を返す */
+  remove: (name: TagName, deletion: TagDeletion) => Result.ResultAsync<void, string>;
 }> => {
   const backend = useBackend();
   const [view, setView] = useState<TagUsageView>({ kind: "Loading" });
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const isOpen = useRef(open);
 
   const refresh = useCallback(() => {
@@ -67,23 +64,20 @@ export const useTagUsage = (
 
   useEffect(() => {
     isOpen.current = open;
-    setErrorMessage(undefined);
     refresh();
   }, [open, refresh]);
 
-  const remove = async (name: TagName, deletion: TagDeletion): Promise<boolean> => {
-    setErrorMessage(undefined);
+  const remove = async (name: TagName, deletion: TagDeletion): Result.ResultAsync<void, string> => {
     const result = await backend.deleteTag(name, deletion);
     refresh();
     if (Result.isFailure(result)) {
-      setErrorMessage(messageOf(result.error));
-      return false;
+      return Result.fail(messageOf(result.error));
     }
     onDeleted(result.value);
-    return true;
+    return Result.succeed();
   };
 
-  return { view, errorMessage, refresh, remove };
+  return { view, refresh, remove };
 };
 
 export type TagUsageState = ReturnType<typeof useTagUsage>;
