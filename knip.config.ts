@@ -16,12 +16,14 @@ export default {
       // Service Worker（public/sw.js）は import されず、画面が URL で登録する（client/phase-notification.ts）
       // LP（landing.html）の入口は vite.config.ts の environments.client にあり、Vite+ プラグインが読まないので教える（ADR 0024）
       // この端末の記録先（device/index.ts）は、画面がまだ読み込んでいない。router から動的 import するまで入口として教える（Issue #85）
+      // プレビューの Worker（preview-worker.ts）の入口は wrangler.preview.jsonc にあり、knip が読まないので教える（ADR 0025）
       entry: [
         "e2e.config.ts",
         "tests/**/*.e2e.ts",
         "public/sw.js",
         "src/client/landing/main.ts",
         "src/device/index.ts",
+        "src/server/preview-worker.ts",
       ],
       // `cloudflare:workers` は Workers ランタイムの組み込みモジュールで、npm パッケージではない
       ignoreDependencies: ["cloudflare"],
