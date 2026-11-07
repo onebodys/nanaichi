@@ -26,9 +26,16 @@ const clientBannedMessage =
 const recordStoreReaders = ["app-header.tsx", "settings-screen.tsx", "router.tsx"];
 
 export default defineConfig({
-  // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）は検査しない
+  // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）、
+  // テストが書き出すゴールデンケースの JSON（整形のしかたをテストが決めている）は検査しない
   fmt: {
-    ignorePatterns: [".agents/**", ".claude/**", ".taste-skill/**", "**/worker-configuration.d.ts"],
+    ignorePatterns: [
+      ".agents/**",
+      ".claude/**",
+      ".taste-skill/**",
+      "**/worker-configuration.d.ts",
+      "fixtures/golden/**",
+    ],
   },
   staged: {
     "*": "vp check --fix",

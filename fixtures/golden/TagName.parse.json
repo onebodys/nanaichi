@@ -1,0 +1,147 @@
+{
+  "function": "TagName.parse",
+  "cases": [
+    {
+      "name": "先頭の # と前後の空白を外す",
+      "input": {
+        "value": "  #読書 "
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "読書"
+      }
+    },
+    {
+      "name": "英字の大文字・小文字を区別しない",
+      "input": {
+        "value": "#Reading"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "reading"
+      }
+    },
+    {
+      "name": "全角の英数字と ＃ は半角と同じタグになる",
+      "input": {
+        "value": "＃ＲＥＡＤＩＮＧ２"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "reading2"
+      }
+    },
+    {
+      "name": "ひらがなはカタカナに寄せず、ひらがなのまま",
+      "input": {
+        "value": "どくしょ"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "どくしょ"
+      }
+    },
+    {
+      "name": "カタカナはひらがなに寄せず、カタカナのまま",
+      "input": {
+        "value": "ドクショ"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "ドクショ"
+      }
+    },
+    {
+      "name": "空の名前はつけられない",
+      "input": {
+        "value": ""
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "# だけの名前はつけられない",
+      "input": {
+        "value": "#"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "空白だけの名前はつけられない",
+      "input": {
+        "value": "  "
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "空白を含む名前はつけられない",
+      "input": {
+        "value": "読書 メモ"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "全角の空白を含む名前はつけられない",
+      "input": {
+        "value": "読書　メモ"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "20文字まではつけられる",
+      "input": {
+        "value": "ああああああああああああああああああああ"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "ああああああああああああああああああああ"
+      }
+    },
+    {
+      "name": "絵文字は1文字と数えるので、絵文字20個はつけられる",
+      "input": {
+        "value": "👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧👨‍👩‍👧"
+      }
+    },
+    {
+      "name": "21文字はつけられない",
+      "input": {
+        "value": "あああああああああああああああああああああ"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    }
+  ]
+}

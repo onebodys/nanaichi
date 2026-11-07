@@ -1,0 +1,86 @@
+{
+  "function": "DeletedTag.applyTo",
+  "cases": [
+    {
+      "name": "外すだけなら、記入のタグから削除したタグだけがなくなり、残りの順は変わらない",
+      "input": {
+        "tags": [
+          "設計",
+          "読書",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Detach"
+          }
+        }
+      },
+      "expected": [
+        "設計",
+        "レビュー"
+      ]
+    },
+    {
+      "name": "付け替えると、削除したタグのあった位置に付け替え先がつく",
+      "input": {
+        "tags": [
+          "設計",
+          "読書"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "レビュー"
+          }
+        }
+      },
+      "expected": [
+        "設計",
+        "レビュー"
+      ]
+    },
+    {
+      "name": "付け替え先がすでについている記入では、先にあった位置の1つにまとめる",
+      "input": {
+        "tags": [
+          "読書",
+          "レビュー",
+          "設計"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "設計"
+          }
+        }
+      },
+      "expected": [
+        "設計",
+        "レビュー"
+      ]
+    },
+    {
+      "name": "削除したタグがついていない記入のタグは変わらない",
+      "input": {
+        "tags": [
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "設計"
+          }
+        }
+      },
+      "expected": [
+        "設計",
+        "レビュー"
+      ]
+    }
+  ]
+}

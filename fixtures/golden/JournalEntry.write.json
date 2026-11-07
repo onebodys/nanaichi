@@ -1,0 +1,269 @@
+{
+  "function": "JournalEntry.write",
+  "cases": [
+    {
+      "name": "集中中に書くと、ラウンド・セット・集中に紐付く",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "now": "2026-10-17T00:03:00.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [],
+          "writtenAt": "2026-10-17T00:03:00.000Z",
+          "updatedAt": "2026-10-17T00:03:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "ジャーナル中に書くと、そのセットのジャーナルに紐付く",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 2,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:16:00.000Z"
+          }
+        },
+        "now": "2026-10-17T00:15:30.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [],
+          "writtenAt": "2026-10-17T00:15:30.000Z",
+          "updatedAt": "2026-10-17T00:15:30.000Z",
+          "writtenDuring": {
+            "kind": "Journal",
+            "round": 1,
+            "setNumber": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "休憩中に書くと、ラウンドと休憩に紐付き、セットには紐付かない",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 180,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        },
+        "now": "2026-10-17T00:26:00.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [],
+          "writtenAt": "2026-10-17T00:26:00.000Z",
+          "updatedAt": "2026-10-17T00:26:00.000Z",
+          "writtenDuring": {
+            "kind": "Break",
+            "round": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "待機中に書くと、フェーズには紐付かず、次にやり直すセットに紐付く",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Idle",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1
+        },
+        "now": "2026-10-17T00:11:00.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [],
+          "writtenAt": "2026-10-17T00:11:00.000Z",
+          "updatedAt": "2026-10-17T00:11:00.000Z",
+          "writtenDuring": {
+            "kind": "Idle",
+            "round": 1,
+            "setNumber": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "切り替え待ちの間に書くと、時間が過ぎて終わったフェーズに紐付く",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "AwaitingAdvance",
+          "finished": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          },
+          "completedSets": 1,
+          "since": "2026-10-17T00:07:00.000Z"
+        },
+        "now": "2026-10-17T00:09:00.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [],
+          "writtenAt": "2026-10-17T00:09:00.000Z",
+          "updatedAt": "2026-10-17T00:09:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "終了したセッションには書けない",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:05:00.000Z",
+          "endedBy": "End",
+          "completedSets": 0
+        },
+        "now": "2026-10-17T00:06:00.000Z"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "NoSessionInProgress"
+        }
+      }
+    },
+    {
+      "name": "自動終了の時刻を過ぎたセッションには書けない",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T00:00:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        },
+        "now": "2026-10-17T00:58:00.000Z"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "NoSessionInProgress"
+        }
+      }
+    },
+    {
+      "name": "書いた時刻と更新時刻は、書いた時刻になり、つけたタグはそのまま残る",
+      "input": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "body": "メモ",
+        "tags": [
+          "読書",
+          "設計"
+        ],
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:07:00.000Z"
+          }
+        },
+        "now": "2026-10-17T00:03:00.000Z"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [
+            "読書",
+            "設計"
+          ],
+          "writtenAt": "2026-10-17T00:03:00.000Z",
+          "updatedAt": "2026-10-17T00:03:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        }
+      }
+    }
+  ]
+}
