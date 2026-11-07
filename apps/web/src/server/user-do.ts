@@ -15,11 +15,17 @@ import {
 } from "../domain/journal-calendar.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
+import type { JudgeCompletedTasks } from "../domain/task-decision.ts";
+import type { DeletedTask, Task, TaskList } from "../domain/task.ts";
 import type { StatsReport } from "../domain/stats.ts";
 import type { DeletedTag, TagList, TagUsageList } from "../domain/tag.ts";
 import { TaggedEntries, type TaggedEntriesPageJson } from "../domain/tagged-entries.ts";
 import { Timeline, type TimelinePageJson } from "../domain/timeline.ts";
 import { settleAutoEnd, type AutoEndSchedule } from "../workflows/auto-end-session.ts";
+import type { CompleteTaskError } from "../workflows/complete-task.ts";
+import { prepareCompletionFromJournal } from "../workflows/complete-tasks-from-journal.ts";
+import type { CreateTaskError } from "../workflows/create-task.ts";
+import type { DeleteTaskError } from "../workflows/delete-task.ts";
 import type { ChangeAdvanceModeError } from "../workflows/change-advance-mode.ts";
 import type { DeleteJournalEntryError } from "../workflows/delete-journal-entry.ts";
 import type { DeleteTagError } from "../workflows/delete-tag.ts";
@@ -39,15 +45,24 @@ import {
 import { getStats, type GetStatsError } from "../workflows/get-stats.ts";
 import { getTagUsage } from "../workflows/get-tag-usage.ts";
 import { getTags } from "../workflows/get-tags.ts";
+import { getTasks } from "../workflows/get-tasks.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
 import type { OperateSessionError } from "../workflows/operate-session.ts";
+import type { RenameTaskError } from "../workflows/rename-task.ts";
+import type { ReopenTaskError } from "../workflows/reopen-task.ts";
 import type { StartSessionError } from "../workflows/start-session.ts";
 import {
   changeAdvanceModeCommand,
+  completeTaskCommand,
+  createTaskCommand,
   deleteJournalEntryCommand,
   deleteTagCommand,
+  deleteTaskCommand,
   editJournalEntryCommand,
+  finishCompletionFromJournalCommand,
   operateSessionCommand,
+  renameTaskCommand,
+  reopenTaskCommand,
   startSessionCommand,
   writeJournalEntryCommand,
   type Executed,
@@ -56,6 +71,8 @@ import type { WriteJournalEntryError } from "../workflows/write-journal-entry.ts
 import { journalSqlite, type JournalSqlite } from "./journal-sqlite.ts";
 import { sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
 import { statsSqlite } from "./stats-sqlite.ts";
+import { clefTaskJudge } from "./clef-task-judge.ts";
+import { taskSqlite, type TaskSqlite } from "./task-sqlite.ts";
 import { migrate } from "./user-do-schema.ts";
 
 // `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）
@@ -76,6 +93,8 @@ export class UserDO extends DurableObject<Env> {
   readonly #sessions: SessionSqlite;
   readonly #journal: JournalSqlite;
   readonly #stats: ReturnType<typeof statsSqlite>;
+  readonly #tasks: TaskSqlite;
+  #judge: JudgeCompletedTasks;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -84,6 +103,8 @@ export class UserDO extends DurableObject<Env> {
     this.#sessions = sessionSqlite(ctx.storage.sql);
     this.#journal = journalSqlite(ctx.storage.sql);
     this.#stats = statsSqlite(ctx.storage.sql);
+    this.#tasks = taskSqlite(ctx.storage.sql);
+    this.#judge = clefTaskJudge(env.AI);
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
 
@@ -122,6 +143,10 @@ export class UserDO extends DurableObject<Env> {
     const result = await this.#execute((now) =>
       writeJournalEntryCommand({ ...this.#sessions, ...this.#journal })(raw, now),
     );
+    if (Result.isSuccess(result)) {
+      // 記入の応答は判断モデルを待たせない。完了にできたタスクは、あとから同期メッセージで届く（ADR 0026）
+      this.ctx.waitUntil(this.#completeTasksFromJournal(result.value));
+    }
     return Result.pipe(result, Result.map(JournalEntry.toJson));
   }
 
@@ -141,6 +166,44 @@ export class UserDO extends DurableObject<Env> {
     rawId: unknown,
   ): Promise<Result.Result<DeletedJournalEntry, DeleteJournalEntryError>> {
     return this.#execute((now) => deleteJournalEntryCommand(this.#journal)(rawId, now));
+  }
+
+  /** `GET /api/tasks` */
+  async getTasks(): Promise<Result.Result<TaskList, never>> {
+    return this.#run(() => getTasks(this.#tasks)());
+  }
+
+  /** `POST /api/tasks`。`raw` はリクエストの本文で、検証はワークフローが行う */
+  async createTask(raw: unknown): Promise<Result.Result<Task, CreateTaskError>> {
+    return this.#execute((now) => createTaskCommand(this.#tasks)(raw, now));
+  }
+
+  /** `PATCH /api/tasks/:id` */
+  async renameTask(rawId: unknown, raw: unknown): Promise<Result.Result<Task, RenameTaskError>> {
+    return this.#execute((now) => renameTaskCommand(this.#tasks)(rawId, raw, now));
+  }
+
+  /** `POST /api/tasks/:id/complete` */
+  async completeTask(rawId: unknown): Promise<Result.Result<Task, CompleteTaskError>> {
+    return this.#execute((now) => completeTaskCommand(this.#tasks)(rawId, now));
+  }
+
+  /** `POST /api/tasks/:id/reopen` */
+  async reopenTask(rawId: unknown): Promise<Result.Result<Task, ReopenTaskError>> {
+    return this.#execute((now) => reopenTaskCommand(this.#tasks)(rawId, now));
+  }
+
+  /** `DELETE /api/tasks/:id` */
+  async deleteTask(rawId: unknown): Promise<Result.Result<DeletedTask, DeleteTaskError>> {
+    return this.#execute(() => deleteTaskCommand(this.#tasks)(rawId));
+  }
+
+  /**
+   * 判断モデルを差し替える。テストが偽物を渡すためのもので、本番のコードは呼ばない（ADR 0026）。
+   * 関数は RPC で送れないので、テストは `runInDurableObject` で DO の中から呼ぶ。
+   */
+  replaceTaskJudge(judge: JudgeCompletedTasks): void {
+    this.#judge = judge;
   }
 
   /** `GET /api/timeline?before=`。`rawQuery` はクエリの値で、検証はワークフローが行う */
@@ -265,6 +328,37 @@ export class UserDO extends DurableObject<Env> {
       Result.inspect(({ messages }) => this.#broadcast(messages)),
       Result.map(({ value }) => value),
     );
+  }
+
+  /**
+   * 書いた記入から、ジャーナルからの完了（GLOSSARY）を行う。記入の書き込みとは切り離していて、
+   * ここでの失敗（判断モデルが使えない・上限・想定外の例外）は記入に影響しない。
+   *
+   * 判断モデルの呼び出しは非同期でトランザクションに入れられないので、同期的な「用意」と「記録」で挟む。
+   * ログに記入の本文は出さない（PII）。
+   */
+  async #completeTasksFromJournal(entry: JournalEntry): Promise<void> {
+    try {
+      const prepared = await this.#run((now) =>
+        prepareCompletionFromJournal(this.#tasks)(entry, now),
+      );
+      if (Result.isFailure(prepared)) {
+        console.info("ジャーナルからの完了を見送った", { reason: prepared.error.kind });
+        return;
+      }
+      const { entryId, body, openTasks } = prepared.value;
+      const decision = await this.#judge(body, openTasks);
+      if (Result.isFailure(decision)) {
+        console.warn("判断モデルが使えなかった", { reason: decision.error.reason });
+      }
+      await this.#execute((now) =>
+        Result.succeed(finishCompletionFromJournalCommand(this.#tasks)(entryId, decision, now)),
+      );
+    } catch (error) {
+      console.error("ジャーナルからの完了に失敗した", {
+        error: error instanceof Error ? error.name : "unknown",
+      });
+    }
   }
 
   /** 同期メッセージを、このユーザーのすべての接続へ送る（ADR 0012） */

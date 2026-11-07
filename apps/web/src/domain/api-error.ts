@@ -25,6 +25,8 @@ const API_ERROR_CODES = [
   "JOURNAL_ENTRY_NOT_FOUND",
   /** 削除するタグか付け替え先のタグが、どの記入にもついていない（404、ADR 0017） */
   "TAG_NOT_FOUND",
+  /** タスクが記録されていない（404、ADR 0026） */
+  "TASK_NOT_FOUND",
   /** `GET /api/ws` に WebSocket の Upgrade がない（426、ADR 0012） */
   "WEBSOCKET_UPGRADE_REQUIRED",
   /** `GET /api/ws` の Origin がこのアプリと違う（403、ADR 0012） */

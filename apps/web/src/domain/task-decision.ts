@@ -45,7 +45,7 @@ export const decisionDayStartOf = (now: Date): Date =>
  * 判断の記録（監査の証跡）。記入1件につき1行で、判断を始めたときに `Pending` で作り、終えたら書き換える。
  * `Pending` のまま残っていれば、判断の途中で止まっている。
  */
-export type DecisionOutcome = "Pending" | "Judged" | "Unavailable";
+type DecisionOutcome = "Pending" | "Judged" | "Unavailable";
 
 /** 記入 `entryId` の判断を始めたと記録する。上限の数え方に入る */
 export type StartDecisionRun = (entryId: JournalEntryId, startedAt: Date) => void;

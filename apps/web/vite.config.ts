@@ -43,6 +43,14 @@ const relaxRateLimitForE2E =
     }));
   };
 
+/**
+ * 開発サーバーで本物の Workers AI（判断モデル、ADR 0026）につなぐのは、`NANAICHI_REMOTE_AI=enabled` を
+ * 明示したときだけ。AI バインディングはローカルの代用品がなく、つなげば呼ぶたびに無料枠（1日 10,000 ニューロン）を使う。
+ * つながないと、判断モデルを呼ぶ処理は「使えない」と答えるだけで、ジャーナル記入には影響しない。
+ * E2E（CI にはログインがない）とテスト（vitest.workers.config.ts）は、この環境変数に関わらずつながない。
+ */
+const remoteAiEnabled = process.env["NANAICHI_REMOTE_AI"] === "enabled";
+
 // lint / fmt の設定はルートの vite.config.ts に集約している（Vite+ の monorepo の仕様）。
 export default defineConfig(({ mode, command }) => ({
   plugins: lazyPlugins(() => [
@@ -50,7 +58,14 @@ export default defineConfig(({ mode, command }) => ({
     // better-auth は node:async_hooks などを import するため、Cloudflare プラグインを
     // 入れたまま vitest を走らせると Node 組み込みモジュールの external 指定と衝突する。
     // （Workers ランタイムで動かすテストは vitest.workers.config.ts に分ける）
-    ...(mode === "test" ? [] : [cloudflare({ config: relaxRateLimitForE2E(command) })]),
+    ...(mode === "test"
+      ? []
+      : [
+          cloudflare({
+            config: relaxRateLimitForE2E(command),
+            remoteBindings: remoteAiEnabled,
+          }),
+        ]),
     react(),
     tailwindcss(),
   ]),

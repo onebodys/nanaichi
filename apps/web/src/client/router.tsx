@@ -23,9 +23,10 @@ import {
 } from "./record-store.ts";
 import { RecordStoreUnknownPage } from "./record-store-unknown-page.tsx";
 import { createRemoteBackend } from "./remote-backend.ts";
+import { createTaskApi, type TaskApi } from "./task-api.ts";
 
 type HomeSetup = Result.Result<
-  Readonly<{ recordStore: RecordStore; backend: Backend }>,
+  Readonly<{ recordStore: RecordStore; backend: Backend; taskApi: TaskApi | undefined }>,
   RecordStoreUnknown
 >;
 
@@ -46,7 +47,13 @@ const prepareHome = async (): Promise<HomeSetup> => {
     return resolved;
   }
   const recordStore = resolved.value;
-  return Result.succeed({ recordStore, backend: await createBackendFor(recordStore) });
+  return Result.succeed({
+    recordStore,
+    backend: await createBackendFor(recordStore),
+    // タスクはアカウントの記録先でだけ使える（ADR 0026）
+    taskApi:
+      recordStore.kind === "Account" ? createTaskApi({ onSignedOut: redirectToLogin }) : undefined,
+  });
 };
 
 /**
@@ -135,7 +142,7 @@ const homeRoute = createRoute({
     if (Result.isFailure(setup)) {
       return <RecordStoreUnknownPage />;
     }
-    const { recordStore, backend } = setup.value;
+    const { recordStore, backend, taskApi } = setup.value;
     // 閉じた画面に戻るで戻らないよう、履歴を置き換える
     const close = () => void navigate({ search: {}, replace: true });
     return (
@@ -143,6 +150,7 @@ const homeRoute = createRoute({
         <BackendProvider backend={backend}>
           <HomePage
             attachedTagsKey={attachedTagsKeyOf(recordStore)}
+            taskApi={taskApi}
             settings={{
               open: settings === "open",
               show: () => void navigate({ search: { settings: "open" } }),

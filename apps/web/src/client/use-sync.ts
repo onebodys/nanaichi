@@ -6,6 +6,7 @@ import type { SessionTimer } from "./use-session-timer.ts";
 import type { AttachedTagsKey } from "./attached-tags.ts";
 import { applyTagDeletionToAttached } from "./use-attached-tags.ts";
 import type { TagUsageState } from "./use-tag-usage.ts";
+import type { TasksState } from "./use-tasks.ts";
 import type { TagsState } from "./use-tags.ts";
 import type { TimelineState } from "./use-timeline.ts";
 
@@ -13,6 +14,7 @@ type Receivers = Readonly<{
   timer: SessionTimer;
   timeline: TimelineState;
   tags: TagsState;
+  tasks: TasksState;
   tagUsage: TagUsageState;
   advanceMode: AdvanceModeState;
   attachedTagsKey: AttachedTagsKey;
@@ -24,7 +26,7 @@ type Receivers = Readonly<{
  */
 const deliver = (
   message: SyncMessage,
-  { timer, timeline, tags, tagUsage, advanceMode, attachedTagsKey }: Receivers,
+  { timer, timeline, tags, tasks, tagUsage, advanceMode, attachedTagsKey }: Receivers,
 ): void => {
   switch (message.kind) {
     case "SessionChanged":
@@ -45,13 +47,17 @@ const deliver = (
       return tagUsage.refresh();
     case "AdvanceModeChanged":
       return advanceMode.receive(message.mode);
+    case "TaskSaved":
+      return tasks.receiveSaved(message.task);
+    case "TaskDeleted":
+      return tasks.receiveDeleted(message.deleted);
   }
 };
 
 /**
  * 複数タブ・複数デバイスの同期（ADR 0012）。ホームを開いている間、同期の WebSocket を張り続ける。
  *
- * - 繋がるたびに（初回も繋ぎ直しも）タイマーとタイムラインとタグの候補とフェーズの進め方を読み込み直し、
+ * - 繋がるたびに（初回も繋ぎ直しも）タイマーとタイムラインとタグの候補とタスクとフェーズの進め方を読み込み直し、
  *   切れていた間の変更を取り込む
  * - 届いた同期メッセージで、タイマーの状態とタイムラインを更新する
  * - 画面に戻ってきたとき・オンラインに戻ったときは、繋がっているかをすぐ確かめる
@@ -70,6 +76,7 @@ export const useSync = (receivers: Receivers): void => {
         latest.current.timer.refresh();
         latest.current.timeline.refresh();
         latest.current.tags.refresh();
+        latest.current.tasks.refresh();
         latest.current.tagUsage.refresh();
         latest.current.advanceMode.refresh();
       },

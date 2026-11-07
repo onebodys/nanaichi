@@ -8,6 +8,7 @@ import { limitRequestsPerUser } from "./rate-limit.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
 import { syncRoutes } from "./sync-routes.ts";
+import { taskRoutes } from "./task-routes.ts";
 import { testSignInRoutes } from "./test-sign-in.ts";
 
 export const app = new Hono<AppEnv>();
@@ -47,6 +48,7 @@ authenticated.get("/me", (c) => {
 });
 authenticated.route("/", sessionRoutes);
 authenticated.route("/", journalRoutes);
+authenticated.route("/", taskRoutes);
 authenticated.route("/", syncRoutes);
 
 api.route("/", authenticated);

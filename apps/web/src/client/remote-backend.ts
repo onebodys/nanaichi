@@ -17,7 +17,7 @@ import { TimelinePageJsonSchema } from "../domain/timeline.ts";
 import type { Backend, BackendError } from "../domain/backend.ts";
 import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-connection.ts";
 
-type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
+export type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
 
 type ReceivedResponse = Readonly<{ ok: boolean; body: unknown }>;
 
@@ -60,7 +60,7 @@ const decode =
     );
   };
 
-const requestApi =
+export const requestApi =
   (fetchApi: Fetch, onSignedOut: () => void) =>
   <T>(
     path: string,
@@ -78,7 +78,10 @@ const requestApi =
       }),
     );
 
-const sendJson = (method: "POST" | "PATCH" | "PUT" | "DELETE", body: unknown): RequestInit => ({
+export const sendJson = (
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  body: unknown,
+): RequestInit => ({
   method,
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),

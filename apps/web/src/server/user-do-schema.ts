@@ -104,6 +104,45 @@ const MIGRATIONS: ReadonlyArray<string> = [
   -- スタッツで、ジャーナルのカレンダーの月や選んだ日の記入を、書いた時刻の範囲で読む（Issue #83）
   CREATE INDEX journal_entries_by_written_at ON journal_entries (written_at);
   `,
+  `
+  -- タスク（ADR 0026）。削除は物理削除。完了していなければ完了の列はすべて NULL で、
+  -- ジャーナルからの完了ならもとの記入と確率を持つ
+  CREATE TABLE tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    completion_kind TEXT CHECK (completion_kind IN ('Manual', 'FromJournal')),
+    completion_entry_id TEXT,
+    completion_probability REAL CHECK (completion_probability BETWEEN 0 AND 1),
+    CHECK ((completed_at IS NULL) = (completion_kind IS NULL)),
+    CHECK ((completion_kind = 'FromJournal') = (completion_entry_id IS NOT NULL)),
+    CHECK ((completion_kind = 'FromJournal') = (completion_probability IS NOT NULL))
+  );
+
+  CREATE INDEX tasks_by_created_at ON tasks (created_at);
+
+  -- 判断モデルを呼んだ記録。記入1件につき1行。(a) 1日の回数の上限を数え、(b) あとから見直す証跡になる。
+  -- decided_at は判断を始めた時刻。Pending のまま残っていれば、判断の途中で止まっている
+  CREATE TABLE task_decision_runs (
+    entry_id TEXT PRIMARY KEY,
+    decided_at INTEGER NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    outcome TEXT NOT NULL CHECK (outcome IN ('Pending', 'Judged', 'Unavailable'))
+  );
+
+  CREATE INDEX task_decision_runs_by_decided_at ON task_decision_runs (decided_at);
+
+  -- 判断モデルの答え。しきい値に届かなかった惜しいものも含めて残す。
+  -- タスクが消えても答えは残すので、tasks への外部キーは張らない
+  CREATE TABLE task_judgments (
+    entry_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    probability REAL NOT NULL CHECK (probability BETWEEN 0 AND 1),
+    PRIMARY KEY (entry_id, task_id)
+  );
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

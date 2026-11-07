@@ -8,6 +8,7 @@ import { SessionEventId } from "./session-event.ts";
 import { Session, SessionId } from "./session.ts";
 import { SyncMessage, SyncMessageJsonSchema } from "./sync-message.ts";
 import { TagName } from "./tag.ts";
+import { Task, TaskId, TaskTitle } from "./task.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -84,6 +85,26 @@ describe("同期メッセージの送受信", () => {
     const message: SyncMessage = {
       kind: "AdvanceModeChanged",
       mode: { ...AdvanceMode.default, JournalToBreak: "Manual" },
+    };
+
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
+  test("タスクを保存したら、保存後のタスクを時刻を Date に戻して受け取れる", () => {
+    const task = Task.create(
+      v.parse(TaskId.schema, "00000000-0000-4000-8000-000000000003"),
+      v.parse(TaskTitle.schema, "README の更新"),
+      at(3),
+    );
+    const message: SyncMessage = { kind: "TaskSaved", task };
+
+    expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
+  });
+
+  test("タスクを削除したら、削除したタスクの ID を受け取れる", () => {
+    const message: SyncMessage = {
+      kind: "TaskDeleted",
+      deleted: { id: v.parse(TaskId.schema, "00000000-0000-4000-8000-000000000003") },
     };
 
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));
