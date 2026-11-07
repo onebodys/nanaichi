@@ -141,7 +141,9 @@ Worker の secret（`BETTER_AUTH_SECRET` など、2章）は Cloudflare 側に�
 ### PR ごとのプレビュー
 
 PR を開くと、CI の `preview` が `wrangler versions upload --preview-alias pr-<番号>` でプレビューを作り、URL を PR にコメントする（ADR 0022）。
-Worker は本番とは別の `nanaichi-preview` で、設定は `apps/web/wrangler.preview.jsonc`。API トークンは本番と同じものを使う。
+Worker は本番とは別の `nanaichi-preview` で、設定は `apps/web/wrangler.preview.jsonc`。
+
+API トークンは本番とは別の `CLOUDFLARE_PREVIEW_API_TOKEN` を使う。PR のコードが動くジョブに、本番に触れる権限を渡さないため。カスタムトークンで、対象を「指定された Workers」の `nanaichi-preview` に絞り、Individual Workers の Editor だけを付ける。D1 などほかの権限は付けない。Actions secrets には `gh secret set CLOUDFLARE_PREVIEW_API_TOKEN` で登録する。
 
 まだない Worker には `versions upload` ができないので、Worker を作るときに1回だけ手元でデプロイする（`apps/web` で実行する）。
 

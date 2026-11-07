@@ -111,12 +111,12 @@ jobs:
           node-version: "24"
           cache: true
       - run: vp run -r build
-      # API トークンは本番と同じものなので、アップロードのステップにだけ渡す
+      # PR のコードが動くジョブなので、本番に触れない専用のトークンを、アップロードのステップにだけ渡す
       - name: プレビューのアップロード
         id: upload
         working-directory: apps/web
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
         run: |
