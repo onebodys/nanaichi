@@ -1,0 +1,127 @@
+{
+  "function": "DeletedTag.ensureDeletable",
+  "cases": [
+    {
+      "name": "使っているタグは、外すだけなら削除できる",
+      "input": {
+        "inUse": [
+          "読書",
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Detach"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Detach"
+          }
+        }
+      }
+    },
+    {
+      "name": "使っている別のタグになら、付け替えて削除できる",
+      "input": {
+        "inUse": [
+          "読書",
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "設計"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "設計"
+          }
+        }
+      }
+    },
+    {
+      "name": "どの記入にもついていないタグは存在しないので、削除できない",
+      "input": {
+        "inUse": [
+          "読書",
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "料理",
+          "deletion": {
+            "kind": "Detach"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagNotFound",
+          "name": "料理"
+        }
+      }
+    },
+    {
+      "name": "付け替え先は使っているタグから選ぶので、使っていないタグには付け替えられない",
+      "input": {
+        "inUse": [
+          "読書",
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "料理"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagNotFound",
+          "name": "料理"
+        }
+      }
+    },
+    {
+      "name": "削除するタグ自身には付け替えられない",
+      "input": {
+        "inUse": [
+          "読書",
+          "設計",
+          "レビュー"
+        ],
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Reassign",
+            "to": "読書"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "ReassignToSameTag"
+        }
+      }
+    }
+  ]
+}

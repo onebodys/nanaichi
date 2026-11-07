@@ -1,0 +1,51 @@
+{
+  "function": "TaskTitle.parse",
+  "cases": [
+    {
+      "name": "タイトルの前後の空白は落とす",
+      "input": {
+        "value": "  README の更新\n"
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "README の更新"
+      }
+    },
+    {
+      "name": "タイトルが空文字のタスクは作れない",
+      "input": {
+        "value": ""
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "タイトルが空白だけのタスクは作れない",
+      "input": {
+        "value": "  \n "
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "タイトルが201文字のタスクは作れない",
+      "input": {
+        "value": "あああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ"
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    }
+  ]
+}

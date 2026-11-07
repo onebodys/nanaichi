@@ -1,0 +1,16 @@
+{
+  "function": "JournalCalendar.windowOfMonth",
+  "cases": [
+    {
+      "name": "月の記入を読む範囲は、どのタイムゾーンの日付でも含むよう前後1日ずつ広げる",
+      "input": {
+        "year": 2026,
+        "month": 2
+      },
+      "expected": {
+        "from": "2026-01-31T00:00:00.000Z",
+        "until": "2026-03-02T00:00:00.000Z"
+      }
+    }
+  ]
+}

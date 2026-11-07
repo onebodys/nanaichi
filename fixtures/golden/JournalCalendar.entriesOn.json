@@ -1,0 +1,107 @@
+{
+  "function": "JournalCalendar.entriesOn",
+  "cases": [
+    {
+      "name": "その日に書いた記入だけを、書いた順に並べる",
+      "input": {
+        "date": {
+          "key": "2026-10-20",
+          "year": 2026,
+          "month": 10,
+          "day": 20
+        },
+        "entries": [
+          {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "昼",
+            "tags": [],
+            "writtenAt": "2026-10-20T03:00:00.000Z",
+            "updatedAt": "2026-10-20T03:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000003",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "次の日",
+            "tags": [],
+            "writtenAt": "2026-10-20T15:00:00.000Z",
+            "updatedAt": "2026-10-20T15:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "朝",
+            "tags": [],
+            "writtenAt": "2026-10-19T23:00:00.000Z",
+            "updatedAt": "2026-10-19T23:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000004",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "前の日",
+            "tags": [],
+            "writtenAt": "2026-10-19T14:00:00.000Z",
+            "updatedAt": "2026-10-19T14:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          }
+        ],
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": {
+        "date": {
+          "key": "2026-10-20",
+          "year": 2026,
+          "month": 10,
+          "day": 20
+        },
+        "entries": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "朝",
+            "tags": [],
+            "writtenAt": "2026-10-19T23:00:00.000Z",
+            "updatedAt": "2026-10-19T23:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "昼",
+            "tags": [],
+            "writtenAt": "2026-10-20T03:00:00.000Z",
+            "updatedAt": "2026-10-20T03:00:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

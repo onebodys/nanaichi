@@ -1,0 +1,44 @@
+{
+  "function": "JournalEntry.deleteTag",
+  "cases": [
+    {
+      "name": "記入からタグを外しても、本文・書いた時刻・更新時刻は変わらない（編集済みにならない）",
+      "input": {
+        "entry": {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "00000000-0000-4000-8000-000000000000",
+          "body": "メモ",
+          "tags": [
+            "読書"
+          ],
+          "writtenAt": "2026-10-17T00:03:00.000Z",
+          "updatedAt": "2026-10-17T00:03:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        },
+        "deleted": {
+          "name": "読書",
+          "deletion": {
+            "kind": "Detach"
+          }
+        }
+      },
+      "expected": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "sessionId": "00000000-0000-4000-8000-000000000000",
+        "body": "メモ",
+        "tags": [],
+        "writtenAt": "2026-10-17T00:03:00.000Z",
+        "updatedAt": "2026-10-17T00:03:00.000Z",
+        "writtenDuring": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1
+        }
+      }
+    }
+  ]
+}

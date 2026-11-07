@@ -1,16 +1,20 @@
 import { describe, expect, test } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
+import { goldenCases, type Plain } from "../testing/golden.ts";
 import {
-  JournalEntryBody,
-  JournalEntryId,
-  type JournalEntry,
-  type WrittenDuring,
-} from "./journal-entry.ts";
+  journalEntryOf,
+  localDate,
+  sessionFields,
+  sessionOf,
+  uuid,
+  type JournalEntryFields,
+  type SessionSpec,
+} from "../testing/golden-values.ts";
+import { JournalEntryId, type JournalEntry } from "./journal-entry.ts";
 import { schemaResult } from "./schema-result.ts";
-import { SessionEventId } from "./session-event.ts";
-import { SessionId, type Session } from "./session.ts";
-import { TagName } from "./tag.ts";
+import { SessionId } from "./session.ts";
+import { TagName, type DeletedTag } from "./tag.ts";
 import {
   Timeline,
   TimelinePageJsonSchema,
@@ -26,332 +30,509 @@ const at = (minutes: number) => new Date(BASE + minutes * 60_000);
 
 const TOKYO = "Asia/Tokyo";
 const UTC = "UTC";
+const END: TimelineCursor = { kind: "End" };
 
-let seq = 0;
-const uuid = () => `00000000-0000-4000-8000-${String((seq += 1)).padStart(12, "0")}`;
-
-const sessionStartedAt = (minutes: number, operations: Session["events"][number][] = []) => {
-  const session: Session = {
-    id: v.parse(SessionId.schema, uuid()),
-    events: [
-      { kind: "Start", id: v.parse(SessionEventId.schema, uuid()), at: at(minutes) },
-      ...operations.flatMap((operation) => (operation.kind === "Start" ? [] : [operation])),
-    ],
-    journalEntryTimes: [],
-    advanceModeChanges: [],
-  };
-  return session;
-};
-
-const endAt = (minutes: number) =>
-  ({
-    kind: "End",
-    id: v.parse(SessionEventId.schema, uuid()),
-    at: at(minutes),
-  }) as const satisfies Session["events"][number];
-
-const entryAt = (
-  session: Session,
-  minutes: number,
-  text = `${minutes}分のメモ`,
-  writtenDuring: WrittenDuring = { kind: "Focus", round: 1, setNumber: 1 },
-): JournalEntry => ({
-  id: v.parse(JournalEntryId.schema, uuid()),
-  sessionId: session.id,
-  body: v.parse(JournalEntryBody.schema, text),
-  tags: [],
-  writtenAt: at(minutes),
-  updatedAt: at(minutes),
-  writtenDuring,
+/** 番号 `n` のセッションが `start` 分に始まり、`end` 分に終わる（終わらなければ進行中） */
+const session = (n: number, start: number, end?: number): SessionSpec => ({
+  n,
+  startedAt: at(start),
+  operations: end === undefined ? [] : [{ kind: "End", at: at(end) }],
 });
 
-const build = (
+/** 番号 `n` の記入。セッション `owner` の中で `minutes` 分に書いた集中中の記入 */
+const entry = (
+  n: number,
+  owner: SessionSpec,
+  minutes: number,
+  text: string,
+  tags: ReadonlyArray<string> = [],
+): JournalEntryFields => ({
+  id: uuid(1000 + n),
+  sessionId: uuid(owner.n),
+  body: text,
+  tags,
+  writtenAt: at(minutes),
+  updatedAt: at(minutes),
+  writtenDuring: { kind: "Focus", round: 1, setNumber: 1 },
+});
+
+const loaded = (
+  spec: SessionSpec,
+  entries: ReadonlyArray<JournalEntryFields> = [],
+): TimelineSession => ({ session: sessionOf(spec), entries: entries.map(journalEntryOf) });
+
+const loadedFields = (spec: SessionSpec, entries: ReadonlyArray<JournalEntryFields> = []) => ({
+  session: sessionFields(spec),
+  entries,
+});
+
+type DayFields = Plain<TimelineDay>;
+
+/** 画面に出す日付の区切りを、ワークフローに渡す型にする */
+const daysOf = (days: ReadonlyArray<DayFields>): ReadonlyArray<TimelineDay> =>
+  days.map((day) => ({
+    ...day,
+    sessions: day.sessions.map((daySession) => ({
+      ...daySession,
+      sessionId: v.parse(SessionId.schema, daySession.sessionId),
+      entries: daySession.entries.map(journalEntryOf),
+    })),
+  }));
+
+const counted = (count: number) => ({ kind: "Counted", count }) as const;
+
+const buildOf = (
   sessions: ReadonlyArray<TimelineSession>,
   now: Date,
   timeZone = TOKYO,
-  next: TimelineCursor = { kind: "End" },
-) => Timeline.build({ sessions, next, now, timeZone });
+  next: TimelineCursor = END,
+) => ({ sessions, next, now, timeZone });
 
-/** 日付の区切りごとの、日付・完了セット数・セッションごとの記入の本文 */
-const outline = (days: ReadonlyArray<TimelineDay>) =>
-  days.map((day) => ({
-    date: day.date.key,
-    completedSets: day.completedSets,
-    sessions: day.sessions.map((session) => session.entries.map((entry) => entry.body.unwrap())),
-  }));
-
-describe("日付の区切り", () => {
-  // 23:30 に始めて 0:20 に終えたセッション。日付をまたぐ
-  const overMidnight = sessionStartedAt(0, [endAt(50)]);
-  const entries = [entryAt(overMidnight, 20, "23:50"), entryAt(overMidnight, 35, "0:05")];
-
-  test("端末のタイムゾーンの 0:00 で区切り、日付をまたいだセッションは両方の日付に出る", () => {
-    expect(outline(build([{ session: overMidnight, entries }], at(80), TOKYO))).toMatchObject([
-      { date: "2026-10-18", sessions: [["0:05"]] },
-      { date: "2026-10-17", sessions: [["23:50"]] },
-    ]);
-  });
-
-  test("タイムゾーンが違えば区切りも変わる（UTC ではどちらも 10月17日）", () => {
-    expect(outline(build([{ session: overMidnight, entries }], at(80), UTC))).toMatchObject([
-      { date: "2026-10-17", sessions: [["0:05", "23:50"]] },
-    ]);
-  });
-
-  test("日付の区切りには、集中を終えた時刻の日付で数えたその日の完了セット数を出す", () => {
-    // 23:37・23:45・23:53 に1〜3セット目、休憩のあと 0:06 と 0:14 に次のラウンドの1・2セット目を終える
-    expect(outline(build([{ session: overMidnight, entries }], at(80)))).toMatchObject([
-      { date: "2026-10-18", completedSets: { kind: "Counted", count: 2 } },
-      { date: "2026-10-17", completedSets: { kind: "Counted", count: 3 } },
-    ]);
-  });
-
-  test("同じ日の完了セット数は、その日のセッションをすべて足したもの", () => {
-    const first = sessionStartedAt(-300, [endAt(-290)]);
-    const second = sessionStartedAt(-200, [endAt(-180)]);
-
-    expect(
-      outline(
-        build(
+goldenCases("Timeline.build", Timeline.build, [
+  ...(() => {
+    // 23:30 に始めて 0:20 に終えたセッション。日付をまたぐ
+    const overMidnight = session(1, 0, 50);
+    const lateEntry = entry(1, overMidnight, 20, "23:50");
+    const earlyEntry = entry(2, overMidnight, 35, "0:05");
+    const sessions = [loaded(overMidnight, [lateEntry, earlyEntry])];
+    return [
+      {
+        // 23:37・23:45・23:53 に1〜3セット目、休憩のあと 0:06 と 0:14 に次のラウンドの1・2セット目を終える
+        name: "端末のタイムゾーンの 0:00 で区切り、日付をまたいだセッションは両方の日付に出る。完了セット数は集中を終えた時刻の日付で数える",
+        input: buildOf(sessions, at(80), TOKYO),
+        expected: [
+          {
+            date: localDate(2026, 10, 18),
+            completedSets: counted(2),
+            sessions: [
+              {
+                sessionId: uuid(1),
+                startedAt: at(0),
+                completedSets: 2,
+                entries: [earlyEntry],
+              },
+            ],
+          },
+          {
+            date: localDate(2026, 10, 17),
+            completedSets: counted(3),
+            sessions: [
+              {
+                sessionId: uuid(1),
+                startedAt: at(0),
+                completedSets: 3,
+                entries: [lateEntry],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "タイムゾーンが違えば区切りも変わる（UTC ではどちらも 10月17日）",
+        input: buildOf(sessions, at(80), UTC),
+        expected: [
+          {
+            date: localDate(2026, 10, 17),
+            completedSets: counted(5),
+            sessions: [
+              {
+                sessionId: uuid(1),
+                startedAt: at(0),
+                completedSets: 5,
+                entries: [earlyEntry, lateEntry],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+  })(),
+  ...(() => {
+    const first = session(1, -300, -290);
+    const second = session(2, -200, -180);
+    return [
+      {
+        name: "同じ日の完了セット数は、その日のセッションをすべて足したもの",
+        input: buildOf([loaded(first), loaded(second)], at(0)),
+        expected: [
+          {
+            date: localDate(2026, 10, 17),
+            completedSets: counted(3),
+            sessions: [
+              { sessionId: uuid(2), startedAt: at(-200), completedSets: 2, entries: [] },
+              { sessionId: uuid(1), startedAt: at(-300), completedSets: 1, entries: [] },
+            ],
+          },
+        ],
+      },
+    ];
+  })(),
+  {
+    name: "記入のないセッションも、始まった日に区切りが出る",
+    input: buildOf([loaded(session(1, -60, -55))], at(0)),
+    expected: [
+      {
+        date: localDate(2026, 10, 17),
+        completedSets: counted(0),
+        sessions: [{ sessionId: uuid(1), startedAt: at(-60), completedSets: 0, entries: [] }],
+      },
+    ],
+  },
+  {
+    name: "進行中のセッションは、今までに完了したセットだけを数える",
+    input: buildOf([loaded(session(1, -20))], at(-10)),
+    expected: [
+      {
+        date: localDate(2026, 10, 17),
+        completedSets: counted(1),
+        sessions: [{ sessionId: uuid(1), startedAt: at(-20), completedSets: 1, entries: [] }],
+      },
+    ],
+  },
+  ...(() => {
+    const yesterday = session(1, -24 * 60, -24 * 60 + 9);
+    const morning = session(2, -600, -590);
+    const evening = session(3, -60, -50);
+    const morning2 = entry(1, morning, -595, "朝2");
+    const morning1 = entry(2, morning, -598, "朝1");
+    const evening1 = entry(3, evening, -58, "夜1");
+    const evening2 = entry(4, evening, -52, "夜2");
+    const yesterdayEntry = entry(5, yesterday, -24 * 60 + 1, "昨日");
+    return [
+      {
+        name: "日付・セッション・記入のどれも新しい順に並ぶ",
+        input: buildOf(
           [
-            { session: first, entries: [] },
-            { session: second, entries: [] },
+            loaded(morning, [morning2, morning1]),
+            loaded(evening, [evening1, evening2]),
+            loaded(yesterday, [yesterdayEntry]),
           ],
           at(0),
         ),
-      ),
-    ).toEqual([
-      { date: "2026-10-17", completedSets: { kind: "Counted", count: 3 }, sessions: [[], []] },
-    ]);
-  });
-
-  test("記入のないセッションも、始まった日に区切りが出る", () => {
-    const quiet = sessionStartedAt(-60, [endAt(-55)]);
-
-    expect(outline(build([{ session: quiet, entries: [] }], at(0)))).toEqual([
-      { date: "2026-10-17", completedSets: { kind: "Counted", count: 0 }, sessions: [[]] },
-    ]);
-  });
-
-  test("進行中のセッションは、今までに完了したセットだけを数える", () => {
-    const running = sessionStartedAt(-20);
-
-    expect(build([{ session: running, entries: [] }], at(-10))[0]?.completedSets).toEqual({
-      kind: "Counted",
-      count: 1,
-    });
-  });
-});
-
-describe("並び順", () => {
-  test("日付・セッション・記入のどれも新しい順に並ぶ", () => {
-    const yesterday = sessionStartedAt(-24 * 60, [endAt(-24 * 60 + 9)]);
-    const morning = sessionStartedAt(-600, [endAt(-590)]);
-    const evening = sessionStartedAt(-60, [endAt(-50)]);
-    const sessions = [
-      { session: morning, entries: [entryAt(morning, -595, "朝2"), entryAt(morning, -598, "朝1")] },
-      { session: evening, entries: [entryAt(evening, -58, "夜1"), entryAt(evening, -52, "夜2")] },
-      { session: yesterday, entries: [entryAt(yesterday, -24 * 60 + 1, "昨日")] },
-    ];
-
-    expect(
-      outline(build(sessions, at(0))).map(({ date, sessions }) => ({ date, sessions })),
-    ).toEqual([
-      {
-        date: "2026-10-17",
-        sessions: [
-          ["夜2", "夜1"],
-          ["朝2", "朝1"],
+        expected: [
+          {
+            date: localDate(2026, 10, 17),
+            completedSets: counted(2),
+            sessions: [
+              {
+                sessionId: uuid(3),
+                startedAt: at(-60),
+                completedSets: 1,
+                entries: [evening2, evening1],
+              },
+              {
+                sessionId: uuid(2),
+                startedAt: at(-600),
+                completedSets: 1,
+                entries: [morning2, morning1],
+              },
+            ],
+          },
+          {
+            date: localDate(2026, 10, 16),
+            completedSets: counted(1),
+            sessions: [
+              {
+                sessionId: uuid(1),
+                startedAt: at(-24 * 60),
+                completedSets: 1,
+                entries: [yesterdayEntry],
+              },
+            ],
+          },
         ],
       },
-      { date: "2026-10-16", sessions: [["昨日"]] },
-    ]);
-  });
-});
-
-describe("古いページが残っているとき", () => {
-  test("読み込んだうちでいちばん古いセッションが始まった日は、完了セット数を数えない", () => {
-    const older = sessionStartedAt(-24 * 60, [endAt(-24 * 60 + 9)]);
-    const newer = sessionStartedAt(-60, [endAt(-50)]);
-    const sessions = [
-      { session: newer, entries: [] },
-      { session: older, entries: [] },
     ];
-
-    const days = build(sessions, at(0), TOKYO, { kind: "More", before: at(-24 * 60) });
-
-    expect(days.map((day) => [day.date.key, day.completedSets])).toEqual([
-      ["2026-10-17", { kind: "Counted", count: 1 }],
-      ["2026-10-16", { kind: "NotYetCounted" }],
-    ]);
-  });
-
-  test("数が確定しない日には、スタッツで数えた今日の完了セット数を入れられる", () => {
-    const older = sessionStartedAt(-24 * 60, [endAt(-24 * 60 + 9)]);
-    const newer = sessionStartedAt(-60, [endAt(-50)]);
-    const days = build(
-      [
-        { session: newer, entries: [] },
-        { session: older, entries: [] },
-      ],
+  })(),
+  {
+    name: "読み込んだうちでいちばん古いセッションが始まった日は、完了セット数を数えない",
+    input: buildOf(
+      [loaded(session(2, -60, -50)), loaded(session(1, -24 * 60, -24 * 60 + 9))],
       at(0),
       TOKYO,
       { kind: "More", before: at(-24 * 60) },
-    );
+    ),
+    expected: [
+      {
+        date: localDate(2026, 10, 17),
+        completedSets: counted(1),
+        sessions: [{ sessionId: uuid(2), startedAt: at(-60), completedSets: 1, entries: [] }],
+      },
+      {
+        date: localDate(2026, 10, 16),
+        completedSets: { kind: "NotYetCounted" },
+        sessions: [{ sessionId: uuid(1), startedAt: at(-24 * 60), completedSets: 1, entries: [] }],
+      },
+    ],
+  },
+  {
+    name: "進行中のセッションは、集中を終える前の時刻にはまだセットを数えない",
+    input: buildOf([loaded(session(1, 40))], at(46)),
+    expected: [
+      {
+        date: localDate(2026, 10, 18),
+        completedSets: counted(0),
+        sessions: [{ sessionId: uuid(1), startedAt: at(40), completedSets: 0, entries: [] }],
+      },
+    ],
+  },
+  {
+    name: "進行中のセッションでセットが完了すると、その時刻から完了セット数が増える",
+    input: buildOf([loaded(session(1, 40))], at(47)),
+    expected: [
+      {
+        date: localDate(2026, 10, 18),
+        completedSets: counted(1),
+        sessions: [{ sessionId: uuid(1), startedAt: at(40), completedSets: 1, entries: [] }],
+      },
+    ],
+  },
+]);
 
-    const counted = Timeline.withDayCounted(days, "2026-10-16", 14);
-    // 確定している日はそのまま
-    const unchanged = Timeline.withDayCounted(days, "2026-10-17", 14);
+// 日付をまたいだセッション（`Timeline.build` の最初の場面と同じ区切り）
+const overMidnight = session(1, 0, 50);
+const OVER_MIDNIGHT_DAYS: ReadonlyArray<DayFields> = [
+  {
+    date: localDate(2026, 10, 18),
+    completedSets: counted(2),
+    sessions: [
+      {
+        sessionId: uuid(1),
+        startedAt: at(0),
+        completedSets: 2,
+        entries: [entry(2, overMidnight, 35, "0:05")],
+      },
+    ],
+  },
+  {
+    date: localDate(2026, 10, 17),
+    completedSets: counted(3),
+    sessions: [
+      {
+        sessionId: uuid(1),
+        startedAt: at(0),
+        completedSets: 3,
+        entries: [entry(1, overMidnight, 20, "23:50")],
+      },
+    ],
+  },
+];
 
-    expect(counted.map((day) => day.completedSets)).toEqual([
-      { kind: "Counted", count: 1 },
-      { kind: "Counted", count: 14 },
-    ]);
-    expect(unchanged).toEqual(days);
-  });
-});
+/** 古いページが残っているときの日付の区切り。10月16日の完了セット数は確定していない */
+const OCT_17: DayFields = {
+  date: localDate(2026, 10, 17),
+  completedSets: counted(1),
+  sessions: [{ sessionId: uuid(2), startedAt: at(-60), completedSets: 1, entries: [] }],
+};
+const OCT_16_UNCOUNTED: DayFields = {
+  date: localDate(2026, 10, 16),
+  completedSets: { kind: "NotYetCounted" },
+  sessions: [{ sessionId: uuid(1), startedAt: at(-24 * 60), completedSets: 1, entries: [] }],
+};
+const OLD_PAGE_DAYS = [OCT_17, OCT_16_UNCOUNTED];
 
-describe("読み込んだ記録の更新", () => {
-  const a = sessionStartedAt(-120, [endAt(-110)]);
-  const b = sessionStartedAt(-60);
+goldenCases(
+  "Timeline.completedSetsOn",
+  (input: { days: ReadonlyArray<TimelineDay>; now: Date; timeZone: string }) =>
+    Timeline.completedSetsOn(input.days, input.now, input.timeZone),
+  [
+    {
+      name: "今日の完了セット数は、端末のタイムゾーンで今日の日付の区切りの数",
+      input: { days: daysOf(OVER_MIDNIGHT_DAYS), now: at(80), timeZone: TOKYO },
+      expected: counted(2),
+    },
+    {
+      name: "今日の区切りがなければ、今日の完了セットはまだない",
+      input: { days: daysOf(OVER_MIDNIGHT_DAYS), now: at(60 * 24 + 80), timeZone: TOKYO },
+      expected: counted(0),
+    },
+    {
+      name: "今日の区切りの数が確定していなければ、確定していないまま返す",
+      input: { days: daysOf(OLD_PAGE_DAYS), now: at(-24 * 60 + 10), timeZone: TOKYO },
+      expected: { kind: "NotYetCounted" },
+    },
+  ],
+);
 
-  test("重ねると同じセッションは新しいほうで置き換え、開始の新しい順に並ぶ", () => {
-    const ended: Session = { ...b, events: [...b.events, endAt(-50)] };
+goldenCases(
+  "Timeline.withDayCounted",
+  (input: { days: ReadonlyArray<TimelineDay>; dateKey: string; count: number }) =>
+    Timeline.withDayCounted(input.days, input.dateKey, input.count),
+  [
+    {
+      name: "数が確定しない日には、スタッツで数えた今日の完了セット数を入れられる",
+      input: { days: daysOf(OLD_PAGE_DAYS), dateKey: "2026-10-16", count: 14 },
+      expected: [OCT_17, { ...OCT_16_UNCOUNTED, completedSets: counted(14) }],
+    },
+    {
+      name: "確定している日はそのまま",
+      input: { days: daysOf(OLD_PAGE_DAYS), dateKey: "2026-10-17", count: 14 },
+      expected: OLD_PAGE_DAYS,
+    },
+  ],
+);
 
-    const merged = Timeline.merge(
-      [
-        { session: a, entries: [] },
-        { session: b, entries: [] },
+goldenCases(
+  "Timeline.entryCountOf",
+  (input: { days: ReadonlyArray<TimelineDay>; sessionId: ReturnType<typeof sessionOf>["id"] }) =>
+    Timeline.entryCountOf(input.days, input.sessionId),
+  [
+    {
+      name: "日付をまたいだセッションの記入の数は、すべての日付の分を足す",
+      input: { days: daysOf(OVER_MIDNIGHT_DAYS), sessionId: sessionOf(overMidnight).id },
+      expected: 2,
+    },
+  ],
+);
+
+const a = session(1, -120, -110);
+const b = session(2, -60);
+const bEnded: SessionSpec = {
+  ...b,
+  operations: [{ kind: "End", at: at(-50) }],
+};
+const bPaused: SessionSpec = {
+  ...b,
+  operations: [{ kind: "Pause", at: at(-50) }],
+};
+
+goldenCases(
+  "Timeline.merge",
+  (input: { loaded: ReadonlyArray<TimelineSession>; more: ReadonlyArray<TimelineSession> }) =>
+    Timeline.merge(input.loaded, input.more),
+  [
+    {
+      name: "重ねると同じセッションは新しいほうで置き換え、開始の新しい順に並ぶ",
+      input: { loaded: [loaded(a), loaded(b)], more: [loaded(bEnded)] },
+      expected: [loadedFields(bEnded), loadedFields(a)],
+    },
+  ],
+);
+
+const memo = entry(1, b, -55, "メモ");
+
+goldenCases(
+  "Timeline.withCurrentSession",
+  (input: { sessions: ReadonlyArray<TimelineSession>; current: ReturnType<typeof sessionOf> }) =>
+    Timeline.withCurrentSession(input.sessions, input.current),
+  [
+    {
+      name: "現在のセッションはタイマーの操作イベントで置き換え、記入は残す",
+      input: { sessions: [loaded(b, [memo])], current: sessionOf(bPaused) },
+      expected: [loadedFields(bPaused, [memo])],
+    },
+    {
+      name: "タイムラインにない現在のセッションは、いちばん上に足す",
+      input: { sessions: [loaded(a)], current: sessionOf(b) },
+      expected: [loadedFields(b), loadedFields(a)],
+    },
+  ],
+);
+
+const written = entry(2, b, -55, "書いた");
+const edited = { ...written, body: "直した" };
+
+goldenCases(
+  "Timeline.putEntry",
+  (input: { sessions: ReadonlyArray<TimelineSession>; entry: JournalEntry }) =>
+    Timeline.putEntry(input.sessions, input.entry),
+  [
+    {
+      name: "書いた記入はそのセッションに入る",
+      input: { sessions: [loaded(b), loaded(a)], entry: journalEntryOf(written) },
+      expected: [loadedFields(b, [written]), loadedFields(a)],
+    },
+    {
+      name: "編集した記入は置き換わる",
+      input: { sessions: [loaded(b, [written]), loaded(a)], entry: journalEntryOf(edited) },
+      expected: [loadedFields(b, [edited]), loadedFields(a)],
+    },
+  ],
+);
+
+goldenCases(
+  "Timeline.removeEntry",
+  (input: { sessions: ReadonlyArray<TimelineSession>; id: JournalEntry["id"] }) =>
+    Timeline.removeEntry(input.sessions, input.id),
+  [
+    {
+      name: "削除した記入は消える",
+      input: {
+        sessions: [loaded(b, [written]), loaded(a)],
+        id: v.parse(JournalEntryId.schema, written.id),
+      },
+      expected: [loadedFields(b), loadedFields(a)],
+    },
+  ],
+);
+
+goldenCases(
+  "Timeline.deleteTag",
+  (input: { sessions: ReadonlyArray<TimelineSession>; deleted: DeletedTag }) =>
+    Timeline.deleteTag(input.sessions, input.deleted),
+  [
+    {
+      name: "タグを削除すると、読み込んだどのセッションの記入からも外れ、更新時刻は変わらない",
+      input: {
+        sessions: [
+          loaded(b, [entry(1, b, -55, "メモ", ["読書"])]),
+          loaded(a, [entry(2, a, -85, "メモ", ["本", "読書"])]),
+        ],
+        deleted: {
+          name: v.parse(TagName.schema, "読書"),
+          deletion: { kind: "Reassign", to: v.parse(TagName.schema, "本") },
+        },
+      },
+      expected: [
+        loadedFields(b, [entry(1, b, -55, "メモ", ["本"])]),
+        loadedFields(a, [entry(2, a, -85, "メモ", ["本"])]),
       ],
-      [{ session: ended, entries: [] }],
-    );
+    },
+  ],
+);
 
-    expect(merged.map(({ session }) => session)).toEqual([ended, a]);
-  });
+const threeSessions = [session(1, -30), session(2, -60), session(3, -90)];
 
-  test("現在のセッションはタイマーの操作イベントで置き換え、記入は残す", () => {
-    const entry = entryAt(b, -55);
-    const paused: Session = {
-      ...b,
-      events: [
-        ...b.events,
-        { kind: "Pause", id: v.parse(SessionEventId.schema, uuid()), at: at(-50) },
-      ],
-    };
+goldenCases(
+  "Timeline.page",
+  (input: { found: ReadonlyArray<TimelineSession>; limit: number; serverTime: Date }) =>
+    Timeline.page(input.found, input.limit, input.serverTime),
+  [
+    {
+      name: "1件多く読めていれば、次のページはいちばん古いセッションの開始時刻より前から",
+      input: { found: threeSessions.map((spec) => loaded(spec)), limit: 2, serverTime: at(0) },
+      expected: {
+        serverTime: at(0),
+        sessions: threeSessions.slice(0, 2).map((spec) => loadedFields(spec)),
+        next: { kind: "More", before: at(-60) },
+      },
+    },
+    {
+      name: "limit 件以下なら、これより古いページはない",
+      input: { found: threeSessions.map((spec) => loaded(spec)), limit: 3, serverTime: at(0) },
+      expected: {
+        serverTime: at(0),
+        sessions: threeSessions.map((spec) => loadedFields(spec)),
+        next: { kind: "End" },
+      },
+    },
+  ],
+);
 
-    const sessions = Timeline.withCurrentSession([{ session: b, entries: [entry] }], paused);
-
-    expect(sessions).toEqual([{ session: paused, entries: [entry] }]);
-  });
-
-  test("タイムラインにない現在のセッションは、いちばん上に足す", () => {
-    expect(Timeline.withCurrentSession([{ session: a, entries: [] }], b)).toEqual([
-      { session: b, entries: [] },
-      { session: a, entries: [] },
-    ]);
-  });
-
-  test("書いた記入はそのセッションに入り、編集した記入は置き換わり、削除した記入は消える", () => {
-    const entry = entryAt(b, -55, "書いた");
-    const edited = { ...entry, body: v.parse(JournalEntryBody.schema, "直した") };
-    const loaded = [
-      { session: b, entries: [] },
-      { session: a, entries: [] },
-    ];
-
-    const written = Timeline.putEntry(loaded, entry);
-    expect(written[0]?.entries).toEqual([entry]);
-    expect(Timeline.putEntry(written, edited)[0]?.entries).toEqual([edited]);
-    expect(Timeline.removeEntry(written, entry.id)[0]?.entries).toEqual([]);
-  });
-
-  test("タグを削除すると、読み込んだどのセッションの記入からも外れ、更新時刻は変わらない", () => {
-    const reading = v.parse(TagName.schema, "読書");
-    const book = v.parse(TagName.schema, "本");
-    const inB = { ...entryAt(b, -55), tags: [reading] };
-    const inA = { ...entryAt(a, -85), tags: [book, reading] };
-    const loaded = [
-      { session: b, entries: [inB] },
-      { session: a, entries: [inA] },
-    ];
-
-    const deleted = Timeline.deleteTag(loaded, {
-      name: reading,
-      deletion: { kind: "Reassign", to: book },
-    });
-
-    expect(deleted.map(({ entries }) => entries.map(({ tags }) => tags))).toEqual([
-      [["本"]],
-      [["本"]],
-    ]);
-    expect(deleted[0]?.entries[0]?.updatedAt).toEqual(inB.updatedAt);
-  });
-});
-
-describe("ページ", () => {
-  const sessions = [-30, -60, -90].map((m) => ({ session: sessionStartedAt(m), entries: [] }));
-
-  test("1件多く読めていれば、次のページはいちばん古いセッションの開始時刻より前から", () => {
-    expect(Timeline.page(sessions, 2, at(0))).toEqual({
-      serverTime: at(0),
-      sessions: sessions.slice(0, 2),
-      next: { kind: "More", before: at(-60) },
-    });
-  });
-
-  test("limit 件以下なら、これより古いページはない", () => {
-    expect(Timeline.page(sessions, 3, at(0)).next).toEqual({ kind: "End" });
-  });
-
+describe("タイムラインのページの応答", () => {
   test("JSON にしたページはスキーマで検証して戻せ、記入の本文は Sensitive に包み直す", () => {
-    const session = sessionStartedAt(-30);
-    const page = Timeline.page([{ session, entries: [entryAt(session, -25, "本文")] }], 10, at(0));
+    const current = session(1, -30);
+    const page = Timeline.page([loaded(current, [entry(1, current, -25, "本文")])], 10, at(0));
 
     const parsed = schemaResult(TimelinePageJsonSchema)(
       JSON.parse(JSON.stringify(Timeline.toJson(page))),
     );
 
-    expect(Result.isSuccess(parsed) && parsed.value.sessions[0]?.session).toEqual(session);
+    expect(Result.isSuccess(parsed) && parsed.value.sessions[0]?.session).toEqual(
+      sessionOf(current),
+    );
     expect(Result.isSuccess(parsed) && parsed.value.sessions[0]?.entries[0]?.body.unwrap()).toBe(
       "本文",
     );
-  });
-});
-
-describe("今日の完了セットと記入の数", () => {
-  // 23:30 に始めて 0:20 に終えたセッション。日付をまたぐ
-  const overMidnight = sessionStartedAt(0, [endAt(50)]);
-  const entries = [entryAt(overMidnight, 20, "23:50"), entryAt(overMidnight, 35, "0:05")];
-  const days = build([{ session: overMidnight, entries }], at(80));
-
-  test("今日の完了セット数は、端末のタイムゾーンで今日の日付の区切りの数", () => {
-    expect(Timeline.completedSetsOn(days, at(80), TOKYO)).toEqual({ kind: "Counted", count: 2 });
-  });
-
-  test("今日の区切りがなければ、今日の完了セットはまだない", () => {
-    expect(Timeline.completedSetsOn(days, at(60 * 24 + 80), TOKYO)).toEqual({
-      kind: "Counted",
-      count: 0,
-    });
-  });
-
-  test("進行中のセッションでセットが完了すると、その時刻から今日の完了セット数が増える", () => {
-    const running = sessionStartedAt(40);
-    const before = build([{ session: running, entries: [] }], at(46));
-    const after = build([{ session: running, entries: [] }], at(47));
-
-    expect(Timeline.completedSetsOn(before, at(46), TOKYO)).toEqual({ kind: "Counted", count: 0 });
-    expect(Timeline.completedSetsOn(after, at(47), TOKYO)).toEqual({ kind: "Counted", count: 1 });
-  });
-
-  test("セッションの区切りには、そのセッションがその日に完了したセットの数を持つ", () => {
-    expect(days.map((day) => day.sessions.map((daySession) => daySession.completedSets))).toEqual([
-      [2],
-      [3],
-    ]);
-  });
-
-  test("日付をまたいだセッションの記入の数は、すべての日付の分を足す", () => {
-    expect(Timeline.entryCountOf(days, overMidnight.id)).toBe(2);
   });
 });

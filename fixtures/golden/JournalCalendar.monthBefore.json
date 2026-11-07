@@ -1,0 +1,16 @@
+{
+  "function": "JournalCalendar.monthBefore",
+  "cases": [
+    {
+      "name": "前の月は年をまたぐ",
+      "input": {
+        "year": 2026,
+        "month": 1
+      },
+      "expected": {
+        "year": 2025,
+        "month": 12
+      }
+    }
+  ]
+}

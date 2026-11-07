@@ -1,0 +1,39 @@
+{
+  "function": "JournalEntryBody.parse",
+  "cases": [
+    {
+      "name": "前後の空白を落とし、改行は残す",
+      "input": {
+        "value": "  1行目\n2行目\n "
+      },
+      "expected": {
+        "kind": "Success",
+        "value": "1行目\n2行目"
+      }
+    },
+    {
+      "name": "空の本文は書けない",
+      "input": {
+        "value": ""
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    },
+    {
+      "name": "空白と改行だけの本文は書けない",
+      "input": {
+        "value": "  \n  "
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "Invalid"
+        }
+      }
+    }
+  ]
+}

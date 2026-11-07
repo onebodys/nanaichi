@@ -1,11 +1,35 @@
 import { Result } from "@praha/byethrow";
 import { describe, expect, test } from "vite-plus/test";
+import type * as v from "valibot";
+import type { Sensitive } from "../domain/sensitive.ts";
 
 /**
  * TS と Swift のドメインが同じ振る舞いをすることを確かめるための場面（ADR 0015）。
  * 期待する出力は実装から作らず、仕様として手で書く。
  */
-export type GoldenCase<I, O> = Readonly<{ name: string; input: I; expected: O }>;
+export type GoldenCase<I, O> = Readonly<{ name: string; input: I; expected: Plain<O> }>;
+
+/** 出力の型は `run` の返り値だけから決める（期待する出力の書き方から型を推論させない） */
+type FromRun<T> = [T][T extends unknown ? 0 : never];
+
+/**
+ * 出力の型から、ブランドと `Sensitive` を外した型。期待する出力は JSON に書く形の素の値で書く
+ * （ID やタグの名前をブランドを付ける関数に通さずに書ける）
+ */
+export type Plain<T> =
+  T extends Sensitive<infer U>
+    ? Plain<U>
+    : T extends string
+      ? T extends v.Brand<string>
+        ? string
+        : T
+      : T extends Date
+        ? Date
+        : T extends ReadonlyArray<infer E>
+          ? ReadonlyArray<Plain<E>>
+          : T extends object
+            ? { readonly [K in keyof T]: Plain<T[K]> }
+            : T;
 
 /** byethrow の Result を、Swift からも読める `kind` の判別子にした形 */
 export type Settled<T, E> =
@@ -46,17 +70,18 @@ const toGoldenJson = (value: unknown): unknown => {
 };
 
 /**
+ * 出力は JSON にした形で比べる（`Sensitive` の本文は関数なので、そのままでは比べられない）。
  * 場面を TS の実装に通し、同じ場面を `fixtures/golden/<name>.json` に書き出す。
  * 場面を変えて JSON を書き出し直していなければ落ちる（`vp test -u` で書き出し直す）。Swift はこの JSON を通す
  */
 export const goldenCases = <I, O>(
   name: string,
   run: (input: I) => O,
-  cases: ReadonlyArray<GoldenCase<I, O>>,
+  cases: ReadonlyArray<GoldenCase<I, FromRun<O>>>,
 ): void => {
   describe(name, () => {
     test.each(cases)("$name", ({ input, expected }) => {
-      expect(run(input)).toEqual(expected);
+      expect(toGoldenJson(run(input))).toEqual(toGoldenJson(expected));
     });
 
     test("ゴールデンケースの JSON が場面と一致する", async () => {
