@@ -10,6 +10,7 @@ import {
   type TaskList,
   type TaskTitle,
 } from "../domain/task.ts";
+import { TaskSettingJsonSchema, type TaskSetting } from "../domain/task-setting.ts";
 import { requestApi, sendJson, type Fetch } from "./remote-backend.ts";
 
 type Call<T> = Result.ResultAsync<T, BackendError>;
@@ -19,6 +20,9 @@ type Call<T> = Result.ResultAsync<T, BackendError>;
  * サーバーへの通信だけをここに置く。通信層（fetch → スキーマ検証 → Result）は `Backend` の実装と同じ。
  */
 export type TaskApi = Readonly<{
+  getTaskSetting: () => Call<TaskSetting>;
+  /** ToDo の設定を変える。変えたあとの設定が返る（ADR 0027） */
+  changeTaskSetting: (setting: TaskSetting) => Call<TaskSetting>;
   getTasks: () => Call<TaskList>;
   /** タスクを作る。`id` は画面が発行し、やり直すときは同じ ID で送れば二重に作らない */
   createTask: (id: TaskId, title: TaskTitle) => Call<Task>;
@@ -40,6 +44,9 @@ export const createTaskApi = ({
 }: TaskApiDeps): TaskApi => {
   const request = requestApi(fetchApi, onSignedOut);
   return {
+    getTaskSetting: () => request("/api/settings/tasks", TaskSettingJsonSchema),
+    changeTaskSetting: (setting) =>
+      request("/api/settings/tasks", TaskSettingJsonSchema, sendJson("PUT", setting)),
     getTasks: () => request("/api/tasks", TaskListJsonSchema),
     createTask: (id, title) =>
       request("/api/tasks", TaskJsonSchema, sendJson("POST", { id, title })),

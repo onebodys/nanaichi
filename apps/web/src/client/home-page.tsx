@@ -21,6 +21,7 @@ import { deviceTimeZone, useStats, type StatsView } from "./use-stats.ts";
 import { useSync } from "./use-sync.ts";
 import { useTagUsage } from "./use-tag-usage.ts";
 import { useTags } from "./use-tags.ts";
+import { useTaskSetting } from "./use-task-setting.ts";
 import { useTasks } from "./use-tasks.ts";
 import { useTimeline, type TimelineState, type TimelineView } from "./use-timeline.ts";
 
@@ -96,6 +97,8 @@ export const HomePage = ({
   const tags = useTags();
   // タスクはアカウントの記録先でだけ使える（ADR 0026）。この端末の記録先では API も画面もない
   const tasks = useTasks(taskApi);
+  // ToDo はアカウントの設定で有効にしたときだけ出す。無効の間もタスクは消さず、有効に戻すと現れる（ADR 0027）
+  const taskSetting = useTaskSetting(taskApi);
   const timeline = useTimeline(timer.session, timer.serverNow, () => {
     timer.refresh();
     tags.refresh();
@@ -108,7 +111,7 @@ export const HomePage = ({
     applyTagDeletionToAttached(attachedTagsKey, deleted);
     tags.refresh();
   });
-  useSync({ timer, timeline, tags, tasks, tagUsage, advanceMode, attachedTagsKey });
+  useSync({ timer, timeline, tags, tasks, taskSetting, tagUsage, advanceMode, attachedTagsKey });
   // 今日の集中時間（ヘッダー）とスタッツは、完了セットが増えうるときだけ読み込み直す（ADR 0014）
   const statsRefreshKey = statsRefreshKeyOf(timer.view, timer.serverNow, deviceTimeZone());
   const todayStats = useStats("Today", statsRefreshKey);
@@ -165,7 +168,8 @@ export const HomePage = ({
             */}
             <div className="relative lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:border-t">
               <div className="flex max-w-[760px] flex-col gap-6 px-4 lg:px-12 lg:pt-6 lg:pb-8">
-                <TaskPanel tasks={tasks} />
+                {taskSetting.view.kind === "Loaded" &&
+                  taskSetting.view.setting.kind === "Enabled" && <TaskPanel tasks={tasks} />}
                 <TimelinePanel
                   timeline={withTodayCounted(timeline, todayStats)}
                   knownTags={tags.known}
@@ -179,6 +183,7 @@ export const HomePage = ({
         <SettingsScreen
           phaseAlert={phaseAlert}
           advanceMode={advanceMode}
+          taskSetting={taskSetting}
           tagUsage={tagUsage}
           timer={timer.view}
           close={settings.close}

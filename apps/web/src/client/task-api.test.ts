@@ -29,6 +29,43 @@ const respondWith = (status: number, body: unknown, onSignedOut = () => undefine
 const sentBody = (init: RequestInit | undefined): unknown =>
   JSON.parse(typeof init?.body === "string" ? init.body : "null");
 
+describe("ToDo の設定", () => {
+  test("GET /api/settings/tasks を呼び、設定を返す", async () => {
+    const { api, paths } = respondWith(200, { kind: "Disabled" });
+
+    const result = await api.getTaskSetting();
+
+    expect(paths).toEqual(["/api/settings/tasks"]);
+    expect(result).toEqual(Result.succeed({ kind: "Disabled" }));
+  });
+
+  test("有効にすると、PUT /api/settings/tasks に設定を送り、変えたあとの設定を返す", async () => {
+    const { api, paths, requests } = respondWith(200, { kind: "Enabled" });
+
+    const result = await api.changeTaskSetting({ kind: "Enabled" });
+
+    expect(paths).toEqual(["/api/settings/tasks"]);
+    expect(requests[0]?.method).toBe("PUT");
+    expect(sentBody(requests[0])).toEqual({ kind: "Enabled" });
+    expect(result).toEqual(Result.succeed({ kind: "Enabled" }));
+  });
+
+  test("応答がスキーマに合わなければ、読めない応答として Broken を返す", async () => {
+    const { api } = respondWith(200, { kind: "Maybe" });
+
+    expect(await api.getTaskSetting()).toEqual(Result.fail({ kind: "Broken" }));
+  });
+
+  test("ログインが切れていたら、失敗を返す前にログイン画面へ送る", async () => {
+    const onSignedOut = vi.fn();
+    const { api } = respondWith(401, { error: "UNAUTHENTICATED" }, onSignedOut);
+
+    await api.getTaskSetting();
+
+    expect(onSignedOut).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("タスクの取得", () => {
   test("GET /api/tasks を呼び、時刻を Date に戻したタスクの一覧を返す", async () => {
     const { api, paths } = respondWith(200, { tasks: [open] });

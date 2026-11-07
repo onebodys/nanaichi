@@ -64,6 +64,15 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await browser.addInitScript(installPageClock);
       await app.open("/");
       await endLeftoverSession(screen);
+      // ToDo は設定で有効にしたときだけ出る（既定は無効）。手元の記録は残るので、有効かどうかを見て、無効のときだけ切り替える
+      await screen.getByRole("button", { name: "設定" }).tap();
+      const useTasks = screen.getByRole("switch", { name: "ToDo を使う" });
+      await expect(useTasks).toBeVisible();
+      if (!(await useTasks.isChecked())) {
+        await useTasks.tap();
+      }
+      await expect(useTasks).toBeChecked();
+      await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
       // ToDo のパネルは、タスクを手動で足した状態を写す。判断モデル（AI）は使わない。手元の記録は残るので、写したら消す
       await screen.getByRole("textbox", { name: "タスクを追加" }).fill("ログイン画面のバグ修正");
       await screen.getByRole("button", { name: "追加" }).tap();

@@ -46,6 +46,7 @@ import { OverlayScreen } from "./overlay-screen.tsx";
 import { Segmented } from "./segmented.tsx";
 import { modifierLabelOf, SubmitKeySchema, submitKeyLabelOf } from "./submit-key.ts";
 import { THEME_PREFERENCES, useThemePreference } from "./theme.ts";
+import type { TaskSettingState } from "./use-task-setting.ts";
 import type { AdvanceModeState } from "./use-advance-mode.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
 import type { TimerView } from "./use-session-timer.ts";
@@ -133,6 +134,39 @@ const AdvanceSection = ({ advanceMode }: Readonly<{ advanceMode: AdvanceModeStat
       ) : (
         <p className="px-5 py-4 text-sm text-muted-foreground">
           {view.kind === "Loading" ? "読み込み中…" : "読み込めませんでした"}
+        </p>
+      )}
+      {errorMessage !== undefined && (
+        <p role="alert" className="px-5 py-3 text-sm text-destructive">
+          {errorMessage}
+        </p>
+      )}
+    </Section>
+  );
+};
+
+/**
+ * ToDo の設定（GLOSSARY の「ToDo の設定」、ADR 0027）。アカウントの記録先でだけ出す。
+ * この端末の記録先では ToDo 自体を使えないので、項目を出さない
+ */
+const TaskSection = ({ taskSetting }: Readonly<{ taskSetting: TaskSettingState }>) => {
+  const { view, errorMessage, change } = taskSetting;
+  return (
+    <Section id="settings-tasks" title="ToDo" perDevice={false}>
+      {view.kind === "Loaded" ? (
+        <Row
+          label="ToDo を使う"
+          description="オンにすると、「〜が完了した」とジャーナルに書いたとき、合うタスクを自動で完了にします。どの端末でも同じ設定になります。"
+        >
+          <Switch
+            aria-label="ToDo を使う"
+            checked={view.setting.kind === "Enabled"}
+            onCheckedChange={(on) => change({ kind: on ? "Enabled" : "Disabled" })}
+          />
+        </Row>
+      ) : (
+        <p className="px-5 py-4 text-sm text-muted-foreground">
+          {view.kind === "LoadFailed" ? "読み込めませんでした" : "読み込み中…"}
         </p>
       )}
       {errorMessage !== undefined && (
@@ -477,6 +511,7 @@ const AccountSection = () => {
 
 const SECTIONS = [
   { id: "settings-advance", title: "フェーズの進め方" },
+  { id: "settings-tasks", title: "ToDo" },
   { id: "settings-alert", title: "知らせ方" },
   { id: "settings-look", title: "表示" },
   { id: "settings-write", title: "記入" },
@@ -490,46 +525,55 @@ const SECTIONS = [
 export const SettingsScreen = ({
   phaseAlert,
   advanceMode,
+  taskSetting,
   tagUsage,
   timer,
   close,
 }: Readonly<{
   phaseAlert: PhaseAlert;
   advanceMode: AdvanceModeState;
+  taskSetting: TaskSettingState;
   tagUsage: TagUsageState;
   timer: TimerView;
   close: () => void;
-}>) => (
-  <OverlayScreen labelledBy="settings-title" timer={timer} close={close}>
-    <div className="mx-auto flex max-w-[960px] gap-10 px-4 py-8 lg:px-8 lg:py-10">
-      <nav
-        aria-label="設定の項目"
-        className="sticky top-24 hidden w-44 shrink-0 flex-col gap-0.5 self-start pt-12 lg:flex"
-      >
-        {SECTIONS.map((section) => (
-          <button
-            key={section.id}
-            type="button"
-            className="rounded-lg px-3 py-2 text-left text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-            onClick={() =>
-              document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" })
-            }
-          >
-            {section.title}
-          </button>
-        ))}
-      </nav>
-      <div className="flex min-w-0 flex-1 flex-col gap-9">
-        <h1 id="settings-title" className="text-[22px] font-bold">
-          設定
-        </h1>
-        <AdvanceSection advanceMode={advanceMode} />
-        <AlertSection phaseAlert={phaseAlert} />
-        <LookSection />
-        <WriteSection />
-        <TagSection tagUsage={tagUsage} />
-        <AccountSection />
+}>) => {
+  const recordStore = useRecordStore();
+  const sections = SECTIONS.filter(
+    (section) => section.id !== "settings-tasks" || recordStore.kind === "Account",
+  );
+  return (
+    <OverlayScreen labelledBy="settings-title" timer={timer} close={close}>
+      <div className="mx-auto flex max-w-[960px] gap-10 px-4 py-8 lg:px-8 lg:py-10">
+        <nav
+          aria-label="設定の項目"
+          className="sticky top-24 hidden w-44 shrink-0 flex-col gap-0.5 self-start pt-12 lg:flex"
+        >
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              className="rounded-lg px-3 py-2 text-left text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              onClick={() =>
+                document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              {section.title}
+            </button>
+          ))}
+        </nav>
+        <div className="flex min-w-0 flex-1 flex-col gap-9">
+          <h1 id="settings-title" className="text-[22px] font-bold">
+            設定
+          </h1>
+          <AdvanceSection advanceMode={advanceMode} />
+          {recordStore.kind === "Account" && <TaskSection taskSetting={taskSetting} />}
+          <AlertSection phaseAlert={phaseAlert} />
+          <LookSection />
+          <WriteSection />
+          <TagSection tagUsage={tagUsage} />
+          <AccountSection />
+        </div>
       </div>
-    </div>
-  </OverlayScreen>
-);
+    </OverlayScreen>
+  );
+};
