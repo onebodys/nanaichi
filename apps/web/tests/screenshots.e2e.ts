@@ -72,9 +72,11 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
 
       await screen.getByRole("button", { name: "スタッツ" }).tap();
-      await expect(screen.getByRole("heading", { name: "スタッツ", level: 1 })).toBeVisible();
+      // 見出しは読み込みの前に出るので、読み込んだ内容が出てから撮る
+      await expect(screen.getByText("この12週間")).toBeVisible();
       await shoot("03-スタッツ");
-      await screen.getByRole("button", { name: "タイマーに戻る" }).tap();
+      // 記録がないときは、空の状態の案内にも同じ名前のボタンが出る
+      await screen.getByRole("button", { name: "タイマーに戻る" }).first().tap();
 
       await screen.getByRole("button", { name: START_BUTTON }).tap();
       await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
