@@ -15,7 +15,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 - **エージェント自身の検証**: 作業を終える前に必ず `vp check` と `vp test` を通す。画面に関わる変更は実際にブラウザで動かして確認する（ログイン済みの画面の開き方は [`docs/E2E.md`](./docs/E2E.md) の「ワーカーが画面を確かめる」）。通っていないものを「完了」と報告しない。
 - **オーナーが検証できる形で報告する**: PR の本文に以下を必ず書く。
   - 何ができるようになったか（ユースケースの言葉で、`GLOSSARY.md` の用語を使う）
-  - エージェントがどう検証したか（実行したコマンドと結果、画面ならスクリーンショット）
+  - エージェントがどう検証したか（実行したコマンドと結果、画面ならスクリーンショット。CI が PR にコメントするリンクで見られる。撮る画面を足すのは `tests/screenshots.e2e.ts`、[`docs/E2E.md`](./docs/E2E.md) の「スクリーンショットを残す」）
   - オーナーが確かめる手順（どの画面で何をすると何が起きるか）。CI が PR にコメントするプレビューの URL で試せる手順にする。プレビューにないもの（ログイン、同期、MCP）は、マージのあとに本番で確かめる手順として分けて書く（ADR 0025）
   - 検証できなかったこと・未確認のこと
 - **テストを仕様として読めるようにする**: ドメインとワークフローのテスト名は日本語で、`GLOSSARY.md` の用語を使った場面として書く（例: `集中中に中断すると不成立セットになり待機に戻る`）。テスト一覧がそのまま仕様の確認リストになるようにする。
@@ -98,6 +98,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 ## 7. ツールと作業の進め方
 
 - ツールチェーンは Vite+（`vp`）。`vp check`（Oxlint / Oxfmt / 型チェック）と `vp test`（Vitest）を使う。ESLint / Prettier は入れない。
+- `vp check` は lint の警告でも落ちる（`vite.config.ts` の `denyWarnings`）。直せない警告はその行でだけ抑制し、理由をコメントに書く。
 - 未使用のファイル・export・依存は knip（`pnpm knip`、設定は `knip.config.ts`）で検出する。Vite+ プラグインが各ワークスペースの `vite.config.ts` を読む。誤検知は設定で除外し、理由をコメントで書く。
 - チェックはフックで自動化している。`pnpm install` で Git フックが入り、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と `vp check` と `vp test` と `knip` が走る。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。Claude Code は作業を終える前に Stop フック（`.claude/hooks/verify-before-stop.sh`）で同じチェックを走らせ、落ちていれば終えられない。フックを `--no-verify` などで飛ばさない。
 - 依存は正確なバージョンで固定し（`pnpm-workspace.yaml` の `savePrefix: ""`）、GitHub Actions は `.github/workflows/actions.lock` でコミットに固定している。更新は Dependabot の PR で受け取る（`.github/dependabot.yml`）。ワークフローに Action を足したり版を変えたりしたら `gh actions-lock`（`gh extension install github/gh-actions-lock`）で lockfile を更新する。更新しないと CI がジョブを始める前に `startup_failure` で落ちる。

@@ -38,3 +38,5 @@ dist-ssr
 .e2e/summary.md
 .e2e/logs/
 .e2e/videos/
+.e2e/screenshots/
+.e2e/screenshots.html

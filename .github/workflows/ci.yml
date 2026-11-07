@@ -64,6 +64,10 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      # スクリーンショットへのリンクを PR にコメントする
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: voidzero-dev/setup-vp@v1.22.0
@@ -86,6 +90,48 @@ jobs:
           path: apps/web/.e2e/
           include-hidden-files: true
           retention-days: 14
+      # tests/screenshots.e2e.ts が撮った画面を、ダウンロードせずに見られる1枚の HTML にする（docs/E2E.md）
+      - if: ${{ !cancelled() }}
+        working-directory: apps/web
+        run: node scripts/screenshot-gallery.ts
+      - id: screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: apps/web/.e2e/screenshots.html
+          archive: false
+          include-hidden-files: true
+          retention-days: 14
+      - if: ${{ !cancelled() && steps.screenshots.outputs.artifact-url != '' }}
+        env:
+          URL: ${{ steps.screenshots.outputs.artifact-url }}
+        run: |
+          {
+            echo "## 画面のスクリーンショット"
+            echo
+            echo "[画面の一覧（screenshots.html）]($URL)"
+            echo
+            ls apps/web/.e2e/screenshots | sed 's/^[0-9]*-//; s/\.png$//; s/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # PR ごとに1件のコメントを更新し続ける。Dependabot の PR ではトークンが読み取り専用なので、失敗しても E2E の結果にしない
+      - if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.screenshots.outputs.artifact-url != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ steps.screenshots.outputs.artifact-url }}
+        run: |
+          marker="<!-- e2e-screenshots -->"
+          body="$marker
+          画面のスクリーンショット（$SHA）: [screenshots.html]($URL)"
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body"
+          fi
 
   # PR ごとのプレビューを作り、URL を PR にコメントする（ADR 0025）。
   # フォークと Dependabot の PR には secrets が渡らないので作らない。チェックだけで確かめる。

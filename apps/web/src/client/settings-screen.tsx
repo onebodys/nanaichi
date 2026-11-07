@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Result } from "@praha/byethrow";
 import { PlayIcon } from "lucide-react";
 import * as v from "valibot";
 import {
@@ -382,8 +383,9 @@ const TagDeletionForm = ({
  * 使わないタグを削除できる
  */
 const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
-  const { view, errorMessage, remove } = tagUsage;
+  const { view, remove } = tagUsage;
   const [deleting, setDeleting] = useState<TagName | undefined>(undefined);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const recordStore = useRecordStore();
   return (
     <Section id="settings-tags" title="タグ" perDevice={false}>
@@ -403,9 +405,13 @@ const TagSection = ({ tagUsage }: Readonly<{ tagUsage: TagUsageState }>) => {
                 usage={usage}
                 others={view.tags.map(({ name }) => name).filter((name) => name !== usage.name)}
                 remove={async (deletion) => {
-                  if (await remove(usage.name, deletion)) {
-                    setDeleting(undefined);
+                  setErrorMessage(undefined);
+                  const result = await remove(usage.name, deletion);
+                  if (Result.isFailure(result)) {
+                    setErrorMessage(result.error);
+                    return;
                   }
+                  setDeleting(undefined);
                 }}
                 cancel={() => setDeleting(undefined)}
               />
