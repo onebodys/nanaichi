@@ -81,6 +81,17 @@ E2E は同じユーザーで画面を開き直し・操作し続けるので、�
 `e2e.config.ts` が開発サーバーに `E2E_RELAX_RATE_LIMIT=enabled` を渡し、`vite.config.ts` がそのときだけ上限を上げる。
 効くのは開発サーバー（`vp dev`）だけで、ビルドした Worker の設定には入らない。制限そのものは `rate-limit.workers.test.ts` で確かめる。
 
+## スクリーンショットを残す
+
+画面に関わる PR で、オーナーが手元で何も動かさずに画面を見られるようにする（AGENTS.md §1、Issue #123）。
+
+- `tests/screenshots.e2e.ts` が、ホーム・設定・スタッツ・タイマーの各フェーズ（集中・ジャーナル・休憩・終了）を PC の幅（1280px）とスマホの幅（375px）で撮り、`.e2e/screenshots/` に置く。画面を足したらこのテストにも足す。
+- CI の `e2e` ジョブが `scripts/screenshot-gallery.ts` で全部を1枚の HTML にまとめ、artifact `screenshots.html` として上げる。
+- 見る場所は、PR のコメント「画面のスクリーンショット」のリンク。実行結果の画面の Summary にも同じリンクと画面の一覧が出る。コメントは push のたびに最新の実行に更新される。リンクの有効期限は 14 日。
+- 個別の PNG は `e2e-results` の `screenshots/` にも入る。
+- 手元で作るには `pnpm test:e2e` のあと、`apps/web` で `node scripts/screenshot-gallery.ts` を実行し、`.e2e/screenshots.html` を開く。
+- スタッツはサーバーが数えるので、ページの時計だけを進めるこのテストでは記録のない状態が写る。
+
 ## テスト用のログイン（ADR 0008）
 
 `GET /api/test/sign-in?email=<メールアドレス>` を開くと、Google を通さずにそのユーザーでログインし、
@@ -134,13 +145,14 @@ pnpm dev:portless                            # → https://<ブランチ名>.nan
    ```bash
    agent-browser open "http://localhost:5173/api/test/sign-in?email=e2e%40example.com"  # ホームに戻る
    agent-browser snapshot -i                    # 画面の要素を見る
-   agent-browser screenshot home.png            # PR に貼るスクリーンショット
+   agent-browser screenshot home.png            # 手元で見るスクリーンショット
    agent-browser eval 'fetch("/api/session/current").then(r => r.json()).then(JSON.stringify)'  # API の応答も見られる
    ```
 
    e2e の MCP サーバー（`e2e mcp`、スキルの `references/mcp.md`）を使う場合も、最初に同じ URL を開けばよい。
 
-3. 確かめた手順と結果、スクリーンショットを PR の本文に書く。終わったら開発サーバーを止める。
+3. 確かめた手順と結果を PR の本文に書く。画面は CI が撮ったスクリーンショット（「スクリーンショットを残す」）で見てもらう。
+   `tests/screenshots.e2e.ts` が撮らない画面を変えたら、このテストに足す。終わったら開発サーバーを止める。
 
 いまはモデルを設定していないので、`agent.act` などの AI ステップは使えない。
 `screen` と `expect` だけの決定的なテストを書く。AI ステップが必要になったら、モデルとその認証を
