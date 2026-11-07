@@ -1,0 +1,205 @@
+{
+  "function": "Timeline.page",
+  "cases": [
+    {
+      "name": "1件多く読めていれば、次のページはいちばん古いセッションの開始時刻より前から",
+      "input": {
+        "found": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T13:30:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000003",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000301",
+                  "at": "2026-10-17T13:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "limit": 2,
+        "serverTime": "2026-10-17T14:30:00.000Z"
+      },
+      "expected": {
+        "serverTime": "2026-10-17T14:30:00.000Z",
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T13:30:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "More",
+          "before": "2026-10-17T13:30:00.000Z"
+        }
+      }
+    },
+    {
+      "name": "limit 件以下なら、これより古いページはない",
+      "input": {
+        "found": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T13:30:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000003",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000301",
+                  "at": "2026-10-17T13:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "limit": 3,
+        "serverTime": "2026-10-17T14:30:00.000Z"
+      },
+      "expected": {
+        "serverTime": "2026-10-17T14:30:00.000Z",
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T13:30:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000003",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000301",
+                  "at": "2026-10-17T13:00:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        }
+      }
+    }
+  ]
+}

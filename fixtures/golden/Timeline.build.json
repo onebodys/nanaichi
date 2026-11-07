@@ -1,0 +1,873 @@
+{
+  "function": "Timeline.build",
+  "cases": [
+    {
+      "name": "端末のタイムゾーンの 0:00 で区切り、日付をまたいだセッションは両方の日付に出る。完了セット数は集中を終えた時刻の日付で数える",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-17T15:20:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": [
+              {
+                "id": "00000000-0000-4000-8000-000000001001",
+                "sessionId": "00000000-0000-4000-8000-000000000001",
+                "body": "23:50",
+                "tags": [],
+                "writtenAt": "2026-10-17T14:50:00.000Z",
+                "updatedAt": "2026-10-17T14:50:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000001002",
+                "sessionId": "00000000-0000-4000-8000-000000000001",
+                "body": "0:05",
+                "tags": [],
+                "writtenAt": "2026-10-17T15:05:00.000Z",
+                "updatedAt": "2026-10-17T15:05:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              }
+            ]
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T15:50:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-18",
+            "year": 2026,
+            "month": 10,
+            "day": 18
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 2
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T14:30:00.000Z",
+              "completedSets": 2,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001002",
+                  "sessionId": "00000000-0000-4000-8000-000000000001",
+                  "body": "0:05",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T15:05:00.000Z",
+                  "updatedAt": "2026-10-17T15:05:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 3
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T14:30:00.000Z",
+              "completedSets": 3,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001001",
+                  "sessionId": "00000000-0000-4000-8000-000000000001",
+                  "body": "23:50",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T14:50:00.000Z",
+                  "updatedAt": "2026-10-17T14:50:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "タイムゾーンが違えば区切りも変わる（UTC ではどちらも 10月17日）",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-17T15:20:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": [
+              {
+                "id": "00000000-0000-4000-8000-000000001001",
+                "sessionId": "00000000-0000-4000-8000-000000000001",
+                "body": "23:50",
+                "tags": [],
+                "writtenAt": "2026-10-17T14:50:00.000Z",
+                "updatedAt": "2026-10-17T14:50:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000001002",
+                "sessionId": "00000000-0000-4000-8000-000000000001",
+                "body": "0:05",
+                "tags": [],
+                "writtenAt": "2026-10-17T15:05:00.000Z",
+                "updatedAt": "2026-10-17T15:05:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              }
+            ]
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T15:50:00.000Z",
+        "timeZone": "UTC"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 5
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T14:30:00.000Z",
+              "completedSets": 5,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001002",
+                  "sessionId": "00000000-0000-4000-8000-000000000001",
+                  "body": "0:05",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T15:05:00.000Z",
+                  "updatedAt": "2026-10-17T15:05:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                },
+                {
+                  "id": "00000000-0000-4000-8000-000000001001",
+                  "sessionId": "00000000-0000-4000-8000-000000000001",
+                  "body": "23:50",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T14:50:00.000Z",
+                  "updatedAt": "2026-10-17T14:50:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "同じ日の完了セット数は、その日のセッションをすべて足したもの",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T09:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-17T09:40:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T11:10:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000202",
+                  "at": "2026-10-17T11:30:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T14:30:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 3
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000002",
+              "startedAt": "2026-10-17T11:10:00.000Z",
+              "completedSets": 2,
+              "entries": []
+            },
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T09:30:00.000Z",
+              "completedSets": 1,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "記入のないセッションも、始まった日に区切りが出る",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T13:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-17T13:35:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T14:30:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 0
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T13:30:00.000Z",
+              "completedSets": 0,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "進行中のセッションは、今までに完了したセットだけを数える",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T14:10:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T14:20:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 1
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T14:10:00.000Z",
+              "completedSets": 1,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "日付・セッション・記入のどれも新しい順に並ぶ",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T04:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000202",
+                  "at": "2026-10-17T04:40:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": [
+              {
+                "id": "00000000-0000-4000-8000-000000001001",
+                "sessionId": "00000000-0000-4000-8000-000000000002",
+                "body": "朝2",
+                "tags": [],
+                "writtenAt": "2026-10-17T04:35:00.000Z",
+                "updatedAt": "2026-10-17T04:35:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000001002",
+                "sessionId": "00000000-0000-4000-8000-000000000002",
+                "body": "朝1",
+                "tags": [],
+                "writtenAt": "2026-10-17T04:32:00.000Z",
+                "updatedAt": "2026-10-17T04:32:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              }
+            ]
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000003",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000301",
+                  "at": "2026-10-17T13:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000302",
+                  "at": "2026-10-17T13:40:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": [
+              {
+                "id": "00000000-0000-4000-8000-000000001003",
+                "sessionId": "00000000-0000-4000-8000-000000000003",
+                "body": "夜1",
+                "tags": [],
+                "writtenAt": "2026-10-17T13:32:00.000Z",
+                "updatedAt": "2026-10-17T13:32:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000001004",
+                "sessionId": "00000000-0000-4000-8000-000000000003",
+                "body": "夜2",
+                "tags": [],
+                "writtenAt": "2026-10-17T13:38:00.000Z",
+                "updatedAt": "2026-10-17T13:38:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              }
+            ]
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-16T14:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-16T14:39:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": [
+              {
+                "id": "00000000-0000-4000-8000-000000001005",
+                "sessionId": "00000000-0000-4000-8000-000000000001",
+                "body": "昨日",
+                "tags": [],
+                "writtenAt": "2026-10-16T14:31:00.000Z",
+                "updatedAt": "2026-10-16T14:31:00.000Z",
+                "writtenDuring": {
+                  "kind": "Focus",
+                  "round": 1,
+                  "setNumber": 1
+                }
+              }
+            ]
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T14:30:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 2
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000003",
+              "startedAt": "2026-10-17T13:30:00.000Z",
+              "completedSets": 1,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001004",
+                  "sessionId": "00000000-0000-4000-8000-000000000003",
+                  "body": "夜2",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T13:38:00.000Z",
+                  "updatedAt": "2026-10-17T13:38:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                },
+                {
+                  "id": "00000000-0000-4000-8000-000000001003",
+                  "sessionId": "00000000-0000-4000-8000-000000000003",
+                  "body": "夜1",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T13:32:00.000Z",
+                  "updatedAt": "2026-10-17T13:32:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            },
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000002",
+              "startedAt": "2026-10-17T04:30:00.000Z",
+              "completedSets": 1,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001001",
+                  "sessionId": "00000000-0000-4000-8000-000000000002",
+                  "body": "朝2",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T04:35:00.000Z",
+                  "updatedAt": "2026-10-17T04:35:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                },
+                {
+                  "id": "00000000-0000-4000-8000-000000001002",
+                  "sessionId": "00000000-0000-4000-8000-000000000002",
+                  "body": "朝1",
+                  "tags": [],
+                  "writtenAt": "2026-10-17T04:32:00.000Z",
+                  "updatedAt": "2026-10-17T04:32:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "date": {
+            "key": "2026-10-16",
+            "year": 2026,
+            "month": 10,
+            "day": 16
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 1
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-16T14:30:00.000Z",
+              "completedSets": 1,
+              "entries": [
+                {
+                  "id": "00000000-0000-4000-8000-000000001005",
+                  "sessionId": "00000000-0000-4000-8000-000000000001",
+                  "body": "昨日",
+                  "tags": [],
+                  "writtenAt": "2026-10-16T14:31:00.000Z",
+                  "updatedAt": "2026-10-16T14:31:00.000Z",
+                  "writtenDuring": {
+                    "kind": "Focus",
+                    "round": 1,
+                    "setNumber": 1
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "読み込んだうちでいちばん古いセッションが始まった日は、完了セット数を数えない",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000002",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000201",
+                  "at": "2026-10-17T13:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000202",
+                  "at": "2026-10-17T13:40:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          },
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-16T14:30:00.000Z"
+                },
+                {
+                  "kind": "End",
+                  "id": "00000000-0000-4000-8000-000000000102",
+                  "at": "2026-10-16T14:39:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "More",
+          "before": "2026-10-16T14:30:00.000Z"
+        },
+        "now": "2026-10-17T14:30:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-17",
+            "year": 2026,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 1
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000002",
+              "startedAt": "2026-10-17T13:30:00.000Z",
+              "completedSets": 1,
+              "entries": []
+            }
+          ]
+        },
+        {
+          "date": {
+            "key": "2026-10-16",
+            "year": 2026,
+            "month": 10,
+            "day": 16
+          },
+          "completedSets": {
+            "kind": "NotYetCounted"
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-16T14:30:00.000Z",
+              "completedSets": 1,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "進行中のセッションは、集中を終える前の時刻にはまだセットを数えない",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T15:10:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T15:16:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-18",
+            "year": 2026,
+            "month": 10,
+            "day": 18
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 0
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T15:10:00.000Z",
+              "completedSets": 0,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "進行中のセッションでセットが完了すると、その時刻から完了セット数が増える",
+      "input": {
+        "sessions": [
+          {
+            "session": {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "events": [
+                {
+                  "kind": "Start",
+                  "id": "00000000-0000-4000-8000-000000000101",
+                  "at": "2026-10-17T15:10:00.000Z"
+                }
+              ],
+              "journalEntryTimes": [],
+              "advanceModeChanges": []
+            },
+            "entries": []
+          }
+        ],
+        "next": {
+          "kind": "End"
+        },
+        "now": "2026-10-17T15:17:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": [
+        {
+          "date": {
+            "key": "2026-10-18",
+            "year": 2026,
+            "month": 10,
+            "day": 18
+          },
+          "completedSets": {
+            "kind": "Counted",
+            "count": 1
+          },
+          "sessions": [
+            {
+              "sessionId": "00000000-0000-4000-8000-000000000001",
+              "startedAt": "2026-10-17T15:10:00.000Z",
+              "completedSets": 1,
+              "entries": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

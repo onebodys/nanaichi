@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { JournalEntryBody, JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
-import { SessionId } from "../domain/session.ts";
+import { SessionEventId, type SessionOperation } from "../domain/session-event.ts";
+import { SessionId, type Session } from "../domain/session.ts";
 import { TagName } from "../domain/tag.ts";
 import type { Plain, Settled } from "./golden.ts";
 
@@ -44,4 +45,48 @@ export const journalEntryOf = (fields: JournalEntryFields): JournalEntry => ({
   writtenAt: fields.writtenAt,
   updatedAt: fields.updatedAt,
   writtenDuring: fields.writtenDuring,
+});
+
+/**
+ * 場面に出てくるセッション。`n` 番目のセッションが `startedAt` に始まり、`operations` の操作を行う。
+ * ID は `n` から決まる（セッションが `uuid(n)`、イベントが `uuid(n * 100 + 順番)`）
+ */
+export type SessionSpec = Readonly<{
+  n: number;
+  startedAt: Date;
+  operations?: ReadonlyArray<Readonly<{ kind: SessionOperation["kind"]; at: Date }>>;
+}>;
+
+/** セッションを、期待する出力に書く素の値で表したもの */
+export const sessionFields = (spec: SessionSpec): Plain<Session> => ({
+  id: uuid(spec.n),
+  events: [
+    { kind: "Start", id: uuid(spec.n * 100 + 1), at: spec.startedAt },
+    ...(spec.operations ?? []).map(({ kind, at }, i) => ({
+      kind,
+      id: uuid(spec.n * 100 + 2 + i),
+      at,
+    })),
+  ],
+  journalEntryTimes: [],
+  advanceModeChanges: [],
+});
+
+/** ワークフローに渡す型（ブランド付きの ID）のセッション */
+export const sessionOf = (spec: SessionSpec): Session => ({
+  id: v.parse(SessionId.schema, uuid(spec.n)),
+  events: [
+    {
+      kind: "Start",
+      id: v.parse(SessionEventId.schema, uuid(spec.n * 100 + 1)),
+      at: spec.startedAt,
+    },
+    ...(spec.operations ?? []).map(({ kind, at }, i) => ({
+      kind,
+      id: v.parse(SessionEventId.schema, uuid(spec.n * 100 + 2 + i)),
+      at,
+    })),
+  ],
+  journalEntryTimes: [],
+  advanceModeChanges: [],
 });
