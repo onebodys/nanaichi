@@ -64,7 +64,16 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await browser.addInitScript(installPageClock);
       await app.open("/");
       await endLeftoverSession(screen);
+      // ToDo のパネルは、タスクを手動で足した状態を写す。判断モデル（AI）は使わない。手元の記録は残るので、写したら消す
+      await screen.getByRole("textbox", { name: "タスクを追加" }).fill("ログイン画面のバグ修正");
+      await screen.getByRole("button", { name: "追加" }).tap();
+      await expect(screen.getByText("ログイン画面のバグ修正")).toBeVisible();
       await shoot("01-ホーム");
+      await screen
+        .getByRole("listitem", { name: "未完了のタスク" })
+        .getByRole("button", { name: "削除" })
+        .tap();
+      await expect(screen.getByText("未完了のタスクはありません")).toBeVisible();
 
       await screen.getByRole("button", { name: "設定" }).tap();
       await expect(screen.getByRole("heading", { name: "設定", level: 1 })).toBeVisible();

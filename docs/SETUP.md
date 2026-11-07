@@ -85,6 +85,20 @@ pnpm cf d1 migrations apply nanaichi --local
 pnpm dev                                           # http://localhost:5173
 ```
 
+### 判断モデル（Workers AI）をローカルで使うとき
+
+タスクの自動完了（ADR 0026）は Workers AI の clef-flash を呼ぶ。AI のバインディングはローカルでも本物の Workers AI につながり、
+呼ぶたびに無料枠（1日 10,000 ニューロン）を使うので、**開発サーバーは既定でつながない**（`vite.config.ts` の `remoteBindings`）。
+つながないと、ジャーナル記入を書いても判断モデルは「使えない」と答えるだけで、記入には影響しない。タスクの追加・完了などは普通に動く。
+
+本物の clef-flash を試したいときだけ、`wrangler login` 済みのアカウントで次のように起動する。
+
+```bash
+NANAICHI_REMOTE_AI=enabled pnpm dev
+```
+
+テスト（`vp test`）と E2E は、この環境変数に関わらず本物につながない。判断モデルは偽物に差し替えて確かめる。
+
 ### Orca の worktree で開発するとき
 
 `.dev.vars` は git 管理外なので、Orca が作る worktree には入らない。リポジトリ直下の `orca.yaml` の

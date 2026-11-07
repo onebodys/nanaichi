@@ -12,6 +12,14 @@ test("nanaichi.app をカスタムドメインにしたまま workers.dev も開
   expect(config.workers_dev).toBe(true);
 });
 
+test("判断モデルの AI バインディングは本番の Worker にだけある（ADR 0026）", () => {
+  expect(config.ai?.binding).toBe("AI");
+  const { rawConfig } = experimental_readRawConfig({
+    config: `${import.meta.dirname}/../../wrangler.preview.jsonc`,
+  });
+  expect(rawConfig).not.toHaveProperty("ai");
+});
+
 test("プレビューの Worker はバインディングを持たず、本番の D1 と UserDO に届かない", () => {
   const { rawConfig } = experimental_readRawConfig({
     config: `${import.meta.dirname}/../../wrangler.preview.jsonc`,
