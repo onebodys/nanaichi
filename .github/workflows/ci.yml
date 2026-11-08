@@ -118,7 +118,7 @@ jobs:
         run: |
           marker="<!-- apple-screenshots -->"
           body="$marker
-          Mac アプリの画面のスクリーンショット（$SHA）: [screenshots.html]($URL)"
+          Mac アプリの画面のスクリーンショット（${SHA}）: [screenshots.html](${URL})"
           id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
