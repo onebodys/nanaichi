@@ -13,6 +13,8 @@ final class ReviewAndSettingsTests: XCTestCase {
             "NANAICHI_TIME_SCALE": String(timeScale), "NANAICHI_DATABASE": database,
             "NANAICHI_RESET_DATABASE": "1", "NANAICHI_RESET_DEFAULTS": "1",
         ]
+        // 前のテストが開いたウィンドウ（スタッツなど）を復元させない。復元したウィンドウがメインのウィンドウに重なり、クリックが当たらなくなる
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         return app
     }
