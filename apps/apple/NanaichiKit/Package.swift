@@ -5,6 +5,7 @@ import PackageDescription
 // NanaichiDomain は何も import しない。NanaichiWorkflows はドメインだけを、
 // NanaichiDevice（この端末の記録先）はドメインとワークフローと GRDB を使う。
 // NanaichiPresentation（画面の文言・ボタンの並び・通知の予約）はドメインだけを使い、画面から判断を外に出す
+// NanaichiAccount（アカウントの記録先とログイン）はドメインと Foundation の URLSession だけを使う
 let package = Package(
     name: "NanaichiKit",
     platforms: [.macOS(.v26), .iOS(.v26), .watchOS(.v26)],
@@ -13,6 +14,7 @@ let package = Package(
         .library(name: "NanaichiWorkflows", targets: ["NanaichiWorkflows"]),
         .library(name: "NanaichiDevice", targets: ["NanaichiDevice"]),
         .library(name: "NanaichiPresentation", targets: ["NanaichiPresentation"]),
+        .library(name: "NanaichiAccount", targets: ["NanaichiAccount"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", exact: "7.11.1")
@@ -24,6 +26,7 @@ let package = Package(
             name: "NanaichiDevice",
             dependencies: ["NanaichiDomain", "NanaichiWorkflows", .product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "NanaichiPresentation", dependencies: ["NanaichiDomain"]),
+        .target(name: "NanaichiAccount", dependencies: ["NanaichiDomain"]),
         // 応答の例（Fixtures）はゴールデンケースと同じくファイルのパスから読むので、リソースにしない
         .testTarget(name: "NanaichiDomainTests", dependencies: ["NanaichiDomain"], exclude: ["Fixtures"]),
         .testTarget(
@@ -33,5 +36,6 @@ let package = Package(
                 .product(name: "GRDB", package: "GRDB.swift"),
             ]),
         .testTarget(name: "NanaichiPresentationTests", dependencies: ["NanaichiDomain", "NanaichiPresentation"]),
+        .testTarget(name: "NanaichiAccountTests", dependencies: ["NanaichiDomain", "NanaichiAccount"]),
     ]
 )
