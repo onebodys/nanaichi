@@ -5,10 +5,11 @@ let package = Package(
     name: "NanaichiKit",
     platforms: [.macOS(.v26), .iOS(.v26), .watchOS(.v26)],
     products: [
-        .library(name: "NanaichiDomain", targets: ["NanaichiDomain"]),
+        .library(name: "NanaichiDomain", targets: ["NanaichiDomain"])
     ],
     targets: [
         .target(name: "NanaichiDomain"),
-        .testTarget(name: "NanaichiDomainTests", dependencies: ["NanaichiDomain"]),
+        // 応答の例（Fixtures）はゴールデンケースと同じくファイルのパスから読むので、リソースにしない
+        .testTarget(name: "NanaichiDomainTests", dependencies: ["NanaichiDomain"], exclude: ["Fixtures"]),
     ]
 )

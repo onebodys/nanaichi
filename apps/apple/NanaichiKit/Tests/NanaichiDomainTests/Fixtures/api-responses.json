@@ -1,0 +1,2861 @@
+{
+  "unauthenticated": {
+    "status": 401,
+    "body": {
+      "error": "UNAUTHENTICATED"
+    }
+  },
+  "noSession": {
+    "status": 200,
+    "body": {
+      "kind": "NoSession",
+      "serverTime": "2100-01-01T00:00:00.000Z"
+    }
+  },
+  "startSession": {
+    "status": 200,
+    "body": {
+      "kind": "Session",
+      "serverTime": "2100-01-01T00:00:00.000Z",
+      "session": {
+        "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+        "events": [
+          {
+            "kind": "Start",
+            "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+            "at": "2100-01-01T00:00:00.000Z"
+          }
+        ],
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "state": {
+        "kind": "Focus",
+        "round": 1,
+        "setNumber": 1,
+        "completedSets": 0,
+        "remainingSeconds": 420,
+        "clock": {
+          "kind": "Running",
+          "endsAt": "2100-01-01T00:07:00.000Z"
+        }
+      }
+    }
+  },
+  "writeEntry": {
+    "status": 200,
+    "body": {
+      "id": "00000000-0000-4000-8000-000000000901",
+      "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+      "body": "設計を読んだ",
+      "tags": ["reading", "設計"],
+      "writtenAt": "2100-01-01T00:03:00.000Z",
+      "updatedAt": "2100-01-01T00:03:00.000Z",
+      "writtenDuring": {
+        "kind": "Focus",
+        "round": 1,
+        "setNumber": 1
+      }
+    }
+  },
+  "writeEntry2": {
+    "status": 200,
+    "body": {
+      "id": "00000000-0000-4000-8000-000000000902",
+      "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+      "body": "ふりかえり\n2行目",
+      "tags": ["reading"],
+      "writtenAt": "2100-01-01T00:07:30.000Z",
+      "updatedAt": "2100-01-01T00:07:30.000Z",
+      "writtenDuring": {
+        "kind": "Journal",
+        "round": 1,
+        "setNumber": 1
+      }
+    }
+  },
+  "pause": {
+    "status": 200,
+    "body": {
+      "kind": "Session",
+      "serverTime": "2100-01-01T00:09:00.000Z",
+      "session": {
+        "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+        "events": [
+          {
+            "kind": "Start",
+            "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+            "at": "2100-01-01T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "id": "f8d49ca8-1216-428d-ab35-73bac6b347ae",
+            "at": "2100-01-01T00:09:00.000Z"
+          }
+        ],
+        "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+        "advanceModeChanges": []
+      },
+      "state": {
+        "kind": "Focus",
+        "round": 1,
+        "setNumber": 2,
+        "completedSets": 1,
+        "remainingSeconds": 360,
+        "clock": {
+          "kind": "Paused",
+          "pausedAt": "2100-01-01T00:09:00.000Z"
+        }
+      }
+    }
+  },
+  "rejected": {
+    "status": 409,
+    "body": {
+      "error": "OPERATION_REJECTED",
+      "operation": "Pause",
+      "during": "Focus"
+    }
+  },
+  "current": {
+    "status": 200,
+    "body": {
+      "kind": "Session",
+      "serverTime": "2100-01-01T00:09:00.000Z",
+      "session": {
+        "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+        "events": [
+          {
+            "kind": "Start",
+            "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+            "at": "2100-01-01T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "id": "f8d49ca8-1216-428d-ab35-73bac6b347ae",
+            "at": "2100-01-01T00:09:00.000Z"
+          }
+        ],
+        "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+        "advanceModeChanges": []
+      },
+      "state": {
+        "kind": "Focus",
+        "round": 1,
+        "setNumber": 2,
+        "completedSets": 1,
+        "remainingSeconds": 360,
+        "clock": {
+          "kind": "Paused",
+          "pausedAt": "2100-01-01T00:09:00.000Z"
+        }
+      }
+    }
+  },
+  "timeline": {
+    "status": 200,
+    "body": {
+      "serverTime": "2100-01-01T00:09:00.000Z",
+      "sessions": [
+        {
+          "session": {
+            "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+            "events": [
+              {
+                "kind": "Start",
+                "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+                "at": "2100-01-01T00:00:00.000Z"
+              },
+              {
+                "kind": "Pause",
+                "id": "f8d49ca8-1216-428d-ab35-73bac6b347ae",
+                "at": "2100-01-01T00:09:00.000Z"
+              }
+            ],
+            "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+            "advanceModeChanges": []
+          },
+          "entries": [
+            {
+              "id": "00000000-0000-4000-8000-000000000901",
+              "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+              "body": "設計を読んだ",
+              "tags": ["reading", "設計"],
+              "writtenAt": "2100-01-01T00:03:00.000Z",
+              "updatedAt": "2100-01-01T00:03:00.000Z",
+              "writtenDuring": {
+                "kind": "Focus",
+                "round": 1,
+                "setNumber": 1
+              }
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000902",
+              "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+              "body": "ふりかえり\n2行目",
+              "tags": ["reading"],
+              "writtenAt": "2100-01-01T00:07:30.000Z",
+              "updatedAt": "2100-01-01T00:07:30.000Z",
+              "writtenDuring": {
+                "kind": "Journal",
+                "round": 1,
+                "setNumber": 1
+              }
+            }
+          ]
+        }
+      ],
+      "next": {
+        "kind": "End"
+      }
+    }
+  },
+  "stats": {
+    "status": 200,
+    "body": {
+      "serverTime": "2100-01-01T00:09:00.000Z",
+      "period": "Week",
+      "today": {
+        "key": "2100-01-01",
+        "year": 2100,
+        "month": 1,
+        "day": 1
+      },
+      "range": {
+        "from": {
+          "key": "2099-12-28",
+          "year": 2099,
+          "month": 12,
+          "day": 28
+        },
+        "to": {
+          "key": "2100-01-03",
+          "year": 2100,
+          "month": 1,
+          "day": 3
+        }
+      },
+      "activity": {
+        "kind": "Active",
+        "completedSets": 1,
+        "abortedSets": 0,
+        "comparison": {
+          "kind": "Compared",
+          "previousCompletedSets": 0
+        },
+        "entries": 2,
+        "completedSetsWithEntry": 1,
+        "trend": {
+          "kind": "Days",
+          "days": [
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2099-12-28",
+                "year": 2099,
+                "month": 12,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2099-12-29",
+                "year": 2099,
+                "month": 12,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2099-12-30",
+                "year": 2099,
+                "month": 12,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2099-12-31",
+                "year": 2099,
+                "month": 12,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2100-01-01",
+                "year": 2100,
+                "month": 1,
+                "day": 1
+              },
+              "completedSets": 1
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2100-01-02",
+                "year": 2100,
+                "month": 1,
+                "day": 2
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2100-01-03",
+                "year": 2100,
+                "month": 1,
+                "day": 3
+              }
+            }
+          ]
+        },
+        "tags": [
+          {
+            "name": "reading",
+            "completedSets": 1
+          },
+          {
+            "name": "設計",
+            "completedSets": 1
+          }
+        ],
+        "hours": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "streak": {
+        "current": 1,
+        "longest": 1
+      },
+      "calendar": [
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-12",
+            "year": 2099,
+            "month": 10,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-13",
+            "year": 2099,
+            "month": 10,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-14",
+            "year": 2099,
+            "month": 10,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-15",
+            "year": 2099,
+            "month": 10,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-16",
+            "year": 2099,
+            "month": 10,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-17",
+            "year": 2099,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-18",
+            "year": 2099,
+            "month": 10,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-19",
+            "year": 2099,
+            "month": 10,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-20",
+            "year": 2099,
+            "month": 10,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-21",
+            "year": 2099,
+            "month": 10,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-22",
+            "year": 2099,
+            "month": 10,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-23",
+            "year": 2099,
+            "month": 10,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-24",
+            "year": 2099,
+            "month": 10,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-25",
+            "year": 2099,
+            "month": 10,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-26",
+            "year": 2099,
+            "month": 10,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-27",
+            "year": 2099,
+            "month": 10,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-28",
+            "year": 2099,
+            "month": 10,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-29",
+            "year": 2099,
+            "month": 10,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-30",
+            "year": 2099,
+            "month": 10,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-31",
+            "year": 2099,
+            "month": 10,
+            "day": 31
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-01",
+            "year": 2099,
+            "month": 11,
+            "day": 1
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-02",
+            "year": 2099,
+            "month": 11,
+            "day": 2
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-03",
+            "year": 2099,
+            "month": 11,
+            "day": 3
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-04",
+            "year": 2099,
+            "month": 11,
+            "day": 4
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-05",
+            "year": 2099,
+            "month": 11,
+            "day": 5
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-06",
+            "year": 2099,
+            "month": 11,
+            "day": 6
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-07",
+            "year": 2099,
+            "month": 11,
+            "day": 7
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-08",
+            "year": 2099,
+            "month": 11,
+            "day": 8
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-09",
+            "year": 2099,
+            "month": 11,
+            "day": 9
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-10",
+            "year": 2099,
+            "month": 11,
+            "day": 10
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-11",
+            "year": 2099,
+            "month": 11,
+            "day": 11
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-12",
+            "year": 2099,
+            "month": 11,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-13",
+            "year": 2099,
+            "month": 11,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-14",
+            "year": 2099,
+            "month": 11,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-15",
+            "year": 2099,
+            "month": 11,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-16",
+            "year": 2099,
+            "month": 11,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-17",
+            "year": 2099,
+            "month": 11,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-18",
+            "year": 2099,
+            "month": 11,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-19",
+            "year": 2099,
+            "month": 11,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-20",
+            "year": 2099,
+            "month": 11,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-21",
+            "year": 2099,
+            "month": 11,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-22",
+            "year": 2099,
+            "month": 11,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-23",
+            "year": 2099,
+            "month": 11,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-24",
+            "year": 2099,
+            "month": 11,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-25",
+            "year": 2099,
+            "month": 11,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-26",
+            "year": 2099,
+            "month": 11,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-27",
+            "year": 2099,
+            "month": 11,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-28",
+            "year": 2099,
+            "month": 11,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-29",
+            "year": 2099,
+            "month": 11,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-30",
+            "year": 2099,
+            "month": 11,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-01",
+            "year": 2099,
+            "month": 12,
+            "day": 1
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-02",
+            "year": 2099,
+            "month": 12,
+            "day": 2
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-03",
+            "year": 2099,
+            "month": 12,
+            "day": 3
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-04",
+            "year": 2099,
+            "month": 12,
+            "day": 4
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-05",
+            "year": 2099,
+            "month": 12,
+            "day": 5
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-06",
+            "year": 2099,
+            "month": 12,
+            "day": 6
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-07",
+            "year": 2099,
+            "month": 12,
+            "day": 7
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-08",
+            "year": 2099,
+            "month": 12,
+            "day": 8
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-09",
+            "year": 2099,
+            "month": 12,
+            "day": 9
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-10",
+            "year": 2099,
+            "month": 12,
+            "day": 10
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-11",
+            "year": 2099,
+            "month": 12,
+            "day": 11
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-12",
+            "year": 2099,
+            "month": 12,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-13",
+            "year": 2099,
+            "month": 12,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-14",
+            "year": 2099,
+            "month": 12,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-15",
+            "year": 2099,
+            "month": 12,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-16",
+            "year": 2099,
+            "month": 12,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-17",
+            "year": 2099,
+            "month": 12,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-18",
+            "year": 2099,
+            "month": 12,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-19",
+            "year": 2099,
+            "month": 12,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-20",
+            "year": 2099,
+            "month": 12,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-21",
+            "year": 2099,
+            "month": 12,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-22",
+            "year": 2099,
+            "month": 12,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-23",
+            "year": 2099,
+            "month": 12,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-24",
+            "year": 2099,
+            "month": 12,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-25",
+            "year": 2099,
+            "month": 12,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-26",
+            "year": 2099,
+            "month": 12,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-27",
+            "year": 2099,
+            "month": 12,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-28",
+            "year": 2099,
+            "month": 12,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-29",
+            "year": 2099,
+            "month": 12,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-30",
+            "year": 2099,
+            "month": 12,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-31",
+            "year": 2099,
+            "month": 12,
+            "day": 31
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2100-01-01",
+            "year": 2100,
+            "month": 1,
+            "day": 1
+          },
+          "completedSets": 1
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-02",
+            "year": 2100,
+            "month": 1,
+            "day": 2
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-03",
+            "year": 2100,
+            "month": 1,
+            "day": 3
+          }
+        }
+      ]
+    }
+  },
+  "statsAll": {
+    "status": 200,
+    "body": {
+      "serverTime": "2100-01-01T00:09:00.000Z",
+      "period": "All",
+      "today": {
+        "key": "2100-01-01",
+        "year": 2100,
+        "month": 1,
+        "day": 1
+      },
+      "range": {
+        "from": {
+          "key": "2100-01-01",
+          "year": 2100,
+          "month": 1,
+          "day": 1
+        },
+        "to": {
+          "key": "2100-01-01",
+          "year": 2100,
+          "month": 1,
+          "day": 1
+        }
+      },
+      "activity": {
+        "kind": "Active",
+        "completedSets": 1,
+        "abortedSets": 0,
+        "comparison": {
+          "kind": "NotCompared"
+        },
+        "entries": 2,
+        "completedSetsWithEntry": 1,
+        "trend": {
+          "kind": "Months",
+          "months": [
+            {
+              "year": 2100,
+              "month": 1,
+              "completedSets": 1
+            }
+          ]
+        },
+        "tags": [
+          {
+            "name": "reading",
+            "completedSets": 1
+          },
+          {
+            "name": "設計",
+            "completedSets": 1
+          }
+        ],
+        "hours": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "streak": {
+        "current": 1,
+        "longest": 1
+      },
+      "calendar": [
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-12",
+            "year": 2099,
+            "month": 10,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-13",
+            "year": 2099,
+            "month": 10,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-14",
+            "year": 2099,
+            "month": 10,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-15",
+            "year": 2099,
+            "month": 10,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-16",
+            "year": 2099,
+            "month": 10,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-17",
+            "year": 2099,
+            "month": 10,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-18",
+            "year": 2099,
+            "month": 10,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-19",
+            "year": 2099,
+            "month": 10,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-20",
+            "year": 2099,
+            "month": 10,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-21",
+            "year": 2099,
+            "month": 10,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-22",
+            "year": 2099,
+            "month": 10,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-23",
+            "year": 2099,
+            "month": 10,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-24",
+            "year": 2099,
+            "month": 10,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-25",
+            "year": 2099,
+            "month": 10,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-26",
+            "year": 2099,
+            "month": 10,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-27",
+            "year": 2099,
+            "month": 10,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-28",
+            "year": 2099,
+            "month": 10,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-29",
+            "year": 2099,
+            "month": 10,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-30",
+            "year": 2099,
+            "month": 10,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-10-31",
+            "year": 2099,
+            "month": 10,
+            "day": 31
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-01",
+            "year": 2099,
+            "month": 11,
+            "day": 1
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-02",
+            "year": 2099,
+            "month": 11,
+            "day": 2
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-03",
+            "year": 2099,
+            "month": 11,
+            "day": 3
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-04",
+            "year": 2099,
+            "month": 11,
+            "day": 4
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-05",
+            "year": 2099,
+            "month": 11,
+            "day": 5
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-06",
+            "year": 2099,
+            "month": 11,
+            "day": 6
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-07",
+            "year": 2099,
+            "month": 11,
+            "day": 7
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-08",
+            "year": 2099,
+            "month": 11,
+            "day": 8
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-09",
+            "year": 2099,
+            "month": 11,
+            "day": 9
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-10",
+            "year": 2099,
+            "month": 11,
+            "day": 10
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-11",
+            "year": 2099,
+            "month": 11,
+            "day": 11
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-12",
+            "year": 2099,
+            "month": 11,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-13",
+            "year": 2099,
+            "month": 11,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-14",
+            "year": 2099,
+            "month": 11,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-15",
+            "year": 2099,
+            "month": 11,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-16",
+            "year": 2099,
+            "month": 11,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-17",
+            "year": 2099,
+            "month": 11,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-18",
+            "year": 2099,
+            "month": 11,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-19",
+            "year": 2099,
+            "month": 11,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-20",
+            "year": 2099,
+            "month": 11,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-21",
+            "year": 2099,
+            "month": 11,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-22",
+            "year": 2099,
+            "month": 11,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-23",
+            "year": 2099,
+            "month": 11,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-24",
+            "year": 2099,
+            "month": 11,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-25",
+            "year": 2099,
+            "month": 11,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-26",
+            "year": 2099,
+            "month": 11,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-27",
+            "year": 2099,
+            "month": 11,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-28",
+            "year": 2099,
+            "month": 11,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-29",
+            "year": 2099,
+            "month": 11,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-11-30",
+            "year": 2099,
+            "month": 11,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-01",
+            "year": 2099,
+            "month": 12,
+            "day": 1
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-02",
+            "year": 2099,
+            "month": 12,
+            "day": 2
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-03",
+            "year": 2099,
+            "month": 12,
+            "day": 3
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-04",
+            "year": 2099,
+            "month": 12,
+            "day": 4
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-05",
+            "year": 2099,
+            "month": 12,
+            "day": 5
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-06",
+            "year": 2099,
+            "month": 12,
+            "day": 6
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-07",
+            "year": 2099,
+            "month": 12,
+            "day": 7
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-08",
+            "year": 2099,
+            "month": 12,
+            "day": 8
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-09",
+            "year": 2099,
+            "month": 12,
+            "day": 9
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-10",
+            "year": 2099,
+            "month": 12,
+            "day": 10
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-11",
+            "year": 2099,
+            "month": 12,
+            "day": 11
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-12",
+            "year": 2099,
+            "month": 12,
+            "day": 12
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-13",
+            "year": 2099,
+            "month": 12,
+            "day": 13
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-14",
+            "year": 2099,
+            "month": 12,
+            "day": 14
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-15",
+            "year": 2099,
+            "month": 12,
+            "day": 15
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-16",
+            "year": 2099,
+            "month": 12,
+            "day": 16
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-17",
+            "year": 2099,
+            "month": 12,
+            "day": 17
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-18",
+            "year": 2099,
+            "month": 12,
+            "day": 18
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-19",
+            "year": 2099,
+            "month": 12,
+            "day": 19
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-20",
+            "year": 2099,
+            "month": 12,
+            "day": 20
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-21",
+            "year": 2099,
+            "month": 12,
+            "day": 21
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-22",
+            "year": 2099,
+            "month": 12,
+            "day": 22
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-23",
+            "year": 2099,
+            "month": 12,
+            "day": 23
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-24",
+            "year": 2099,
+            "month": 12,
+            "day": 24
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-25",
+            "year": 2099,
+            "month": 12,
+            "day": 25
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-26",
+            "year": 2099,
+            "month": 12,
+            "day": 26
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-27",
+            "year": 2099,
+            "month": 12,
+            "day": 27
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-28",
+            "year": 2099,
+            "month": 12,
+            "day": 28
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-29",
+            "year": 2099,
+            "month": 12,
+            "day": 29
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-30",
+            "year": 2099,
+            "month": 12,
+            "day": 30
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2099-12-31",
+            "year": 2099,
+            "month": 12,
+            "day": 31
+          },
+          "completedSets": 0
+        },
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2100-01-01",
+            "year": 2100,
+            "month": 1,
+            "day": 1
+          },
+          "completedSets": 1
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-02",
+            "year": 2100,
+            "month": 1,
+            "day": 2
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-03",
+            "year": 2100,
+            "month": 1,
+            "day": 3
+          }
+        }
+      ]
+    }
+  },
+  "journalCalendar": {
+    "status": 200,
+    "body": {
+      "month": {
+        "year": 2100,
+        "month": 1
+      },
+      "today": {
+        "key": "2100-01-01",
+        "year": 2100,
+        "month": 1,
+        "day": 1
+      },
+      "days": [
+        {
+          "kind": "Day",
+          "date": {
+            "key": "2100-01-01",
+            "year": 2100,
+            "month": 1,
+            "day": 1
+          },
+          "entries": 2
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-02",
+            "year": 2100,
+            "month": 1,
+            "day": 2
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-03",
+            "year": 2100,
+            "month": 1,
+            "day": 3
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-04",
+            "year": 2100,
+            "month": 1,
+            "day": 4
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-05",
+            "year": 2100,
+            "month": 1,
+            "day": 5
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-06",
+            "year": 2100,
+            "month": 1,
+            "day": 6
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-07",
+            "year": 2100,
+            "month": 1,
+            "day": 7
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-08",
+            "year": 2100,
+            "month": 1,
+            "day": 8
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-09",
+            "year": 2100,
+            "month": 1,
+            "day": 9
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-10",
+            "year": 2100,
+            "month": 1,
+            "day": 10
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-11",
+            "year": 2100,
+            "month": 1,
+            "day": 11
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-12",
+            "year": 2100,
+            "month": 1,
+            "day": 12
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-13",
+            "year": 2100,
+            "month": 1,
+            "day": 13
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-14",
+            "year": 2100,
+            "month": 1,
+            "day": 14
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-15",
+            "year": 2100,
+            "month": 1,
+            "day": 15
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-16",
+            "year": 2100,
+            "month": 1,
+            "day": 16
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-17",
+            "year": 2100,
+            "month": 1,
+            "day": 17
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-18",
+            "year": 2100,
+            "month": 1,
+            "day": 18
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-19",
+            "year": 2100,
+            "month": 1,
+            "day": 19
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-20",
+            "year": 2100,
+            "month": 1,
+            "day": 20
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-21",
+            "year": 2100,
+            "month": 1,
+            "day": 21
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-22",
+            "year": 2100,
+            "month": 1,
+            "day": 22
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-23",
+            "year": 2100,
+            "month": 1,
+            "day": 23
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-24",
+            "year": 2100,
+            "month": 1,
+            "day": 24
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-25",
+            "year": 2100,
+            "month": 1,
+            "day": 25
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-26",
+            "year": 2100,
+            "month": 1,
+            "day": 26
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-27",
+            "year": 2100,
+            "month": 1,
+            "day": 27
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-28",
+            "year": 2100,
+            "month": 1,
+            "day": 28
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-29",
+            "year": 2100,
+            "month": 1,
+            "day": 29
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-30",
+            "year": 2100,
+            "month": 1,
+            "day": 30
+          }
+        },
+        {
+          "kind": "Upcoming",
+          "date": {
+            "key": "2100-01-31",
+            "year": 2100,
+            "month": 1,
+            "day": 31
+          }
+        }
+      ]
+    }
+  },
+  "entriesOnDate": {
+    "status": 200,
+    "body": {
+      "date": {
+        "key": "2100-01-01",
+        "year": 2100,
+        "month": 1,
+        "day": 1
+      },
+      "entries": [
+        {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "body": "設計を読んだ",
+          "tags": ["reading", "設計"],
+          "writtenAt": "2100-01-01T00:03:00.000Z",
+          "updatedAt": "2100-01-01T00:03:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000902",
+          "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "body": "ふりかえり\n2行目",
+          "tags": ["reading"],
+          "writtenAt": "2100-01-01T00:07:30.000Z",
+          "updatedAt": "2100-01-01T00:07:30.000Z",
+          "writtenDuring": {
+            "kind": "Journal",
+            "round": 1,
+            "setNumber": 1
+          }
+        }
+      ]
+    }
+  },
+  "entriesByTag": {
+    "status": 200,
+    "body": {
+      "tag": "reading",
+      "entries": [
+        {
+          "id": "00000000-0000-4000-8000-000000000902",
+          "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "body": "ふりかえり\n2行目",
+          "tags": ["reading"],
+          "writtenAt": "2100-01-01T00:07:30.000Z",
+          "updatedAt": "2100-01-01T00:07:30.000Z",
+          "writtenDuring": {
+            "kind": "Journal",
+            "round": 1,
+            "setNumber": 1
+          }
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000901",
+          "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "body": "設計を読んだ",
+          "tags": ["reading", "設計"],
+          "writtenAt": "2100-01-01T00:03:00.000Z",
+          "updatedAt": "2100-01-01T00:03:00.000Z",
+          "writtenDuring": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1
+          }
+        }
+      ],
+      "next": {
+        "kind": "End"
+      }
+    }
+  },
+  "tags": {
+    "status": 200,
+    "body": {
+      "tags": ["reading", "設計"]
+    }
+  },
+  "tagUsage": {
+    "status": 200,
+    "body": {
+      "tags": [
+        {
+          "name": "reading",
+          "entryCount": 2
+        },
+        {
+          "name": "設計",
+          "entryCount": 1
+        }
+      ]
+    }
+  },
+  "deleteTag": {
+    "status": 200,
+    "body": {
+      "name": "設計",
+      "deletion": {
+        "kind": "Reassign",
+        "to": "reading"
+      }
+    }
+  },
+  "deleteEntry": {
+    "status": 200,
+    "body": {
+      "id": "00000000-0000-4000-8000-000000000902",
+      "deletedAt": "2100-01-01T00:09:00.000Z"
+    }
+  },
+  "advanceMode": {
+    "status": 200,
+    "body": {
+      "FocusToJournal": "Manual",
+      "JournalToFocus": "Auto",
+      "JournalToBreak": "Auto",
+      "BreakToFocus": "Auto"
+    }
+  },
+  "taskSetting": {
+    "status": 200,
+    "body": {
+      "kind": "Enabled"
+    }
+  },
+  "createTask": {
+    "status": 200,
+    "body": {
+      "kind": "Open",
+      "id": "00000000-0000-4000-8000-000000000001",
+      "title": "README の更新",
+      "createdAt": "2100-01-01T00:09:00.000Z",
+      "updatedAt": "2100-01-01T00:09:00.000Z"
+    }
+  },
+  "createTask2": {
+    "status": 200,
+    "body": {
+      "kind": "Open",
+      "id": "00000000-0000-4000-8000-000000000002",
+      "title": "レビュー",
+      "createdAt": "2100-01-01T00:09:00.000Z",
+      "updatedAt": "2100-01-01T00:09:00.000Z"
+    }
+  },
+  "completeTask": {
+    "status": 200,
+    "body": {
+      "kind": "Completed",
+      "id": "00000000-0000-4000-8000-000000000001",
+      "title": "README の更新",
+      "createdAt": "2100-01-01T00:09:00.000Z",
+      "updatedAt": "2100-01-01T00:09:00.000Z",
+      "completedAt": "2100-01-01T00:09:00.000Z",
+      "completion": {
+        "kind": "Manual"
+      }
+    }
+  },
+  "tasks": {
+    "status": 200,
+    "body": {
+      "tasks": [
+        {
+          "kind": "Completed",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "title": "README の更新",
+          "createdAt": "2100-01-01T00:09:00.000Z",
+          "updatedAt": "2100-01-01T00:09:00.000Z",
+          "completedAt": "2100-01-01T00:09:00.000Z",
+          "completion": {
+            "kind": "Manual"
+          }
+        },
+        {
+          "kind": "Open",
+          "id": "00000000-0000-4000-8000-000000000002",
+          "title": "レビュー",
+          "createdAt": "2100-01-01T00:09:00.000Z",
+          "updatedAt": "2100-01-01T00:09:00.000Z"
+        }
+      ]
+    }
+  },
+  "deleteTask": {
+    "status": 200,
+    "body": {
+      "id": "00000000-0000-4000-8000-000000000002"
+    }
+  },
+  "taskNotFound": {
+    "status": 404,
+    "body": {
+      "error": "TASK_NOT_FOUND"
+    }
+  },
+  "invalid": {
+    "status": 400,
+    "body": {
+      "error": "INVALID_REQUEST",
+      "paths": ["id", "body"]
+    }
+  },
+  "syncMessages": [
+    {
+      "kind": "SessionChanged",
+      "snapshot": {
+        "kind": "Session",
+        "serverTime": "2100-01-01T00:00:00.000Z",
+        "session": {
+          "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+              "at": "2100-01-01T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 420,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2100-01-01T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "kind": "JournalEntrySaved",
+      "entry": {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+        "body": "設計を読んだ",
+        "tags": ["reading", "設計"],
+        "writtenAt": "2100-01-01T00:03:00.000Z",
+        "updatedAt": "2100-01-01T00:03:00.000Z",
+        "writtenDuring": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1
+        }
+      }
+    },
+    {
+      "kind": "SessionChanged",
+      "snapshot": {
+        "kind": "Session",
+        "serverTime": "2100-01-01T00:03:00.000Z",
+        "session": {
+          "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+              "at": "2100-01-01T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": ["2100-01-01T00:03:00.000Z"],
+          "advanceModeChanges": []
+        },
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 0,
+          "remainingSeconds": 240,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2100-01-01T00:07:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "kind": "JournalEntrySaved",
+      "entry": {
+        "id": "00000000-0000-4000-8000-000000000902",
+        "sessionId": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+        "body": "ふりかえり\n2行目",
+        "tags": ["reading"],
+        "writtenAt": "2100-01-01T00:07:30.000Z",
+        "updatedAt": "2100-01-01T00:07:30.000Z",
+        "writtenDuring": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1
+        }
+      }
+    },
+    {
+      "kind": "SessionChanged",
+      "snapshot": {
+        "kind": "Session",
+        "serverTime": "2100-01-01T00:07:30.000Z",
+        "session": {
+          "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+              "at": "2100-01-01T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+          "advanceModeChanges": []
+        },
+        "state": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2100-01-01T00:08:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "kind": "SessionChanged",
+      "snapshot": {
+        "kind": "Session",
+        "serverTime": "2100-01-01T00:09:00.000Z",
+        "session": {
+          "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+              "at": "2100-01-01T00:00:00.000Z"
+            },
+            {
+              "kind": "Pause",
+              "id": "f8d49ca8-1216-428d-ab35-73bac6b347ae",
+              "at": "2100-01-01T00:09:00.000Z"
+            }
+          ],
+          "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+          "advanceModeChanges": []
+        },
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 360,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2100-01-01T00:09:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "kind": "TagDeleted",
+      "deleted": {
+        "name": "設計",
+        "deletion": {
+          "kind": "Reassign",
+          "to": "reading"
+        }
+      }
+    },
+    {
+      "kind": "JournalEntryDeleted",
+      "deleted": {
+        "id": "00000000-0000-4000-8000-000000000902",
+        "deletedAt": "2100-01-01T00:09:00.000Z"
+      }
+    },
+    {
+      "kind": "AdvanceModeChanged",
+      "mode": {
+        "FocusToJournal": "Manual",
+        "JournalToFocus": "Auto",
+        "JournalToBreak": "Auto",
+        "BreakToFocus": "Auto"
+      }
+    },
+    {
+      "kind": "SessionChanged",
+      "snapshot": {
+        "kind": "Session",
+        "serverTime": "2100-01-01T00:09:00.000Z",
+        "session": {
+          "id": "4abe6682-ca87-4ee9-8941-4ba9c1c59680",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "d3c06e6e-1dc4-4fd8-81fd-04825facd4f5",
+              "at": "2100-01-01T00:00:00.000Z"
+            },
+            {
+              "kind": "Pause",
+              "id": "f8d49ca8-1216-428d-ab35-73bac6b347ae",
+              "at": "2100-01-01T00:09:00.000Z"
+            }
+          ],
+          "journalEntryTimes": ["2100-01-01T00:03:00.000Z", "2100-01-01T00:07:30.000Z"],
+          "advanceModeChanges": [
+            {
+              "at": "2100-01-01T00:09:00.000Z",
+              "mode": {
+                "FocusToJournal": "Manual",
+                "JournalToFocus": "Auto",
+                "JournalToBreak": "Auto",
+                "BreakToFocus": "Auto"
+              }
+            }
+          ]
+        },
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 360,
+          "clock": {
+            "kind": "Paused",
+            "pausedAt": "2100-01-01T00:09:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "kind": "TaskSettingChanged",
+      "setting": {
+        "kind": "Enabled"
+      }
+    },
+    {
+      "kind": "TaskSaved",
+      "task": {
+        "kind": "Open",
+        "id": "00000000-0000-4000-8000-000000000001",
+        "title": "README の更新",
+        "createdAt": "2100-01-01T00:09:00.000Z",
+        "updatedAt": "2100-01-01T00:09:00.000Z"
+      }
+    },
+    {
+      "kind": "TaskSaved",
+      "task": {
+        "kind": "Open",
+        "id": "00000000-0000-4000-8000-000000000002",
+        "title": "レビュー",
+        "createdAt": "2100-01-01T00:09:00.000Z",
+        "updatedAt": "2100-01-01T00:09:00.000Z"
+      }
+    },
+    {
+      "kind": "TaskSaved",
+      "task": {
+        "kind": "Completed",
+        "id": "00000000-0000-4000-8000-000000000001",
+        "title": "README の更新",
+        "createdAt": "2100-01-01T00:09:00.000Z",
+        "updatedAt": "2100-01-01T00:09:00.000Z",
+        "completedAt": "2100-01-01T00:09:00.000Z",
+        "completion": {
+          "kind": "Manual"
+        }
+      }
+    },
+    {
+      "kind": "TaskDeleted",
+      "deleted": {
+        "id": "00000000-0000-4000-8000-000000000002"
+      }
+    }
+  ]
+}
