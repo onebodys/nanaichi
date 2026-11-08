@@ -170,6 +170,20 @@ struct AccountBackendTests {
         #expect(signedOut.value == 0)
     }
 
+    @Test("ログインしている人の名前とメールアドレスを読み、メールアドレスは伏せて持つ")
+    func me() async {
+        // apps/web/src/server/app.ts の `/me` が返す形
+        let stub = StubServer(
+            .text(200, #"{"user":{"id":"u1","name":"おのり","email":"owner@example.com","image":null}}"#))
+
+        let user = await backend(stub).getMe()
+
+        #expect(user == .success(AccountUser(name: "おのり", email: Sensitive("owner@example.com"))))
+        #expect(stub.requests.only?.path == "/api/me")
+        #expect(stub.requests.only?.headers["Authorization"] == "Bearer token-123")
+        #expect(!String(describing: user).contains("owner@example.com"))
+    }
+
     @Test("サーバーに届かなければ unreachable")
     func unreachable() async {
         #expect(await backend(StubServer(.unreachable)).getTags() == .failure(.unreachable))

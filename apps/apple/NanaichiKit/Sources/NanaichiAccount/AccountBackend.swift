@@ -133,6 +133,13 @@ public actor AccountBackend: Backend, TaskBackend {
 
     public func clockOffset() -> ClockOffset { offset }
 
+    // MARK: - アカウント
+
+    /// ログインしている人（`GET /api/me`）。設定のアカウントの欄に出す
+    public func getMe() async -> Result<AccountUser, BackendError> {
+        await api.call(.get("me"), as: MeBody.self).map { AccountUser(name: $0.user.name, email: Sensitive($0.user.email)) }
+    }
+
     // MARK: - 同期メッセージ
 
     /// 受け取り始めるたびに、WebSocket の接続を1本張る（Web のタブごとの接続と同じ）
@@ -209,6 +216,27 @@ public actor AccountBackend: Backend, TaskBackend {
     public func deleteTask(id: TaskId) async -> Result<DeletedTask, BackendError> {
         await api.call(.send(.delete, "tasks", id.rawValue))
     }
+}
+
+/// ログインしている人。メールアドレスは個人情報なので包む（AGENTS.md「境界での検証と PII」）
+public struct AccountUser: Hashable, Sendable {
+    public let name: String
+    public let email: Sensitive<String>
+
+    public init(name: String, email: Sensitive<String>) {
+        self.name = name
+        self.email = email
+    }
+}
+
+/// `GET /api/me` の応答。ID と画像は使わないので読まない
+private struct MeBody: Decodable {
+    struct User: Decodable {
+        let name: String
+        let email: String
+    }
+
+    let user: User
 }
 
 // リクエストの本文。フィールドの名前は Web の API のまま

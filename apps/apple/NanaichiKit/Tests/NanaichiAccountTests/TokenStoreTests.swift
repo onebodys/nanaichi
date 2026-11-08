@@ -4,7 +4,7 @@ import Testing
 
 @testable import NanaichiAccount
 
-/// Keychain（Data Protection Keychain）は、Keychain の entitlement のある署名したアプリでだけ使える。
+/// Data Protection Keychain は、Keychain の entitlement のある署名したアプリでだけ使える。
 /// `swift test` のテストのプロセスにはないので、使えないときは確かめない
 private let keychainAvailable: Bool = {
     let store = KeychainTokenStore(service: "app.nanaichi.test.probe")
@@ -35,6 +35,11 @@ struct TokenStoreTests {
     @Test("置いたトークンを読み、置き換え、消せる（メモリ）")
     func inMemory() throws {
         try roundTrip(InMemoryTokenStore())
+    }
+
+    @Test("置いたトークンを読み、置き換え、消せる（ログインの Keychain）")
+    func fileBasedKeychain() throws {
+        try roundTrip(KeychainTokenStore(service: "app.nanaichi.test.\(UUID().uuidString)", keychain: .fileBased))
     }
 
     @Test("置いたトークンを読み、置き換え、消せる（Keychain）", .enabled(if: keychainAvailable))
