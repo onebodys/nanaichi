@@ -35,13 +35,7 @@ extension Session {
 /// 時計が進んでいるフェーズの終わる時刻。止まっている・フェーズにいなければ nil
 private func runningEndOf(_ state: TimerState) -> Instant? {
     guard let inPhase = InPhase(state) else { return nil }
-    let clock =
-        switch inPhase {
-        case .focus(let state): state.clock
-        case .journal(let state): state.clock
-        case .breakTime(let state): state.clock
-        }
-    switch clock {
+    switch inPhase.clock {
     case .running(let endsAt): return endsAt
     case .paused: return nil
     }
