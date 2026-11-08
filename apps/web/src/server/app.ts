@@ -4,6 +4,7 @@ import { canonicalRedirectFor } from "./base-url.ts";
 import { type AppEnv, sessionOf } from "./hono-context.ts";
 import { journalRoutes } from "./journal-routes.ts";
 import { mcpRoutes } from "./mcp-routes.ts";
+import { nativeAuthRoutes } from "./native-auth-routes.ts";
 import { limitRequestsPerUser } from "./rate-limit.ts";
 import { requireSession } from "./require-session.ts";
 import { sessionRoutes } from "./session-routes.ts";
@@ -34,6 +35,8 @@ api.get("/health", (c) => c.json({ status: "ok" }));
 api.all("/auth/*", (c) => authFor(c).handler(c.req.raw));
 // MCP サーバー。画面のセッションではなく OAuth のアクセストークンで守る（mcp-routes.ts）
 api.route("/", mcpRoutes);
+// ネイティブアプリのログイン。Google のログインを経て、Bearer トークンを受け取る（native-auth-routes.ts、ADR 0029）
+api.route("/", nativeAuthRoutes);
 // Google を通さないテスト用のログイン。ローカルの開発サーバーと E2E でだけ開き、それ以外では 404（ADR 0008）
 api.route("/", testSignInRoutes);
 
