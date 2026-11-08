@@ -28,13 +28,13 @@ final class TimerTests: XCTestCase {
         return app
     }
 
-    /// 識別子 `identifier` の文字が `label` になるまで待つ
+    /// 識別子 `identifier` の文字が `label` になるまで待つ。macOS の StaticText は文字を `value` に持ち、`label` は空になる
     @MainActor
     private func waitFor(
         _ app: XCUIApplication, _ identifier: String, toRead label: String, timeout: TimeInterval = 10,
         file: StaticString = #filePath, line: UInt = #line
     ) {
-        let element = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label == %@", identifier, label))
+        let element = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND (value == %@ OR label == %@)", identifier, label, label))
             .firstMatch
         XCTAssertTrue(
             element.waitForExistence(timeout: timeout), "\(identifier) が「\(label)」にならない", file: file, line: line)
