@@ -12,22 +12,23 @@ struct NanaichiApp: App {
     var body: some Scene {
         // 1人が同時に持てるセッションは1つなので、ウィンドウも1つにする。閉じてもアプリは動き続け、音と通知で知らせる
         Window("nanaichi", id: "main") {
-            MainView(app: appDelegate.app)
+            RecordStoreScope(model: appDelegate.model) { MainView(model: appDelegate.model, app: $0) }
         }
         .defaultSize(width: 980, height: 720)
         .commands {
-            TimerCommands(model: appDelegate.app.timer)
+            TimerCommands(model: appDelegate.model)
             ReviewCommands()
+            AccountCommands(model: appDelegate.model)
         }
 
         // スタッツは振り返るときに開く補助のウィンドウ。タイマーの隣に並べて見られる
         Window("スタッツ", id: reviewWindowId) {
-            ReviewWindow(app: appDelegate.app)
+            RecordStoreScope(model: appDelegate.model) { ReviewWindow(app: $0) }
         }
         .defaultSize(width: 1000, height: 720)
 
         Settings {
-            SettingsView(app: appDelegate.app)
+            SettingsView(model: appDelegate.model)
         }
     }
 }
@@ -45,14 +46,40 @@ private struct ReviewCommands: Commands {
     }
 }
 
+/// 記録先が替わったら、中の画面を作り直す（Web でページを読み込み直すのと同じ、ADR 0019）。
+/// 前の記録先の画面の状態（`@State` を含む）を、次の記録先に持ち越さない
+private struct RecordStoreScope<Content: View>: View {
+    let model: AppModel
+    @ViewBuilder let content: (AppServices) -> Content
+
+    var body: some View {
+        content(model.services).id(ObjectIdentifier(model.services))
+    }
+}
+
+/// メニューバーの nanaichi のメニューに、設定のアカウントのタブを開く項目を足す。
+/// ログイン・ログアウトとその失敗の知らせは、そのタブにまとめる
+private struct AccountCommands: Commands {
+    let model: AppModel
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some Commands {
+        CommandGroup(after: .appSettings) {
+            Button("アカウント…") {
+                model.settingsTab = .account
+                openSettings()
+            }
+        }
+    }
+}
+
 /// アプリの間ずっと生きている部品を持つ。ウィンドウを閉じてもタイマーを進め、終了の前に通知の予約を整える
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    let app: AppServices
-    private var running: Task<Void, Never>?
+    let model: AppModel
 
     override init() {
-        app = AppServices(configuration: LaunchConfiguration.current())
+        model = AppModel(configuration: LaunchConfiguration.current())
         super.init()
         UNUserNotificationCenter.current().delegate = self
     }
@@ -60,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         applyTheme(ThemePreference(rawValue: UserDefaults.standard.string(forKey: PreferenceKey.theme) ?? "") ?? .system)
         #if DEBUG
+            Task { await runSelfCheckIfAsked() }
             // XCUITest がダークの見た目を撮るため。起動引数の -AppleInterfaceStyle は macOS 26 のアプリには効かない
             switch ProcessInfo.processInfo.environment["NANAICHI_APPEARANCE"] {
             case "Dark": NSApp.appearance = NSAppearance(named: .darkAqua)
@@ -67,13 +95,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             default: break
             }
         #endif
-        running = Task { await app.run() }
+        model.start()
+    }
+
+    /// ほかのアプリから戻ってきたら、同期の接続が生きているかを確かめる（スリープから戻ったときも含む）
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { await model.checkSyncConnection() }
     }
 
     /// 終了する前に、通知の予約を音の鳴るものに入れ替える（動いている間はアプリが自分で鳴らす）
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task {
-            await app.timer.prepareForTermination()
+            await model.services.timer.prepareForTermination()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

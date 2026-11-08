@@ -1,4 +1,5 @@
 import Foundation
+import NanaichiAccount
 import NanaichiDevice
 import NanaichiDomain
 
@@ -13,17 +14,23 @@ struct AppClock: Sendable {
         wallDate: { Date(timeIntervalSince1970: Double($0.milliseconds) / 1000) })
 }
 
-/// 起動のしかた。リリースのビルドでは、いつも実際の時計とアプリのコンテナの記録を使う
+/// 起動のしかた。リリースのビルドでは、いつも実際の時計とアプリのコンテナの記録と、本番のアカウントを使う
 struct LaunchConfiguration {
     let clock: AppClock
     let database: DeviceDatabaseLocation
+    let accounts: AccountGateway
 
     static func current() -> LaunchConfiguration {
         #if DEBUG
             if let debug = debugConfiguration(ProcessInfo.processInfo.environment) { return debug }
         #endif
-        return LaunchConfiguration(clock: .system, database: .file(databaseURL(named: "device.sqlite")))
+        return LaunchConfiguration(
+            clock: .system, database: .file(databaseURL(named: "device.sqlite")),
+            accounts: .live(clock: .system, tokens: keychain))
     }
+
+    /// トークンはログインの Keychain に置く。チームのない署名（ADR 0028）では Data Protection Keychain を使えないため
+    static let keychain = KeychainTokenStore(service: AccountGateway.keychainService, keychain: .fileBased)
 
     /// アプリのコンテナの Application Support にある記録のファイル（サンドボックスの中）
     static func databaseURL(named name: String) -> URL {
@@ -44,11 +51,15 @@ struct LaunchConfiguration {
     /// - `NANAICHI_DATABASE`: 記録のファイル名（Application Support/nanaichi の中）。`:memory:` なら残さない
     /// - `NANAICHI_RESET_DATABASE`: `1` なら、開く前にそのファイルを消す
     /// - `NANAICHI_RESET_DEFAULTS`: `1` なら、端末ごとの設定（知らせ方・テーマ・送信キー・つけたままのタグ）を初期に戻す
+    /// - `NANAICHI_ACCOUNT_STUB`: `1` なら、サーバーに繋がない代わりのアカウントにログインした状態で開く。
+    ///   ログインもブラウザを開かずにすぐ通る。そうでなければ本番にログインするが、トークンはメモリにだけ置き、
+    ///   開発者の Keychain のトークンでテストを動かさない
     extension LaunchConfiguration {
         fileprivate static func debugConfiguration(_ environment: [String: String]) -> LaunchConfiguration? {
             let scale = environment["NANAICHI_TIME_SCALE"].flatMap(Double.init)
             let name = environment["NANAICHI_DATABASE"]
-            guard scale != nil || name != nil else { return nil }
+            let stub = environment["NANAICHI_ACCOUNT_STUB"] == "1"
+            guard scale != nil || name != nil || stub else { return nil }
 
             let clock =
                 scale.map { scale in
@@ -69,8 +80,49 @@ struct LaunchConfiguration {
                     try? FileManager.default.removeItem(at: URL(filePath: url.path + suffix))
                 }
             }
-            return LaunchConfiguration(clock: clock, database: database)
+            let accounts: AccountGateway =
+                stub ? .stub(clock: clock) : .live(clock: clock, tokens: InMemoryTokenStore())
+            return LaunchConfiguration(clock: clock, database: database, accounts: accounts)
         }
+    }
+
+    extension AccountGateway {
+        /// サーバーの代わりに、メモリのこの端末の記録先をアカウントの記録先として使う。UI テストがアカウントの画面を撮るため
+        fileprivate static func stub(clock: AppClock) -> AccountGateway {
+            @Sendable func signedIn() -> SignedIn {
+                SignedIn(
+                    backend: DeviceBackend(location: .inMemory, clock: clock.now),
+                    user: { .success(AccountUser(name: "nanaichi のテスト", email: Sensitive("owner@example.com"))) },
+                    signOut: {}, forget: {})
+            }
+            return AccountGateway(restore: { _ in .signedIn(signedIn()) }, signIn: { _ in .signedIn(signedIn()) })
+        }
+    }
+
+    /// `NANAICHI_SELF_CHECK=1` で起動したら、ビルドしたアプリ（サンドボックスの中）から、Keychain にトークンを
+    /// 置いて読んで消せるかと、本番のサーバーに届くか（ログインしていないので 401）を確かめ、結果を標準出力に書いて終える。
+    /// 署名と entitlement が実際のアプリと同じ条件で確かめるため（`swift test` のプロセスはサンドボックスの外）
+    func runSelfCheckIfAsked() async {
+        guard ProcessInfo.processInfo.environment["NANAICHI_SELF_CHECK"] == "1" else { return }
+        let token = SessionToken("self-check-token")!
+        let stores: [(String, KeychainTokenStore)] = [
+            ("fileBased", KeychainTokenStore(service: "app.nanaichi.mac.self-check", keychain: .fileBased)),
+            ("dataProtection", KeychainTokenStore(service: "app.nanaichi.mac.self-check", keychain: .dataProtection)),
+        ]
+        for (name, store) in stores {
+            do {
+                try store.save(token)
+                let loaded = try store.load()
+                try store.delete()
+                let afterDelete = try store.load()
+                print("keychain \(name): saved, loaded \(loaded == token ? "same" : "different"), deleted \(afterDelete == nil ? "gone" : "still there")")
+            } catch {
+                print("keychain \(name): failed with OSStatus \(error.status)")
+            }
+        }
+        let backend = AccountBackend(token: SessionToken("not-a-token")!, onSignedOut: {})
+        print("server: \(await backend.getMe())")
+        exit(0)
     }
 
     extension AppClock {

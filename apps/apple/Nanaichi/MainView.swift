@@ -5,6 +5,7 @@ import SwiftUI
 /// メインのウィンドウ（docs/PRODUCT.md「画面」）。Web の PC と同じく、左にタイマー、右にジャーナル記入。
 /// タイムラインは右の入力欄の下に出す。スタッツは別のウィンドウ（ツールバーとメニューから）、設定は ⌘, で開く
 struct MainView: View {
+    @Bindable var model: AppModel
     let app: AppServices
     @Environment(\.openWindow) private var openWindow
 
@@ -30,6 +31,11 @@ struct MainView: View {
                 .help("スタッツとジャーナル記入の見返しを開く（⌘2）")
                 .accessibilityIdentifier("toolbar.stats")
             }
+        }
+        .alert("ログインが切れました", isPresented: $model.signedOutByExpiry) {
+            Button("OK") {}
+        } message: {
+            Text("この Mac の記録に戻りました。同期するには、設定のアカウントからもう一度ログインしてください。")
         }
     }
 }

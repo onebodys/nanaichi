@@ -32,6 +32,8 @@ targets:
         product: NanaichiPresentation
       - package: NanaichiKit
         product: NanaichiDevice
+      - package: NanaichiKit
+        product: NanaichiAccount
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.mac
@@ -41,6 +43,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: nanaichi
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         ENABLE_APP_SANDBOX: YES
+        # アカウントの記録先（https と wss の nanaichi.app）に繋ぐ。サンドボックスは外への通信を既定で止める
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
         ENABLE_HARDENED_RUNTIME: YES
   NanaichiUITests:
     type: bundle.ui-testing
