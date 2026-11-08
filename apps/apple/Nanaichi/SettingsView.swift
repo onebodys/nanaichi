@@ -1,0 +1,337 @@
+import NanaichiDomain
+import NanaichiPresentation
+import SwiftUI
+
+/// 設定（⌘,、Web の settings-screen.tsx）。Mac の設定のウィンドウと同じく、まとまりごとのタブに分ける。
+/// 端末ごとの設定（知らせ方・送信キー・テーマ）には「この Mac」と添え、記録先の設定（進め方・タグ）と見分ける
+struct SettingsView: View {
+    let app: AppServices
+
+    var body: some View {
+        TabView {
+            Tab("タイマー", systemImage: "timer") { AdvanceSettings(model: app.advanceMode) }
+                .accessibilityIdentifier("settings.tab.timer")
+            Tab("知らせ方", systemImage: "bell") { AlertSettingsForm(app: app) }
+                .accessibilityIdentifier("settings.tab.alert")
+            Tab("ジャーナル", systemImage: "square.and.pencil") { JournalSettings() }
+                .accessibilityIdentifier("settings.tab.journal")
+            Tab("タグ", systemImage: "number") { TagSettings(tags: app.tags) }
+                .accessibilityIdentifier("settings.tab.tags")
+            Tab("表示", systemImage: "circle.lefthalf.filled") { LookSettings() }
+                .accessibilityIdentifier("settings.tab.look")
+        }
+        .frame(width: 560)
+        .frame(minHeight: 360)
+    }
+}
+
+private struct PerDeviceNote: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "laptopcomputer")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+}
+
+/// フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。変えるとセッションの途中でもすぐ効く
+private struct AdvanceSettings: View {
+    let model: AdvanceModeModel
+
+    var body: some View {
+        Form {
+            Section {
+                switch model.mode {
+                case .loading: ProgressView()
+                case .loadFailed: Text("読み込めませんでした").foregroundStyle(.secondary)
+                case .loaded(let mode):
+                    ForEach(PhaseTransition.allCases, id: \.self) { transition in
+                        let text = transitionTextOf(transition)
+                        Picker(
+                            selection: Binding(
+                                get: { mode[transition] }, set: { model.change(transition, to: $0) })
+                        ) {
+                            ForEach(advanceChoices, id: \.self) { Text(advanceChoiceTextOf($0)).tag($0) }
+                        } label: {
+                            Text(text.label)
+                            Text(text.description)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .accessibilityIdentifier("advance.\(transition.rawValue)")
+                    }
+                }
+                if let message = model.errorMessage {
+                    Text(message).foregroundStyle(.red)
+                }
+            } header: {
+                Text("フェーズの進め方")
+            } footer: {
+                Text("手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、進めるまで待ちます。この Mac の記録の設定です。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// 知らせ方の設定（GLOSSARY）。音で知らせるか・音量・行き先のフェーズごとの音色・通知
+private struct AlertSettingsForm: View {
+    let app: AppServices
+    private var settings: AlertSettings { app.alertSettings.settings }
+
+    private func change(_ next: AlertSettings) {
+        app.alertSettings.change(next)
+        app.timer.alertSettingsChanged()
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: Binding(get: { settings.sound }, set: { change(with(\.sound, $0)) })) {
+                    Text("音で知らせる")
+                    Text("フェーズが切り替わったときに鳴らします")
+                }
+                .accessibilityIdentifier("alert.sound")
+                Picker(
+                    "音量",
+                    selection: Binding(
+                        get: { settings.volume },
+                        set: { volume in
+                            change(with(\.volume, volume))
+                            // 選んだ音量をすぐ聞けるようにする
+                            app.alert.preview(to: .journal, settings: app.alertSettings.settings)
+                        })
+                ) {
+                    ForEach(Volume.allCases, id: \.self) { Text(volumeTextOf($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .disabled(!settings.sound)
+                .accessibilityIdentifier("alert.volume")
+            } footer: {
+                PerDeviceNote(text: "この Mac の設定です")
+            }
+            Section("音色") {
+                ForEach(toneTargets, id: \.self) { to in
+                    ToneRow(to: to, settings: settings, enabled: settings.sound) { tone in
+                        change(settings.withTone(tone, to: to))
+                        app.alert.preview(to: to, settings: app.alertSettings.settings)
+                    } preview: {
+                        app.alert.preview(to: to, settings: settings)
+                    }
+                }
+            }
+            Section {
+                Toggle(
+                    isOn: Binding(
+                        get: { settings.notification },
+                        set: { on in
+                            change(with(\.notification, on))
+                            if on { app.timer.requestNotificationAuthorization() }
+                        })
+                ) {
+                    Text("通知")
+                    Text("切り替わりを通知センターにも出します。許可はシステム設定の「通知」で変えられます")
+                }
+                .accessibilityIdentifier("alert.notification")
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func with<Value>(_ keyPath: WritableKeyPath<AlertSettings, Value>, _ value: Value) -> AlertSettings {
+        var next = settings
+        next[keyPath: keyPath] = value
+        return next
+    }
+}
+
+private struct ToneRow: View {
+    let to: PhaseKind
+    let settings: AlertSettings
+    let enabled: Bool
+    let choose: (AlertTone) -> Void
+    let preview: () -> Void
+
+    var body: some View {
+        let text = toneTargetOf(to)
+        LabeledContent {
+            HStack {
+                Picker(text.label, selection: Binding(get: { settings.tones[to] }, set: { choose($0) })) {
+                    ForEach(AlertTone.allCases, id: \.self) { Text(toneTextOf($0)).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("tone.\(to.rawValue)")
+                Button("試す", systemImage: "play.fill", action: preview)
+                    .help("\(text.label)の音を試す")
+                    .accessibilityLabel("\(text.label)の音を試す")
+                    .accessibilityIdentifier("tone.\(to.rawValue).preview")
+            }
+            .disabled(!enabled)
+        } label: {
+            Text(text.label)
+            Text(text.description)
+        }
+    }
+}
+
+private struct JournalSettings: View {
+    @AppStorage(PreferenceKey.submitKey) private var submitKey = SubmitKey.defaultKey
+
+    var body: some View {
+        Form {
+            Section {
+                Picker(selection: $submitKey) {
+                    ForEach(SubmitKey.allCases, id: \.self) { Text($0.label).tag($0) }
+                } label: {
+                    Text("送信キー")
+                    Text("入力欄の隣でも切り替えられます")
+                }
+                .accessibilityIdentifier("settings.submitKey")
+            } footer: {
+                PerDeviceNote(text: "この Mac の設定です")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct LookSettings: View {
+    @AppStorage(PreferenceKey.theme) private var theme = ThemePreference.system
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("テーマ", selection: $theme) {
+                    ForEach(ThemePreference.allCases, id: \.self) { Text(themeTextOf($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .accessibilityIdentifier("settings.theme")
+            } footer: {
+                PerDeviceNote(text: "この Mac の設定です")
+            }
+        }
+        .formStyle(.grouped)
+        .onChange(of: theme) { _, preference in applyTheme(preference) }
+    }
+}
+
+// MARK: - タグ
+
+/// タグ（GLOSSARY の「タグの削除」、ADR 0017）。使っているタグとついている記入の数を出し、使わないタグを削除できる
+private struct TagSettings: View {
+    let tags: TagsModel
+    @State private var deleting: TagUsage?
+
+    var body: some View {
+        Form {
+            Section {
+                switch tags.usage {
+                case .loading: ProgressView()
+                case .loadFailed: Text("読み込めませんでした").foregroundStyle(.secondary)
+                case .loaded(let usage):
+                    if usage.isEmpty {
+                        Text("まだタグを使っていません").foregroundStyle(.secondary)
+                    }
+                    ForEach(usage, id: \.name) { item in
+                        LabeledContent {
+                            Button("削除…") { deleting = item }
+                                .accessibilityLabel("\(tagTextOf(item.name))を削除")
+                                .accessibilityIdentifier("tag.delete.\(item.name.rawValue)")
+                        } label: {
+                            Text(tagTextOf(item.name))
+                            Text(taggedEntryCountTextOf(item.entryCount))
+                        }
+                        .accessibilityIdentifier("tag.row.\(item.name.rawValue)")
+                    }
+                }
+            } header: {
+                Text("タグ")
+            } footer: {
+                Text(
+                    "\(tags.usage.value.map { tagKindsNoteOf(inUse: $0.count) } ?? "")削除しても記入は消えず、タグだけを外すか、別のタグに付け替えます。"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .sheet(item: $deleting) { usage in
+            TagDeletionSheet(
+                usage: usage,
+                others: (tags.usage.value ?? []).map(\.name).filter { $0 != usage.name },
+                delete: { await tags.delete(usage.name, deletion: $0) })
+        }
+    }
+}
+
+extension TagUsage: @retroactive Identifiable {
+    public var id: TagName { name }
+}
+
+/// 1つのタグを削除する前に、ついている記入のタグを外すか付け替えるかを選ぶ（GLOSSARY の「タグの削除」）。
+/// 付け替え先は使っている他のタグ `others` から選ぶ
+private struct TagDeletionSheet: View {
+    let usage: TagUsage
+    let others: [TagName]
+    let delete: (TagDeletion) async -> String?
+    @State private var reassign = false
+    @State private var target: TagName?
+    @State private var pending = false
+    @State private var errorMessage: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private var deletion: TagDeletion {
+        if reassign, let to = target ?? others.first { return .reassign(to: to) }
+        return .detach
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("\(tagTextOf(usage.name)) を削除")
+                .font(.headline)
+            Text(tagDeletionMessageOf(usage, deletion))
+                .fixedSize(horizontal: false, vertical: true)
+            if !others.isEmpty {
+                Picker("ついている記入のタグ", selection: $reassign) {
+                    Text("外すだけ").tag(false)
+                    Text("別のタグに付け替える").tag(true)
+                }
+                .pickerStyle(.radioGroup)
+                .accessibilityIdentifier("tagDeletion.choice")
+                if reassign {
+                    Picker("付け替え先のタグ", selection: Binding(get: { target ?? others[0] }, set: { target = $0 })) {
+                        ForEach(others, id: \.self) { Text(tagTextOf($0)).tag($0) }
+                    }
+                    .fixedSize()
+                    .accessibilityIdentifier("tagDeletion.target")
+                }
+            }
+            if let errorMessage {
+                Text(errorMessage).foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("やめる", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(tagDeletionActionOf(deletion), role: .destructive) {
+                    pending = true
+                    Task {
+                        errorMessage = await delete(deletion)
+                        pending = false
+                        if errorMessage == nil { dismiss() }
+                    }
+                }
+                .disabled(pending)
+                .accessibilityIdentifier("tagDeletion.confirm")
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+}

@@ -14,8 +14,7 @@ final class PhaseAlertPlayer {
     private let format: AVAudioFormat
 
     init() {
-        // 44.1kHz・モノラルの float は必ず作れる形式
-        format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
+        format = makeChimeFormat()
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
     }
@@ -23,7 +22,12 @@ final class PhaseAlertPlayer {
     /// `to` のフェーズに切り替わったことを、知らせ方の設定 `settings` の音色と音量で知らせる
     func play(to: PhaseKind, settings: AlertSettings) {
         guard settings.sound else { return }
-        let buffer = render(chimeOf(to: to, tone: settings.tones[to]), peak: peakOf(settings.volume))
+        preview(to: to, settings: settings)
+    }
+
+    /// 設定の画面で、選んだ音色と音量をすぐ聞けるように鳴らす。音で知らせない設定でも鳴らす（押した人が聞きたい音）
+    func preview(to: PhaseKind, settings: AlertSettings) {
+        let buffer = renderChime(to: to, settings: settings, format: format)
         do {
             if !engine.isRunning { try engine.start() }
         } catch {
@@ -33,31 +37,39 @@ final class PhaseAlertPlayer {
         player.scheduleBuffer(buffer, at: nil, options: .interrupts)
         player.play()
     }
+}
 
-    /// 楽譜の倍音を足し合わせた波形。山を `peak` にそろえ、音量を変えても音割れさせない
-    private func render(_ chime: [ChimePartial], peak: Double) -> AVAudioPCMBuffer {
-        let sampleRate = format.sampleRate
-        let seconds = (chime.map(\.endSeconds).max() ?? 0) + 0.05
-        let frames = AVAudioFrameCount(seconds * sampleRate)
-        // 形式と長さが決まっているので作れる
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
-        buffer.frameLength = frames
-        let samples = buffer.floatChannelData![0]
-        var mixed = [Double](repeating: 0, count: Int(frames))
-        for partial in chime {
-            let first = Int(partial.startSeconds * sampleRate)
-            let last = min(Int(partial.endSeconds * sampleRate), mixed.count - 1)
-            guard first < last else { continue }
-            for frame in first...last {
-                let t = Double(frame) / sampleRate - partial.startSeconds
-                mixed[frame] += envelope(partial, at: t) * wave(partial, at: t)
-            }
+/// 44.1kHz・モノラルの float。必ず作れる形式
+func makeChimeFormat() -> AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)! }
+
+/// `to` のフェーズに切り替わったときの音を、設定 `settings` の音色と音量で合成する
+func renderChime(to: PhaseKind, settings: AlertSettings, format: AVAudioFormat = makeChimeFormat()) -> AVAudioPCMBuffer {
+    render(chimeOf(to: to, tone: settings.tones[to]), peak: peakOf(settings.volume), format: format)
+}
+
+/// 楽譜の倍音を足し合わせた波形。山を `peak` にそろえ、音量を変えても音割れさせない
+private func render(_ chime: [ChimePartial], peak: Double, format: AVAudioFormat) -> AVAudioPCMBuffer {
+    let sampleRate = format.sampleRate
+    let seconds = (chime.map(\.endSeconds).max() ?? 0) + 0.05
+    let frames = AVAudioFrameCount(seconds * sampleRate)
+    // 形式と長さが決まっているので作れる
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+    buffer.frameLength = frames
+    let samples = buffer.floatChannelData![0]
+    var mixed = [Double](repeating: 0, count: Int(frames))
+    for partial in chime {
+        let first = Int(partial.startSeconds * sampleRate)
+        let last = min(Int(partial.endSeconds * sampleRate), mixed.count - 1)
+        guard first < last else { continue }
+        for frame in first...last {
+            let t = Double(frame) / sampleRate - partial.startSeconds
+            mixed[frame] += envelope(partial, at: t) * wave(partial, at: t)
         }
-        let loudest = mixed.map(abs).max() ?? 0
-        let gain = loudest > 0 ? peak / loudest : 0
-        for (frame, value) in mixed.enumerated() { samples[frame] = Float(value * gain) }
-        return buffer
     }
+    let loudest = mixed.map(abs).max() ?? 0
+    let gain = loudest > 0 ? peak / loudest : 0
+    for (frame, value) in mixed.enumerated() { samples[frame] = Float(value * gain) }
+    return buffer
 }
 
 /// Web Audio の `exponentialRampToValueAtTime` と同じ形: ごく小さい音から `attackSeconds` で `level` へ上がり、

@@ -3,22 +3,32 @@ import NanaichiPresentation
 import SwiftUI
 
 /// メインのウィンドウ（docs/PRODUCT.md「画面」）。Web の PC と同じく、左にタイマー、右にジャーナル記入。
-/// タイムラインは右の入力欄の下に、スタッツと設定はツールバーから開く（#143）
+/// タイムラインは右の入力欄の下に出す。スタッツは別のウィンドウ（ツールバーとメニューから）、設定は ⌘, で開く
 struct MainView: View {
-    let model: TimerModel
+    let app: AppServices
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: 0) {
-            TimerPane(model: model)
+            TimerPane(model: app.timer)
                 .frame(minWidth: 380, idealWidth: 440, maxWidth: 520)
             Divider()
-            JournalPane(model: model)
+            JournalPane(app: app)
                 .frame(minWidth: 360, maxWidth: .infinity)
         }
         .frame(minWidth: 760, minHeight: 560)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                TodayFocusView(today: model.todayFocus)
+                TodayFocusView(today: app.timer.todayFocus)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    openWindow(id: reviewWindowId)
+                } label: {
+                    Label("スタッツ", systemImage: "chart.bar.xaxis")
+                }
+                .help("スタッツとジャーナル記入の見返しを開く（⌘2）")
+                .accessibilityIdentifier("toolbar.stats")
             }
         }
     }
@@ -45,22 +55,25 @@ private struct TodayFocusView: View {
     }
 }
 
-/// 右のペイン。ジャーナル記入の入力欄
+/// 右のペイン。ジャーナル記入の入力欄と、その下のタイムライン
 private struct JournalPane: View {
-    let model: TimerModel
+    let app: AppServices
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            JournalInput(model: model)
-            if let message = model.writeErrorMessage {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("journal.error")
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                JournalInput(model: app.timer, tags: app.tags)
+                if let message = app.timer.writeErrorMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("journal.error")
+                }
             }
-            Spacer(minLength: 0)
+            .padding(24)
+            Divider()
+            TimelineList(timeline: app.timeline, tags: app.tags, now: app.timer.serverNow)
         }
-        .padding(24)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 }
