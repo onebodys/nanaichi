@@ -15,6 +15,7 @@ jobs:
       contents: read
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      apple: ${{ steps.diff.outputs.apple }}
     steps:
       - id: diff
         env:
@@ -24,6 +25,7 @@ jobs:
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           code=true
+          apple=true
           if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
             # compare API が返すファイルは 300 件まで。それを超えたら判定せず全部走らせる
             if files=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq 'if (.files | length) < 300 then .files[].filename else error("too many files") end'); then
@@ -32,9 +34,14 @@ jobs:
                 code=false
                 echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、ADR の番号の検査と vp check（書式・lint・型）だけを走らせます。"
               fi
+              # Swift のテストは、Swift のコードかゴールデンケース（TS のテストが書き出す）が変わったときだけ走らせる
+              if ! echo "$files" | grep -qE '(^apps/apple/|^fixtures/golden/|^\.github/workflows/)'; then
+                apple=false
+              fi
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "apple=$apple" >> "$GITHUB_OUTPUT"
 
   check:
     needs: changes
@@ -56,6 +63,25 @@ jobs:
         run: vp exec knip
       - if: needs.changes.outputs.code == 'true'
         run: vp run -r build
+
+  # Apple のネイティブアプリ（apps/apple、ADR 0028）。ドメインがゴールデンケースで TS と一致することを確かめる。
+  # macOS のランナーは Linux より遅く高いので、Swift のコードかゴールデンケースが変わったときだけ走らせる
+  apple:
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # ランナーに入っている Xcode のうち、いちばん新しいものを使う
+      - run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+          echo "::notice title=Xcode::$xcode"
+      - working-directory: apps/apple/NanaichiKit
+        run: swift test
 
   # 画面を実際のブラウザ（chromium）で動かす E2E テスト（docs/E2E.md）。
   # ローカルの D1 は毎回空から始まり、ランナーが開発サーバー（vp dev）を起動する。
