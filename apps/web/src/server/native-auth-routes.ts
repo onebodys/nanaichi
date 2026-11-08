@@ -11,15 +11,17 @@ import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
 import { bodyOf } from "./api-response.ts";
 import { authConfigFor, authFor } from "./auth-context.ts";
 import type { AppEnv, AuthSession } from "./hono-context.ts";
+import { limitNativeAuthPerClient } from "./rate-limit.ts";
 import { describeIssuePaths } from "./validation-error.ts";
 
 /**
  * ネイティブアプリのログイン（ADR 0029）。PKCE（RFC 7636）の形で、トークンをカスタム URL スキームに載せない。
  *
  * 1. アプリが `ASWebAuthenticationSession` で `GET /api/native-auth/start?code_challenge=..&code_challenge_method=S256`
- *    を開く。challenge を署名つきの cookie に入れて、Google のログインへ送る
- * 2. Google のログインを終えると Better Auth がセッションを作り、`GET /api/native-auth/callback` へ戻す。
- *    この流れで作られたセッションにだけ使い捨てのコード（60 秒）を発行し、`nanaichi://auth/callback?code=..` へ戻す
+ *    を開く。challenge と、この流れの印（乱数）を署名つきの cookie に入れて、Google のログインへ送る
+ * 2. Google のログインを終えると Better Auth がセッションを作り、`GET /api/native-auth/callback?flow=<印>` へ戻す。
+ *    印が cookie と同じで、この流れで作られたセッションにだけ使い捨てのコード（60 秒）を発行し、
+ *    `nanaichi://auth/callback?code=..` へ戻す
  * 3. アプリが `POST /api/native-auth/token` に `code` と `code_verifier` を送り、セッションのトークンを受け取る
  *
  * 同じスキームを別のアプリが登録してコードを横取りしても、code_verifier を持っていないので引き換えられない。
@@ -28,25 +30,34 @@ import { describeIssuePaths } from "./validation-error.ts";
 const APP_CALLBACK_URL = "nanaichi://auth/callback";
 const CALLBACK_PATH = "/api/native-auth/callback";
 const FLOW_COOKIE = "nanaichi_native_sign_in";
+/** 流れの cookie の署名の鍵を、セッションのトークンの署名と分けるための用途の名前 */
+const FLOW_COOKIE_KEY_PURPOSE = "nanaichi:native-sign-in-flow:v1";
 /** Google のログインを終えるまでの猶予 */
 const FLOW_MAX_AGE_SECONDS = 600;
 /** コードの期限。アプリはリダイレクトを受けたらすぐ引き換える */
 const CODE_TTL_MS = 60_000;
 
-/** S256 の challenge は SHA-256 の 32 バイトを base64url（パディングなし）にした 43 文字 */
-const CodeChallengeSchema = v.pipe(v.string(), v.regex(/^[A-Za-z0-9_-]{43}$/));
+/** S256 の challenge は SHA-256 の 32 バイトを base64url（パディングなし）にした 43 文字。流れの印も同じ形 */
+const Base64Url32BytesSchema = v.pipe(v.string(), v.regex(/^[A-Za-z0-9_-]{43}$/));
 
 const StartQuerySchema = v.object({
-  code_challenge: CodeChallengeSchema,
+  code_challenge: Base64Url32BytesSchema,
   // plain は challenge がそのまま verifier になり、横取りしたコードと合わせて引き換えられてしまうので受けない
   code_challenge_method: v.literal("S256"),
 });
 
-/** ログインを始めたときに cookie に入れる値。`startedAt` は UNIX ミリ秒 */
+/**
+ * ログインを始めたときに cookie に入れる値。`startedAt` は UNIX ミリ秒。
+ * `nonce` は callbackURL の `?flow=` にも載せ、Better Auth が OAuth の state としてサーバー側に預かる
+ */
 const SignInFlowSchema = v.pipe(
   v.string(),
   v.parseJson(),
-  v.object({ codeChallenge: CodeChallengeSchema, startedAt: v.number() }),
+  v.object({
+    codeChallenge: Base64Url32BytesSchema,
+    nonce: Base64Url32BytesSchema,
+    startedAt: v.number(),
+  }),
 );
 type SignInFlow = v.InferOutput<typeof SignInFlowSchema>;
 
@@ -89,13 +100,21 @@ const s256 = async (verifier: string): Promise<string> =>
     new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),
   );
 
-const newCode = (): string => base64url(crypto.getRandomValues(new Uint8Array(32)));
+const newRandom = (): string => base64url(crypto.getRandomValues(new Uint8Array(32)));
 
-/**
- * セッションのトークンに、cookie と同じ署名を付ける（better-call の `signCookieValue` と同じ形）。
- * bearer プラグインは署名つきのトークンだけを受ける（auth.ts の `requireSignature`）。
- */
-const signSessionToken = async (token: string, secret: string): Promise<string> => {
+/** 長さが同じなら、どこで違っても同じ時間で比べる */
+const sameString = (a: string, b: string): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+};
+
+const hmacSha256 = async (secret: string, data: string): Promise<ArrayBuffer> => {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -103,9 +122,22 @@ const signSessionToken = async (token: string, secret: string): Promise<string> 
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token));
-  return `${token}.${btoa(String.fromCharCode(...new Uint8Array(signature)))}`;
+  return crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
 };
+
+/**
+ * セッションのトークンに、cookie と同じ署名を付ける（better-call の `signCookieValue` と同じ形）。
+ * bearer プラグインは署名つきのトークンだけを受ける（auth.ts の `requireSignature`）。
+ */
+const signSessionToken = async (token: string, secret: string): Promise<string> =>
+  `${token}.${btoa(String.fromCharCode(...new Uint8Array(await hmacSha256(secret, token))))}`;
+
+/**
+ * 流れの cookie の署名の鍵。secret をそのまま使うと、`start` を開くだけで、セッションのトークンと同じ鍵で
+ * 署名された文字列が手に入り、bearer プラグインの署名の確かめを通ってしまう。用途ごとに鍵を分ける
+ */
+const flowCookieKey = (secret: string): Promise<ArrayBuffer> =>
+  hmacSha256(secret, FLOW_COOKIE_KEY_PURPOSE);
 
 const flowCookieOptions = (c: Context<AppEnv>): CookieOptions => ({
   path: "/api/native-auth",
@@ -117,8 +149,15 @@ const flowCookieOptions = (c: Context<AppEnv>): CookieOptions => ({
 });
 
 const startSignIn = async (c: Context<AppEnv>, flow: SignInFlow) => {
+  // callbackURL は Better Auth が OAuth の state としてサーバー側（D1 の verification）に預け、この流れの
+  // Google のログインを終えたときにだけそこへ戻す。画面のログインから戻るリダイレクトには `?flow=` が付かない。
+  // 失敗したときの戻り先にはコードを発行しないので、印を付けない
   const { headers, response } = await authFor(c).api.signInSocial({
-    body: { provider: "google", callbackURL: CALLBACK_PATH, errorCallbackURL: CALLBACK_PATH },
+    body: {
+      provider: "google",
+      callbackURL: `${CALLBACK_PATH}?${new URLSearchParams({ flow: flow.nonce }).toString()}`,
+      errorCallbackURL: CALLBACK_PATH,
+    },
     headers: c.req.raw.headers,
     returnHeaders: true,
   });
@@ -133,7 +172,7 @@ const startSignIn = async (c: Context<AppEnv>, flow: SignInFlow) => {
     c,
     FLOW_COOKIE,
     JSON.stringify(flow),
-    authConfigFor(c).secret,
+    await flowCookieKey(authConfigFor(c).secret),
     flowCookieOptions(c),
   );
   return c.redirect(response.url);
@@ -151,7 +190,7 @@ const ensureNoProviderError = (error: string | undefined): Result.Result<void, C
 const readFlow = async (
   c: Context<AppEnv>,
 ): Promise<Result.Result<SignInFlow, CallbackFailure>> => {
-  const raw = await getSignedCookie(c, authConfigFor(c).secret, FLOW_COOKIE);
+  const raw = await getSignedCookie(c, await flowCookieKey(authConfigFor(c).secret), FLOW_COOKIE);
   const flow = parseSignInFlow(raw);
   return Result.isSuccess(flow) ? flow : Result.fail(signInFailed);
 };
@@ -169,6 +208,21 @@ const ensureAllowed =
     Allowlist.permits(allowlist, session.user.email)
       ? Result.succeed()
       : Result.fail({ kind: "EmailNotAllowed" });
+
+/**
+ * Better Auth が、この流れの Google のログインを終えて戻したリダイレクトであること。
+ *
+ * cookie があるだけでは足りない。スキームを横取りしたアプリは、自分の challenge で `start` を開かせて cookie を
+ * 置いておき、ユーザーが画面で普通にログインしたあとでブラウザを callback へ送れば、そのセッションにコードを
+ * 発行させられる。`?flow=` の印は Better Auth がサーバー側の state から戻すリダイレクトにしか付かない。
+ */
+const ensureSameFlow = (
+  flow: SignInFlow,
+  returnedNonce: string | undefined,
+): Result.Result<void, CallbackFailure> =>
+  returnedNonce !== undefined && sameString(returnedNonce, flow.nonce)
+    ? Result.succeed()
+    : Result.fail(signInFailed);
 
 /**
  * セッションが、この流れの Google のログインで作られたものであること。
@@ -205,6 +259,7 @@ const issueCode = (c: Context<AppEnv>, now: Date) =>
     Result.do(),
     Result.andThrough(() => ensureNoProviderError(c.req.query("error"))),
     Result.bind("flow", () => readFlow(c)),
+    Result.andThrough(({ flow }) => ensureSameFlow(flow, c.req.query("flow"))),
     Result.bind("session", () => loadSession(c)),
     Result.andThrough(({ session }) => ensureAllowed(authConfigFor(c).allowlist)(session)),
     Result.andThrough(({ flow, session }) => ensureSignedInDuring(flow, session)),
@@ -213,7 +268,7 @@ const issueCode = (c: Context<AppEnv>, now: Date) =>
         authConfigFor(c).database,
         now,
       )({
-        code: newCode(),
+        code: newRandom(),
         codeChallenge: flow.codeChallenge,
         sessionId: session.session.id,
         expiresAt: new Date(now.getTime() + CODE_TTL_MS),
@@ -305,6 +360,7 @@ const exchangeErrorOf = (error: ValidationError | InvalidGrant): ApiErrorBody =>
 
 /** 認証不要。`requireSession` の外につなぐ（app.ts） */
 export const nativeAuthRoutes = new Hono<AppEnv>()
+  .use("/native-auth/*", limitNativeAuthPerClient)
   .get("/native-auth/start", async (c) => {
     const query = parseStartQuery(c.req.query());
     if (Result.isFailure(query)) {
@@ -313,7 +369,11 @@ export const nativeAuthRoutes = new Hono<AppEnv>()
         400,
       );
     }
-    return startSignIn(c, { codeChallenge: query.value.code_challenge, startedAt: Date.now() });
+    return startSignIn(c, {
+      codeChallenge: query.value.code_challenge,
+      nonce: newRandom(),
+      startedAt: Date.now(),
+    });
   })
   .get("/native-auth/callback", async (c) => {
     const result = await issueCode(c, new Date());

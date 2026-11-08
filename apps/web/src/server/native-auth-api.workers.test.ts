@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import * as v from "valibot";
 import { ApiErrorBodyJsonSchema } from "../domain/api-error.ts";
@@ -31,6 +32,7 @@ afterEach(async () => {
 const signIn = () =>
   signInNatively(
     request,
+    env.DB,
     async () => (await signInAs("me@example.com")).headers.get("cookie") ?? "",
   );
 
@@ -100,5 +102,37 @@ describe("Bearer トークンでの UserDO の API", () => {
 
     expect(passed).toBe(100);
     expect(v.parse(ApiErrorBodyJsonSchema, await rejected.json()).error).toBe("RATE_LIMITED");
+  });
+});
+
+describe("ネイティブアプリのログインの制限", () => {
+  /** 接続元の IP。Cloudflare が付ける */
+  const from = (ip: string) => new Headers({ "cf-connecting-ip": ip });
+
+  test("同じ IP からのログインのリクエストは上限を超えると 429 と RATE_LIMITED を返し、Google へ送らない", async () => {
+    const { passed, rejected } = await exhaustRateLimit(
+      from("203.0.113.1"),
+      "/api/native-auth/callback",
+    );
+    const start = await request(
+      "/api/native-auth/start?code_challenge_method=S256&code_challenge=" + "a".repeat(43),
+      { headers: from("203.0.113.1"), redirect: "manual" },
+    );
+
+    expect(passed).toBe(100);
+    expect(rejected.headers.get("retry-after")).toBe("60");
+    expect(v.parse(ApiErrorBodyJsonSchema, await rejected.json()).error).toBe("RATE_LIMITED");
+    expect(start.status).toBe(429);
+  });
+
+  test("制限は IP ごとに数え、ほかの IP からのログインには影響しない", async () => {
+    await exhaustRateLimit(from("203.0.113.2"), "/api/native-auth/callback");
+
+    const res = await request("/api/native-auth/callback", {
+      headers: from("203.0.113.3"),
+      redirect: "manual",
+    });
+
+    expect(res.status).toBe(302);
   });
 });
