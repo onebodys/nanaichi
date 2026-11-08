@@ -82,7 +82,7 @@ private struct ActiveReport: View {
     let active: ActiveStats
 
     var body: some View {
-        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
                 Kpi(
                     label: "集中した時間", value: focusTimeOfSetsTextOf(active.completedSets),
@@ -141,9 +141,10 @@ private struct Kpi: View {
                 .monospacedDigit()
                 .accessibilityIdentifier("stats.\(identifier)")
             Text(note ?? " ").font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
     }
@@ -228,12 +229,7 @@ private struct DaysChart: View {
                 }
             }
         }
-        .chartYAxis {
-            AxisMarks { value in
-                AxisGridLine()
-                AxisValueLabel { if let minutes = value.as(Int.self) { Text("\(minutes)分") } }
-            }
-        }
+        .chartYAxis { minuteAxis }
         .frame(height: 180)
         .accessibilityLabel(
             days.compactMap { day -> String? in
@@ -249,7 +245,9 @@ private struct MonthsChart: View {
 
     var body: some View {
         Chart(Array(months.enumerated()), id: \.offset) { index, month in
-            BarMark(x: .value("月", "\(month.year)-\(month.month)"), y: .value("集中", month.completedSets * 7))
+            BarMark(
+                x: .value("月", "\(month.year)-\(month.month)"), y: .value("集中", month.completedSets * 7),
+                width: .fixed(36))
                 .foregroundStyle(PhaseStyle.focus.color.opacity(index == months.count - 1 ? 1 : 0.4))
         }
         .chartXAxis {
@@ -261,8 +259,17 @@ private struct MonthsChart: View {
                 }
             }
         }
+        .chartYAxis { minuteAxis }
         .frame(height: 180)
         .accessibilityIdentifier("stats.trend")
+    }
+}
+
+/// 縦軸の目盛りを分で書く
+private var minuteAxis: some AxisContent {
+    AxisMarks { value in
+        AxisGridLine()
+        AxisValueLabel { if let minutes = value.as(Int.self) { Text("\(minutes)分") } }
     }
 }
 
@@ -276,15 +283,28 @@ private struct TagsCard: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                Chart(tags, id: \.name) { tag in
-                    BarMark(x: .value("完了セット", tag.completedSets), y: .value("タグ", tagTextOf(tag.name)))
-                        .foregroundStyle(PhaseStyle.focus.color)
-                        .annotation(position: .trailing) {
-                            Text("\(tag.completedSets)セット").font(.caption).foregroundStyle(.secondary)
+                let most = max(1, tags.map(\.completedSets).max() ?? 1)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(tags, id: \.name) { tag in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(tagTextOf(tag.name)).lineLimit(1)
+                                Spacer()
+                                Text("\(tag.completedSets)セット").foregroundStyle(.secondary)
+                            }
+                            .font(.callout)
+                            GeometryReader { geometry in
+                                Capsule().fill(.quaternary)
+                                    .overlay(alignment: .leading) {
+                                        Capsule().fill(PhaseStyle.focus.color)
+                                            .frame(width: geometry.size.width * CGFloat(tag.completedSets) / CGFloat(most))
+                                    }
+                            }
+                            .frame(height: 6)
                         }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
-                .chartXAxis(.hidden)
-                .frame(height: CGFloat(tags.count) * 30 + 10)
                 .accessibilityIdentifier("stats.tags")
             }
             Text("タグのついた記入があった完了セットを数えます")

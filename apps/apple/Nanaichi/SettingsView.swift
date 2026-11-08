@@ -6,23 +6,33 @@ import SwiftUI
 /// 端末ごとの設定（知らせ方・送信キー・テーマ）には「この Mac」と添え、記録先の設定（進め方・タグ）と見分ける
 struct SettingsView: View {
     let app: AppServices
+    @State private var tab: SettingsTab
+
+    init(app: AppServices, tab: SettingsTab = .timer) {
+        self.app = app
+        _tab = State(initialValue: tab)
+    }
 
     var body: some View {
-        TabView {
-            Tab("タイマー", systemImage: "timer") { AdvanceSettings(model: app.advanceMode) }
+        TabView(selection: $tab) {
+            Tab("タイマー", systemImage: "timer", value: .timer) { AdvanceSettings(model: app.advanceMode) }
                 .accessibilityIdentifier("settings.tab.timer")
-            Tab("知らせ方", systemImage: "bell") { AlertSettingsForm(app: app) }
+            Tab("知らせ方", systemImage: "bell", value: .alert) { AlertSettingsForm(app: app) }
                 .accessibilityIdentifier("settings.tab.alert")
-            Tab("ジャーナル", systemImage: "square.and.pencil") { JournalSettings() }
+            Tab("ジャーナル", systemImage: "square.and.pencil", value: .journal) { JournalSettings() }
                 .accessibilityIdentifier("settings.tab.journal")
-            Tab("タグ", systemImage: "number") { TagSettings(tags: app.tags) }
+            Tab("タグ", systemImage: "number", value: .tags) { TagSettings(tags: app.tags) }
                 .accessibilityIdentifier("settings.tab.tags")
-            Tab("表示", systemImage: "circle.lefthalf.filled") { LookSettings() }
+            Tab("表示", systemImage: "circle.lefthalf.filled", value: .look) { LookSettings() }
                 .accessibilityIdentifier("settings.tab.look")
         }
         .frame(width: 560)
         .frame(minHeight: 360)
     }
+}
+
+enum SettingsTab: Hashable {
+    case timer, alert, journal, tags, look
 }
 
 private struct PerDeviceNote: View {
@@ -58,7 +68,6 @@ private struct AdvanceSettings: View {
                             Text(text.description)
                         }
                         .pickerStyle(.segmented)
-                        .fixedSize()
                         .accessibilityIdentifier("advance.\(transition.rawValue)")
                     }
                 }
@@ -108,7 +117,6 @@ private struct AlertSettingsForm: View {
                     ForEach(Volume.allCases, id: \.self) { Text(volumeTextOf($0)).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                .fixedSize()
                 .disabled(!settings.sound)
                 .accessibilityIdentifier("alert.volume")
             } footer: {
@@ -210,7 +218,6 @@ private struct LookSettings: View {
                     ForEach(ThemePreference.allCases, id: \.self) { Text(themeTextOf($0)).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                .fixedSize()
                 .accessibilityIdentifier("settings.theme")
             } footer: {
                 PerDeviceNote(text: "この Mac の設定です")
@@ -247,7 +254,6 @@ private struct TagSettings: View {
                             Text(tagTextOf(item.name))
                             Text(taggedEntryCountTextOf(item.entryCount))
                         }
-                        .accessibilityIdentifier("tag.row.\(item.name.rawValue)")
                     }
                 }
             } header: {
@@ -276,7 +282,7 @@ extension TagUsage: @retroactive Identifiable {
 
 /// 1つのタグを削除する前に、ついている記入のタグを外すか付け替えるかを選ぶ（GLOSSARY の「タグの削除」）。
 /// 付け替え先は使っている他のタグ `others` から選ぶ
-private struct TagDeletionSheet: View {
+struct TagDeletionSheet: View {
     let usage: TagUsage
     let others: [TagName]
     let delete: (TagDeletion) async -> String?

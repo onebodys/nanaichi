@@ -15,7 +15,12 @@ enum ReviewDestination: Hashable {
 /// スタッツ・ジャーナルのカレンダー・タグごとの記入を切り替える（Mail のメールボックスと同じ形）
 struct ReviewWindow: View {
     let app: AppServices
-    @State private var destination: ReviewDestination? = .stats
+    @State private var destination: ReviewDestination?
+
+    init(app: AppServices, destination: ReviewDestination = .stats) {
+        self.app = app
+        _destination = State(initialValue: destination)
+    }
 
     var body: some View {
         NavigationSplitView {

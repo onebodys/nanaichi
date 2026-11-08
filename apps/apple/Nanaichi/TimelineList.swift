@@ -119,12 +119,9 @@ private struct DaySessionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Text(daySessionTextOf(startedAt: daySession.startedAt, timeZone: deviceTimeZone()))
-                if let stats = daySessionStatsOf(daySession.completedSets) {
-                    Text("· \(stats)")
-                }
-            }
+            Text(
+                ([daySessionTextOf(startedAt: daySession.startedAt, timeZone: deviceTimeZone())]
+                    + [daySessionStatsOf(daySession.completedSets)].compactMap { $0 }).joined(separator: " · "))
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.vertical, 6)
@@ -179,6 +176,8 @@ private struct EntryRow: View {
         .onHover { hovering = $0 }
         .contextMenu { actions }
         .accessibilityElement(children: .contain)
+        // 読み上げでも、メニューを開かずに編集・削除を選べるようにする
+        .accessibilityActions { actions }
         .accessibilityIdentifier("entry")
     }
 
@@ -194,7 +193,7 @@ private struct EntryRow: View {
 extension JournalEntry: @retroactive Identifiable {}
 
 /// 記入の本文とタグを書き直すシート。⌘Return で保存し、esc でやめる
-private struct EntryEditor: View {
+struct EntryEditor: View {
     let entry: JournalEntry
     let known: [TagName]
     let save: (String, [TagName]) async -> Bool
