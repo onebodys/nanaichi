@@ -5,13 +5,14 @@ import NanaichiDomain
 /// PKCE（RFC 7636）の code_verifier と、その S256 の code_challenge。
 /// verifier はアプリから出さず、challenge だけをログインの入口に送る（ADR 0029）
 public struct PKCE: Hashable, Sendable {
-    public let verifier: String
+    /// ログや `dump` に出さないよう包む。送るときだけ `unwrap()` で取り出す
+    public let verifier: Sensitive<String>
 
     /// verifier は unreserved の文字（`A-Z a-z 0-9 - . _ ~`）で 43〜128 文字
     public init?(verifier: String) {
         let unreserved = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         guard (43...128).contains(verifier.count), verifier.allSatisfy(unreserved.contains) else { return nil }
-        self.verifier = verifier
+        self.verifier = Sensitive(verifier)
     }
 
     /// 32 バイトの乱数を base64url にした 43 文字の verifier。ログインを始めるたびに作り直す
@@ -23,7 +24,7 @@ public struct PKCE: Hashable, Sendable {
     }
 
     /// `BASE64URL(SHA256(ASCII(verifier)))`
-    public var challenge: String { base64URL(Data(SHA256.hash(data: Data(verifier.utf8)))) }
+    public var challenge: String { base64URL(Data(SHA256.hash(data: Data(verifier.unwrap().utf8)))) }
 }
 
 private func base64URL(_ data: Data) -> String {
@@ -35,7 +36,10 @@ private func base64URL(_ data: Data) -> String {
 
 /// ログインを終えたブラウザがアプリに戻すコード。60 秒のうちに1回だけ引き換えられる
 public struct SignInCode: Hashable, Sendable {
-    public let rawValue: String
+    /// ログや `dump` に出さないよう包む。送るときだけ `unwrap()` で取り出す
+    public let rawValue: Sensitive<String>
+
+    public init(rawValue: String) { self.rawValue = Sensitive(rawValue) }
 }
 
 /// ログインできなかった理由（`nanaichi://auth/callback?error=…`）
@@ -97,7 +101,7 @@ public struct NativeSignIn: Sendable {
     public func exchange(_ code: SignInCode, pkce: PKCE) async -> Result<SessionToken, BackendError> {
         let api = ApiClient(server: server, session: session, token: nil, onSignedOut: {})
         let request = ApiRequest.send(
-            .post, "native-auth", "token", json: ExchangeBody(code: code.rawValue, codeVerifier: pkce.verifier))
+            .post, "native-auth", "token", json: ExchangeBody(code: code.rawValue.unwrap(), codeVerifier: pkce.verifier.unwrap()))
         return await api.call(request, as: TokenBody.self).flatMap { body in
             SessionToken(body.token).map(Result.success) ?? .failure(.broken)
         }

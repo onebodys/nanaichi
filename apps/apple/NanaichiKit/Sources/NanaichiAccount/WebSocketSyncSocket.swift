@@ -46,13 +46,15 @@ public final class WebSocketSyncSocket: SyncSocket {
 
         /// 閉じたを届けて終える。終えたあとの yield は捨てられる。受信のループと delegate から同時に届いて
         /// 2回になっても、`SyncConnection` は繋ぎ直しを待っている間の閉じたを捨てる
-        private func end() {
+        private func end(_ session: URLSession) {
             events.yield(.closed)
             events.finish()
+            // 自分で切れた接続でも URLSession と delegate を手放す
+            session.finishTasksAndInvalidate()
         }
 
         func urlSession(
-            _: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol _: String?
+            _ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol _: String?
         ) {
             events.yield(.opened)
             Task {
@@ -70,19 +72,19 @@ public final class WebSocketSyncSocket: SyncSocket {
                     @unknown default: continue
                     }
                 }
-                end()
+                end(session)
             }
         }
 
         func urlSession(
-            _: URLSession, webSocketTask _: URLSessionWebSocketTask, didCloseWith _: URLSessionWebSocketTask.CloseCode,
-            reason _: Data?
+            _ session: URLSession, webSocketTask _: URLSessionWebSocketTask,
+            didCloseWith _: URLSessionWebSocketTask.CloseCode, reason _: Data?
         ) {
-            end()
+            end(session)
         }
 
-        func urlSession(_: URLSession, task _: URLSessionTask, didCompleteWithError _: (any Error)?) {
-            end()
+        func urlSession(_ session: URLSession, task _: URLSessionTask, didCompleteWithError _: (any Error)?) {
+            end(session)
         }
     }
 }

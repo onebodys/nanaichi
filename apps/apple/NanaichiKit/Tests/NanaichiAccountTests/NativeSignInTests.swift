@@ -16,8 +16,8 @@ struct NativeSignInTests {
     func random() {
         let first = PKCE.random()
         let second = PKCE.random()
-        #expect(first.verifier.count == 43)
-        #expect(PKCE(verifier: first.verifier) == first)
+        #expect(first.verifier.unwrap().count == 43)
+        #expect(PKCE(verifier: first.verifier.unwrap()) == first)
         #expect(first != second)
         #expect(first.challenge.count == 43)
     }
@@ -73,7 +73,21 @@ struct NativeSignInTests {
         #expect(request.headers["Authorization"] == nil)
         #expect(
             request.body.flatMap(canonicalJSON)
-                == canonicalJSON(#"{"code":"the-code","code_verifier":"\#(pkce.verifier)"}"#))
+                == canonicalJSON(#"{"code":"the-code","code_verifier":"\#(pkce.verifier.unwrap())"}"#))
+    }
+
+    @Test("code_verifier とコードは print・dump・文字列への埋め込みで伏せる")
+    func redacted() throws {
+        let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+        let pkce = try #require(PKCE(verifier: verifier))
+        let code = SignInCode(rawValue: "secret-code")
+        var dumped = ""
+        dump(pkce, to: &dumped)
+        dump(code, to: &dumped)
+        let shown = "\(pkce.verifier) \(pkce) \(code) \(code.rawValue)" + String(reflecting: pkce) + dumped
+        #expect(!shown.contains(verifier))
+        #expect(!shown.contains("secret-code"))
+        #expect(shown.contains("[REDACTED]"))
     }
 
     @Test("使えないコードは INVALID_GRANT で断られる（新しい code_verifier でログインし直す）")

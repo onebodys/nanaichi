@@ -221,6 +221,48 @@ struct SyncConnectionTests {
         #expect(harness.sockets.all.count == 1)
     }
 
+    @Test("切れた接続も閉じる手続きを通す（開く前に切れても、開いたあとに切れても）")
+    func closesSelfClosedSockets() async {
+        let harness = Harness()
+        _ = await harness.subscribe()
+        let neverOpened = harness.sockets.last
+        await neverOpened.emit(.closed)
+        #expect(neverOpened.closed)
+
+        await harness.scheduler.advance(by: 1000)
+        let second = harness.sockets.last
+        await second.emit(.opened)
+        #expect(!second.closed)
+        await second.emit(.closed)
+        #expect(second.closed)
+    }
+
+    @Test("アカウントの記録先を閉じると、受け取りのストリームがすべて終わり、繋ぎ直しも止まる")
+    func backendClose() async {
+        let harness = Harness()
+        let first = await harness.backend.subscribe()
+        let second = await harness.backend.subscribe()
+        await harness.sockets.all[0].emit(.opened)
+        await harness.sockets.all[1].emit(.closed)
+
+        await harness.backend.close()
+
+        var firstEvents: [SyncEvent] = []
+        for await event in first { firstEvents.append(event) }
+        var secondEvents: [SyncEvent] = []
+        for await event in second { secondEvents.append(event) }
+        #expect(firstEvents == [.connected])
+        #expect(secondEvents.isEmpty)
+        #expect(harness.sockets.all.allSatisfy { $0.closed })
+
+        await harness.scheduler.advance(by: 60_000)
+        #expect(harness.sockets.all.count == 2)
+
+        var after = await harness.backend.subscribe().makeAsyncIterator()
+        #expect(await after.next() == nil)
+        #expect(harness.sockets.all.count == 2)
+    }
+
     @Test("受け取り始めるたびに、別の接続を張る")
     func connectionPerSubscriber() async {
         let harness = Harness()

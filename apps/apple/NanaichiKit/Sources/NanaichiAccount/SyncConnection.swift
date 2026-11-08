@@ -183,9 +183,12 @@ actor SyncConnection {
         case (.open(let socket, _), .text(let text)) where socket.id == id:
             if let message = SyncMessage.deserialize(text) { deliver.yield(.message(message)) }
         case (.connecting(let socket), .closed) where socket.id == id:
+            // 切れた接続の後始末（URLSession の解放など）は、閉じる手続きで必ず終わらせる
+            socket.socket.close()
             scheduleReconnect()
         case (.open(let socket, let heartbeat), .closed) where socket.id == id:
             heartbeat.cancel()
+            socket.socket.close()
             scheduleReconnect()
         case (.connecting, _), (.open, _), (.waiting, _), (.closed, _):
             // 捨てた接続から遅れて届いたもの、開く前のテキスト、開いたあとの2回目の「開いた」

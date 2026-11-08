@@ -5,7 +5,10 @@ import NanaichiDomain
 ///
 /// ログインしているあいだ、アプリの中で1つだけ作り、画面で共有する。HTTP の API に `Authorization: Bearer` を付けて送り、
 /// 応答はドメインの型で検証する。ログインが切れていたら（`UNAUTHENTICATED`）、失敗を返す前に `onSignedOut` を呼ぶ。
-/// アプリはそこでトークンを消し、この端末の記録先に戻す
+/// アプリはそこでトークンを消し、この端末の記録先に戻す。
+///
+/// ログアウトするときは、アプリが `close()` を呼んで同期の接続をすべて閉じる（`onSignedOut` の中でもよい）。
+/// 同時に複数の 401 が返ると `onSignedOut` は2回以上呼ばれうるので、アプリの側は何回呼ばれても同じ結果になるようにする
 public actor AccountBackend: Backend, TaskBackend {
     private let api: ApiClient
     private let clock: @Sendable () -> Instant
@@ -13,6 +16,7 @@ public actor AccountBackend: Backend, TaskBackend {
     private let scheduler: any SyncScheduler
     private var offset = ClockOffset(serverAheadMs: 0)
     private var connections: [UUID: SyncConnection] = [:]
+    private var isClosed = false
 
     /// - Parameters:
     ///   - server: 開発では `http://localhost:…` などに替える
@@ -134,6 +138,10 @@ public actor AccountBackend: Backend, TaskBackend {
     /// 受け取り始めるたびに、WebSocket の接続を1本張る（Web のタブごとの接続と同じ）
     public func subscribe() async -> AsyncStream<SyncEvent> {
         let (stream, continuation) = AsyncStream<SyncEvent>.makeStream()
+        guard !isClosed else {
+            continuation.finish()
+            return stream
+        }
         let connection = SyncConnection(openSocket: openSocket, scheduler: scheduler, deliver: continuation)
         let id = UUID()
         connections[id] = connection
@@ -150,6 +158,17 @@ public actor AccountBackend: Backend, TaskBackend {
     public func checkSyncConnection() async {
         for connection in connections.values {
             await connection.check()
+        }
+    }
+
+    /// 同期の接続をすべて閉じ、受け取りのストリームを終える（`for await` が抜ける）。繋ぎ直しも止まる。
+    /// 閉じたあとの `subscribe()` は、すぐ終わるストリームを返す。ログアウトで呼ぶ
+    public func close() async {
+        isClosed = true
+        let closing = connections.values
+        connections = [:]
+        for connection in closing {
+            await connection.close()
         }
     }
 
