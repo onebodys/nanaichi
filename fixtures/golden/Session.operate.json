@@ -1,0 +1,122 @@
+{
+  "function": "Session.operate",
+  "cases": [
+    {
+      "name": "その状態でできる操作なら、操作イベントを足した状態を返す",
+      "input": {
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "00000000-0000-4000-8000-000000000000",
+              "at": "2026-10-17T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "operation": {
+          "kind": "Pause",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "at": "2026-10-17T00:02:00.000Z"
+        }
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "session": {
+            "id": "00000000-0000-4000-8000-000000000000",
+            "events": [
+              {
+                "kind": "Start",
+                "id": "00000000-0000-4000-8000-000000000000",
+                "at": "2026-10-17T00:00:00.000Z"
+              },
+              {
+                "kind": "Pause",
+                "id": "00000000-0000-4000-8000-000000000001",
+                "at": "2026-10-17T00:02:00.000Z"
+              }
+            ],
+            "journalEntryTimes": [],
+            "advanceModeChanges": []
+          },
+          "state": {
+            "kind": "Focus",
+            "round": 1,
+            "setNumber": 1,
+            "completedSets": 0,
+            "remainingSeconds": 300,
+            "clock": {
+              "kind": "Paused",
+              "pausedAt": "2026-10-17T00:02:00.000Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "その状態でできない操作なら OperationRejected を返す",
+      "input": {
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "00000000-0000-4000-8000-000000000000",
+              "at": "2026-10-17T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "operation": {
+          "kind": "SkipBreak",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "at": "2026-10-17T00:02:00.000Z"
+        }
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "SkipBreak",
+          "at": "2026-10-17T00:02:00.000Z",
+          "during": "Focus"
+        }
+      }
+    },
+    {
+      "name": "自動終了の時刻を過ぎてからの操作は、終了したセッションへの操作として受け付けない",
+      "input": {
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "00000000-0000-4000-8000-000000000000",
+              "at": "2026-10-17T00:00:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "operation": {
+          "kind": "Pause",
+          "id": "00000000-0000-4000-8000-000000000001",
+          "at": "2026-10-17T00:58:00.000Z"
+        }
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "OperationRejected",
+          "operation": "Pause",
+          "at": "2026-10-17T00:58:00.000Z",
+          "during": "Ended"
+        }
+      }
+    }
+  ]
+}

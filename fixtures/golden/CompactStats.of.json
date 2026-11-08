@@ -1,0 +1,2886 @@
+{
+  "function": "CompactStats.of",
+  "cases": [
+    {
+      "name": "日付は YYYY-MM-DD の文字列で、まだ来ていない日と完了セットのない時間帯は入らない",
+      "input": {
+        "report": {
+          "serverTime": "2026-10-14T03:00:00.000Z",
+          "period": "Week",
+          "today": {
+            "key": "2026-10-14",
+            "year": 2026,
+            "month": 10,
+            "day": 14
+          },
+          "range": {
+            "from": {
+              "key": "2026-10-12",
+              "year": 2026,
+              "month": 10,
+              "day": 12
+            },
+            "to": {
+              "key": "2026-10-18",
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            }
+          },
+          "activity": {
+            "kind": "Active",
+            "abortedSets": 0,
+            "comparison": {
+              "kind": "Compared",
+              "previousCompletedSets": 0
+            },
+            "entries": 0,
+            "completedSetsWithEntry": 0,
+            "trend": {
+              "kind": "Days",
+              "days": [
+                {
+                  "kind": "Day",
+                  "date": {
+                    "key": "2026-10-12",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 12
+                  },
+                  "completedSets": 0
+                },
+                {
+                  "kind": "Day",
+                  "date": {
+                    "key": "2026-10-13",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 13
+                  },
+                  "completedSets": 2
+                },
+                {
+                  "kind": "Day",
+                  "date": {
+                    "key": "2026-10-14",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 14
+                  },
+                  "completedSets": 0
+                },
+                {
+                  "kind": "Upcoming",
+                  "date": {
+                    "key": "2026-10-15",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 15
+                  }
+                },
+                {
+                  "kind": "Upcoming",
+                  "date": {
+                    "key": "2026-10-16",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 16
+                  }
+                },
+                {
+                  "kind": "Upcoming",
+                  "date": {
+                    "key": "2026-10-17",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 17
+                  }
+                },
+                {
+                  "kind": "Upcoming",
+                  "date": {
+                    "key": "2026-10-18",
+                    "year": 2026,
+                    "month": 10,
+                    "day": 18
+                  }
+                }
+              ]
+            },
+            "tags": [],
+            "completedSets": 2,
+            "hours": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "streak": {
+            "current": 1,
+            "longest": 1
+          },
+          "calendar": [
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-27",
+                "year": 2026,
+                "month": 7,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-28",
+                "year": 2026,
+                "month": 7,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-29",
+                "year": 2026,
+                "month": 7,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-30",
+                "year": 2026,
+                "month": 7,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-31",
+                "year": 2026,
+                "month": 7,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-01",
+                "year": 2026,
+                "month": 8,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-02",
+                "year": 2026,
+                "month": 8,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-03",
+                "year": 2026,
+                "month": 8,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-04",
+                "year": 2026,
+                "month": 8,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-05",
+                "year": 2026,
+                "month": 8,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-06",
+                "year": 2026,
+                "month": 8,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-07",
+                "year": 2026,
+                "month": 8,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-08",
+                "year": 2026,
+                "month": 8,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-09",
+                "year": 2026,
+                "month": 8,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-10",
+                "year": 2026,
+                "month": 8,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-11",
+                "year": 2026,
+                "month": 8,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-12",
+                "year": 2026,
+                "month": 8,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-13",
+                "year": 2026,
+                "month": 8,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-14",
+                "year": 2026,
+                "month": 8,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-15",
+                "year": 2026,
+                "month": 8,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-16",
+                "year": 2026,
+                "month": 8,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-17",
+                "year": 2026,
+                "month": 8,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-18",
+                "year": 2026,
+                "month": 8,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-19",
+                "year": 2026,
+                "month": 8,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-20",
+                "year": 2026,
+                "month": 8,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-21",
+                "year": 2026,
+                "month": 8,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-22",
+                "year": 2026,
+                "month": 8,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-23",
+                "year": 2026,
+                "month": 8,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-24",
+                "year": 2026,
+                "month": 8,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-25",
+                "year": 2026,
+                "month": 8,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-26",
+                "year": 2026,
+                "month": 8,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-27",
+                "year": 2026,
+                "month": 8,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-28",
+                "year": 2026,
+                "month": 8,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-29",
+                "year": 2026,
+                "month": 8,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-30",
+                "year": 2026,
+                "month": 8,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-31",
+                "year": 2026,
+                "month": 8,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-01",
+                "year": 2026,
+                "month": 9,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-02",
+                "year": 2026,
+                "month": 9,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-03",
+                "year": 2026,
+                "month": 9,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-04",
+                "year": 2026,
+                "month": 9,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-05",
+                "year": 2026,
+                "month": 9,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-06",
+                "year": 2026,
+                "month": 9,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-07",
+                "year": 2026,
+                "month": 9,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-08",
+                "year": 2026,
+                "month": 9,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-09",
+                "year": 2026,
+                "month": 9,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-10",
+                "year": 2026,
+                "month": 9,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-11",
+                "year": 2026,
+                "month": 9,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-12",
+                "year": 2026,
+                "month": 9,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-13",
+                "year": 2026,
+                "month": 9,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-14",
+                "year": 2026,
+                "month": 9,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-15",
+                "year": 2026,
+                "month": 9,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-16",
+                "year": 2026,
+                "month": 9,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-17",
+                "year": 2026,
+                "month": 9,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-18",
+                "year": 2026,
+                "month": 9,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-19",
+                "year": 2026,
+                "month": 9,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-20",
+                "year": 2026,
+                "month": 9,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-21",
+                "year": 2026,
+                "month": 9,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-22",
+                "year": 2026,
+                "month": 9,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-23",
+                "year": 2026,
+                "month": 9,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-24",
+                "year": 2026,
+                "month": 9,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-25",
+                "year": 2026,
+                "month": 9,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-26",
+                "year": 2026,
+                "month": 9,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-27",
+                "year": 2026,
+                "month": 9,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-28",
+                "year": 2026,
+                "month": 9,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-29",
+                "year": 2026,
+                "month": 9,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-30",
+                "year": 2026,
+                "month": 9,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-01",
+                "year": 2026,
+                "month": 10,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-02",
+                "year": 2026,
+                "month": 10,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-03",
+                "year": 2026,
+                "month": 10,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-04",
+                "year": 2026,
+                "month": 10,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-05",
+                "year": 2026,
+                "month": 10,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-06",
+                "year": 2026,
+                "month": 10,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-07",
+                "year": 2026,
+                "month": 10,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-08",
+                "year": 2026,
+                "month": 10,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-09",
+                "year": 2026,
+                "month": 10,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-10",
+                "year": 2026,
+                "month": 10,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-11",
+                "year": 2026,
+                "month": 10,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-12",
+                "year": 2026,
+                "month": 10,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-13",
+                "year": 2026,
+                "month": 10,
+                "day": 13
+              },
+              "completedSets": 2
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-14",
+                "year": 2026,
+                "month": 10,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-15",
+                "year": 2026,
+                "month": 10,
+                "day": 15
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-16",
+                "year": 2026,
+                "month": 10,
+                "day": 16
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-17",
+                "year": 2026,
+                "month": 10,
+                "day": 17
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-18",
+                "year": 2026,
+                "month": 10,
+                "day": 18
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "period": "Week",
+        "today": "2026-10-14",
+        "range": {
+          "from": "2026-10-12",
+          "to": "2026-10-18"
+        },
+        "activity": {
+          "kind": "Active",
+          "completedSets": 2,
+          "abortedSets": 0,
+          "comparison": {
+            "kind": "Compared",
+            "previousCompletedSets": 0
+          },
+          "entries": 0,
+          "completedSetsWithEntry": 0,
+          "trend": {
+            "kind": "Days",
+            "days": [
+              {
+                "date": "2026-10-12",
+                "completedSets": 0
+              },
+              {
+                "date": "2026-10-13",
+                "completedSets": 2
+              },
+              {
+                "date": "2026-10-14",
+                "completedSets": 0
+              }
+            ]
+          },
+          "tags": [],
+          "hours": [
+            {
+              "hour": 9,
+              "completedSets": 2
+            }
+          ]
+        },
+        "streak": {
+          "current": 1,
+          "longest": 1
+        }
+      }
+    },
+    {
+      "name": "すべての期間の月ごとは YYYY-MM の文字列で並ぶ",
+      "input": {
+        "report": {
+          "serverTime": "2026-10-14T03:00:00.000Z",
+          "period": "All",
+          "today": {
+            "key": "2026-10-14",
+            "year": 2026,
+            "month": 10,
+            "day": 14
+          },
+          "range": {
+            "from": {
+              "key": "2026-09-30",
+              "year": 2026,
+              "month": 9,
+              "day": 30
+            },
+            "to": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            }
+          },
+          "activity": {
+            "kind": "Active",
+            "abortedSets": 0,
+            "comparison": {
+              "kind": "NotCompared"
+            },
+            "entries": 0,
+            "completedSetsWithEntry": 0,
+            "trend": {
+              "kind": "Months",
+              "months": [
+                {
+                  "year": 2026,
+                  "month": 9,
+                  "completedSets": 1
+                },
+                {
+                  "year": 2026,
+                  "month": 10,
+                  "completedSets": 3
+                }
+              ]
+            },
+            "tags": [],
+            "completedSets": 4,
+            "hours": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "streak": {
+            "current": 1,
+            "longest": 1
+          },
+          "calendar": [
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-27",
+                "year": 2026,
+                "month": 7,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-28",
+                "year": 2026,
+                "month": 7,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-29",
+                "year": 2026,
+                "month": 7,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-30",
+                "year": 2026,
+                "month": 7,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-31",
+                "year": 2026,
+                "month": 7,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-01",
+                "year": 2026,
+                "month": 8,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-02",
+                "year": 2026,
+                "month": 8,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-03",
+                "year": 2026,
+                "month": 8,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-04",
+                "year": 2026,
+                "month": 8,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-05",
+                "year": 2026,
+                "month": 8,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-06",
+                "year": 2026,
+                "month": 8,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-07",
+                "year": 2026,
+                "month": 8,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-08",
+                "year": 2026,
+                "month": 8,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-09",
+                "year": 2026,
+                "month": 8,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-10",
+                "year": 2026,
+                "month": 8,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-11",
+                "year": 2026,
+                "month": 8,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-12",
+                "year": 2026,
+                "month": 8,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-13",
+                "year": 2026,
+                "month": 8,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-14",
+                "year": 2026,
+                "month": 8,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-15",
+                "year": 2026,
+                "month": 8,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-16",
+                "year": 2026,
+                "month": 8,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-17",
+                "year": 2026,
+                "month": 8,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-18",
+                "year": 2026,
+                "month": 8,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-19",
+                "year": 2026,
+                "month": 8,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-20",
+                "year": 2026,
+                "month": 8,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-21",
+                "year": 2026,
+                "month": 8,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-22",
+                "year": 2026,
+                "month": 8,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-23",
+                "year": 2026,
+                "month": 8,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-24",
+                "year": 2026,
+                "month": 8,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-25",
+                "year": 2026,
+                "month": 8,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-26",
+                "year": 2026,
+                "month": 8,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-27",
+                "year": 2026,
+                "month": 8,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-28",
+                "year": 2026,
+                "month": 8,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-29",
+                "year": 2026,
+                "month": 8,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-30",
+                "year": 2026,
+                "month": 8,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-31",
+                "year": 2026,
+                "month": 8,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-01",
+                "year": 2026,
+                "month": 9,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-02",
+                "year": 2026,
+                "month": 9,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-03",
+                "year": 2026,
+                "month": 9,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-04",
+                "year": 2026,
+                "month": 9,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-05",
+                "year": 2026,
+                "month": 9,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-06",
+                "year": 2026,
+                "month": 9,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-07",
+                "year": 2026,
+                "month": 9,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-08",
+                "year": 2026,
+                "month": 9,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-09",
+                "year": 2026,
+                "month": 9,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-10",
+                "year": 2026,
+                "month": 9,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-11",
+                "year": 2026,
+                "month": 9,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-12",
+                "year": 2026,
+                "month": 9,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-13",
+                "year": 2026,
+                "month": 9,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-14",
+                "year": 2026,
+                "month": 9,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-15",
+                "year": 2026,
+                "month": 9,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-16",
+                "year": 2026,
+                "month": 9,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-17",
+                "year": 2026,
+                "month": 9,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-18",
+                "year": 2026,
+                "month": 9,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-19",
+                "year": 2026,
+                "month": 9,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-20",
+                "year": 2026,
+                "month": 9,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-21",
+                "year": 2026,
+                "month": 9,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-22",
+                "year": 2026,
+                "month": 9,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-23",
+                "year": 2026,
+                "month": 9,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-24",
+                "year": 2026,
+                "month": 9,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-25",
+                "year": 2026,
+                "month": 9,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-26",
+                "year": 2026,
+                "month": 9,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-27",
+                "year": 2026,
+                "month": 9,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-28",
+                "year": 2026,
+                "month": 9,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-29",
+                "year": 2026,
+                "month": 9,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-30",
+                "year": 2026,
+                "month": 9,
+                "day": 30
+              },
+              "completedSets": 1
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-01",
+                "year": 2026,
+                "month": 10,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-02",
+                "year": 2026,
+                "month": 10,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-03",
+                "year": 2026,
+                "month": 10,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-04",
+                "year": 2026,
+                "month": 10,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-05",
+                "year": 2026,
+                "month": 10,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-06",
+                "year": 2026,
+                "month": 10,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-07",
+                "year": 2026,
+                "month": 10,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-08",
+                "year": 2026,
+                "month": 10,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-09",
+                "year": 2026,
+                "month": 10,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-10",
+                "year": 2026,
+                "month": 10,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-11",
+                "year": 2026,
+                "month": 10,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-12",
+                "year": 2026,
+                "month": 10,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-13",
+                "year": 2026,
+                "month": 10,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-14",
+                "year": 2026,
+                "month": 10,
+                "day": 14
+              },
+              "completedSets": 3
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-15",
+                "year": 2026,
+                "month": 10,
+                "day": 15
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-16",
+                "year": 2026,
+                "month": 10,
+                "day": 16
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-17",
+                "year": 2026,
+                "month": 10,
+                "day": 17
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-18",
+                "year": 2026,
+                "month": 10,
+                "day": 18
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "period": "All",
+        "today": "2026-10-14",
+        "range": {
+          "from": "2026-09-30",
+          "to": "2026-10-14"
+        },
+        "activity": {
+          "kind": "Active",
+          "completedSets": 4,
+          "abortedSets": 0,
+          "comparison": {
+            "kind": "NotCompared"
+          },
+          "entries": 0,
+          "completedSetsWithEntry": 0,
+          "trend": {
+            "kind": "Months",
+            "months": [
+              {
+                "month": "2026-09",
+                "completedSets": 1
+              },
+              {
+                "month": "2026-10",
+                "completedSets": 3
+              }
+            ]
+          },
+          "tags": [],
+          "hours": [
+            {
+              "hour": 9,
+              "completedSets": 4
+            }
+          ]
+        },
+        "streak": {
+          "current": 1,
+          "longest": 1
+        }
+      }
+    },
+    {
+      "name": "期間の中に記録がなければ、記録がないことだけを返す",
+      "input": {
+        "report": {
+          "serverTime": "2026-10-14T03:00:00.000Z",
+          "period": "Today",
+          "today": {
+            "key": "2026-10-14",
+            "year": 2026,
+            "month": 10,
+            "day": 14
+          },
+          "range": {
+            "from": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            },
+            "to": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            }
+          },
+          "activity": {
+            "kind": "NoActivity"
+          },
+          "streak": {
+            "current": 0,
+            "longest": 0
+          },
+          "calendar": [
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-27",
+                "year": 2026,
+                "month": 7,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-28",
+                "year": 2026,
+                "month": 7,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-29",
+                "year": 2026,
+                "month": 7,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-30",
+                "year": 2026,
+                "month": 7,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-07-31",
+                "year": 2026,
+                "month": 7,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-01",
+                "year": 2026,
+                "month": 8,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-02",
+                "year": 2026,
+                "month": 8,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-03",
+                "year": 2026,
+                "month": 8,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-04",
+                "year": 2026,
+                "month": 8,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-05",
+                "year": 2026,
+                "month": 8,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-06",
+                "year": 2026,
+                "month": 8,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-07",
+                "year": 2026,
+                "month": 8,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-08",
+                "year": 2026,
+                "month": 8,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-09",
+                "year": 2026,
+                "month": 8,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-10",
+                "year": 2026,
+                "month": 8,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-11",
+                "year": 2026,
+                "month": 8,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-12",
+                "year": 2026,
+                "month": 8,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-13",
+                "year": 2026,
+                "month": 8,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-14",
+                "year": 2026,
+                "month": 8,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-15",
+                "year": 2026,
+                "month": 8,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-16",
+                "year": 2026,
+                "month": 8,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-17",
+                "year": 2026,
+                "month": 8,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-18",
+                "year": 2026,
+                "month": 8,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-19",
+                "year": 2026,
+                "month": 8,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-20",
+                "year": 2026,
+                "month": 8,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-21",
+                "year": 2026,
+                "month": 8,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-22",
+                "year": 2026,
+                "month": 8,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-23",
+                "year": 2026,
+                "month": 8,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-24",
+                "year": 2026,
+                "month": 8,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-25",
+                "year": 2026,
+                "month": 8,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-26",
+                "year": 2026,
+                "month": 8,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-27",
+                "year": 2026,
+                "month": 8,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-28",
+                "year": 2026,
+                "month": 8,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-29",
+                "year": 2026,
+                "month": 8,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-30",
+                "year": 2026,
+                "month": 8,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-08-31",
+                "year": 2026,
+                "month": 8,
+                "day": 31
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-01",
+                "year": 2026,
+                "month": 9,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-02",
+                "year": 2026,
+                "month": 9,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-03",
+                "year": 2026,
+                "month": 9,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-04",
+                "year": 2026,
+                "month": 9,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-05",
+                "year": 2026,
+                "month": 9,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-06",
+                "year": 2026,
+                "month": 9,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-07",
+                "year": 2026,
+                "month": 9,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-08",
+                "year": 2026,
+                "month": 9,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-09",
+                "year": 2026,
+                "month": 9,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-10",
+                "year": 2026,
+                "month": 9,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-11",
+                "year": 2026,
+                "month": 9,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-12",
+                "year": 2026,
+                "month": 9,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-13",
+                "year": 2026,
+                "month": 9,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-14",
+                "year": 2026,
+                "month": 9,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-15",
+                "year": 2026,
+                "month": 9,
+                "day": 15
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-16",
+                "year": 2026,
+                "month": 9,
+                "day": 16
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-17",
+                "year": 2026,
+                "month": 9,
+                "day": 17
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-18",
+                "year": 2026,
+                "month": 9,
+                "day": 18
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-19",
+                "year": 2026,
+                "month": 9,
+                "day": 19
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-20",
+                "year": 2026,
+                "month": 9,
+                "day": 20
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-21",
+                "year": 2026,
+                "month": 9,
+                "day": 21
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-22",
+                "year": 2026,
+                "month": 9,
+                "day": 22
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-23",
+                "year": 2026,
+                "month": 9,
+                "day": 23
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-24",
+                "year": 2026,
+                "month": 9,
+                "day": 24
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-25",
+                "year": 2026,
+                "month": 9,
+                "day": 25
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-26",
+                "year": 2026,
+                "month": 9,
+                "day": 26
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-27",
+                "year": 2026,
+                "month": 9,
+                "day": 27
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-28",
+                "year": 2026,
+                "month": 9,
+                "day": 28
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-29",
+                "year": 2026,
+                "month": 9,
+                "day": 29
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-09-30",
+                "year": 2026,
+                "month": 9,
+                "day": 30
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-01",
+                "year": 2026,
+                "month": 10,
+                "day": 1
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-02",
+                "year": 2026,
+                "month": 10,
+                "day": 2
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-03",
+                "year": 2026,
+                "month": 10,
+                "day": 3
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-04",
+                "year": 2026,
+                "month": 10,
+                "day": 4
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-05",
+                "year": 2026,
+                "month": 10,
+                "day": 5
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-06",
+                "year": 2026,
+                "month": 10,
+                "day": 6
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-07",
+                "year": 2026,
+                "month": 10,
+                "day": 7
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-08",
+                "year": 2026,
+                "month": 10,
+                "day": 8
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-09",
+                "year": 2026,
+                "month": 10,
+                "day": 9
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-10",
+                "year": 2026,
+                "month": 10,
+                "day": 10
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-11",
+                "year": 2026,
+                "month": 10,
+                "day": 11
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-12",
+                "year": 2026,
+                "month": 10,
+                "day": 12
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-13",
+                "year": 2026,
+                "month": 10,
+                "day": 13
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Day",
+              "date": {
+                "key": "2026-10-14",
+                "year": 2026,
+                "month": 10,
+                "day": 14
+              },
+              "completedSets": 0
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-15",
+                "year": 2026,
+                "month": 10,
+                "day": 15
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-16",
+                "year": 2026,
+                "month": 10,
+                "day": 16
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-17",
+                "year": 2026,
+                "month": 10,
+                "day": 17
+              }
+            },
+            {
+              "kind": "Upcoming",
+              "date": {
+                "key": "2026-10-18",
+                "year": 2026,
+                "month": 10,
+                "day": 18
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "period": "Today",
+        "today": "2026-10-14",
+        "range": {
+          "from": "2026-10-14",
+          "to": "2026-10-14"
+        },
+        "activity": {
+          "kind": "NoActivity"
+        },
+        "streak": {
+          "current": 0,
+          "longest": 0
+        }
+      }
+    }
+  ]
+}

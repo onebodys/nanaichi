@@ -1,0 +1,137 @@
+{
+  "function": "SessionSummary.of",
+  "cases": [
+    {
+      "name": "始めた・終わった時刻、集中時間、完了セット、不成立セット、記入の数をまとめる",
+      "input": {
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "00000000-0000-4000-8000-000000000000",
+              "at": "2026-10-17T04:05:00.000Z"
+            },
+            {
+              "kind": "Abort",
+              "id": "00000000-0000-4000-8000-000000000001",
+              "at": "2026-10-17T04:08:00.000Z"
+            },
+            {
+              "kind": "RestartFocus",
+              "id": "00000000-0000-4000-8000-000000000002",
+              "at": "2026-10-17T04:09:00.000Z"
+            },
+            {
+              "kind": "End",
+              "id": "00000000-0000-4000-8000-000000000003",
+              "at": "2026-10-17T04:27:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "ended": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T04:27:00.000Z",
+          "endedBy": "End",
+          "completedSets": 2
+        },
+        "now": "2026-10-17T04:28:00.000Z",
+        "entries": {
+          "kind": "Counted",
+          "count": 5
+        }
+      },
+      "expected": {
+        "startedAt": "2026-10-17T04:05:00.000Z",
+        "endedAt": "2026-10-17T04:27:00.000Z",
+        "endedBy": "End",
+        "focusTimeMs": 840000,
+        "completedSets": 2,
+        "abortedSets": 2,
+        "sets": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T04:08:00.000Z"
+          },
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T04:16:00.000Z"
+          },
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 2,
+            "at": "2026-10-17T04:24:00.000Z"
+          },
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 3,
+            "at": "2026-10-17T04:27:00.000Z"
+          }
+        ],
+        "entries": {
+          "kind": "Counted",
+          "count": 5
+        }
+      }
+    },
+    {
+      "name": "自動終了したセッションは、最後の操作の時刻で閉じたまとめになる",
+      "input": {
+        "session": {
+          "id": "00000000-0000-4000-8000-000000000000",
+          "events": [
+            {
+              "kind": "Start",
+              "id": "00000000-0000-4000-8000-000000000000",
+              "at": "2026-10-17T04:05:00.000Z"
+            },
+            {
+              "kind": "Pause",
+              "id": "00000000-0000-4000-8000-000000000001",
+              "at": "2026-10-17T04:07:00.000Z"
+            }
+          ],
+          "journalEntryTimes": [],
+          "advanceModeChanges": []
+        },
+        "ended": {
+          "kind": "Ended",
+          "endedAt": "2026-10-17T04:07:00.000Z",
+          "endedBy": "AutoEnd",
+          "completedSets": 0
+        },
+        "now": "2026-10-17T06:05:00.000Z",
+        "entries": {
+          "kind": "NotYetCounted"
+        }
+      },
+      "expected": {
+        "startedAt": "2026-10-17T04:05:00.000Z",
+        "endedAt": "2026-10-17T04:07:00.000Z",
+        "endedBy": "AutoEnd",
+        "focusTimeMs": 0,
+        "completedSets": 0,
+        "abortedSets": 1,
+        "sets": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T04:07:00.000Z"
+          }
+        ],
+        "entries": {
+          "kind": "NotYetCounted"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "function": "Tag.ensureWithinLimit",
+  "cases": [
+    {
+      "name": "ほかの記入で使っているタグとあわせて20種類までならつけられる",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19"
+        ],
+        "tags": [
+          "読書"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "読書"
+        ]
+      }
+    },
+    {
+      "name": "20種類を使っていると、新しいタグはつけられない",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20"
+        ],
+        "tags": [
+          "読書"
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagLimitExceeded",
+          "limit": 20
+        }
+      }
+    },
+    {
+      "name": "20種類を使っていても、使っているタグならつけられる",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20"
+        ],
+        "tags": [
+          "tag1",
+          "tag2"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "tag1",
+          "tag2"
+        ]
+      }
+    }
+  ]
+}

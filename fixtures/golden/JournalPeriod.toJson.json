@@ -1,0 +1,66 @@
+{
+  "function": "JournalPeriod.toJson",
+  "cases": [
+    {
+      "name": "JSON にすると、本文を取り出し、期間を日付の文字列にする",
+      "input": {
+        "period": {
+          "from": {
+            "key": "2026-10-19",
+            "year": 2026,
+            "month": 10,
+            "day": 19
+          },
+          "to": {
+            "key": "2026-10-19",
+            "year": 2026,
+            "month": 10,
+            "day": 19
+          },
+          "timeZone": "Asia/Tokyo"
+        },
+        "entries": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "本文",
+            "tags": [],
+            "writtenAt": "2026-10-19T00:05:00.000Z",
+            "updatedAt": "2026-10-19T00:05:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            },
+            "writtenOn": "2026-10-19",
+            "writtenAtLocalTime": "09:05"
+          }
+        ]
+      },
+      "expected": {
+        "period": {
+          "from": "2026-10-19",
+          "to": "2026-10-19",
+          "timeZone": "Asia/Tokyo"
+        },
+        "entries": [
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sessionId": "00000000-0000-4000-8000-000000000000",
+            "body": "本文",
+            "tags": [],
+            "writtenAt": "2026-10-19T00:05:00.000Z",
+            "updatedAt": "2026-10-19T00:05:00.000Z",
+            "writtenDuring": {
+              "kind": "Focus",
+              "round": 1,
+              "setNumber": 1
+            },
+            "writtenOn": "2026-10-19",
+            "writtenAtLocalTime": "09:05"
+          }
+        ]
+      }
+    }
+  ]
+}

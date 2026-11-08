@@ -28,7 +28,14 @@ const recordStoreReaders = ["app-header.tsx", "settings-screen.tsx", "router.tsx
 export default defineConfig({
   // 外部から取り込んだスキル、自動生成ファイル、design-taste-frontend スキルの作業ファイル（.taste-skill/）は検査しない
   fmt: {
-    ignorePatterns: [".agents/**", ".claude/**", ".taste-skill/**", "**/worker-configuration.d.ts"],
+    // fixtures/golden はテストが書き出す生成物で、整形し直すと内容の一致検査が落ちる
+    ignorePatterns: [
+      ".agents/**",
+      ".claude/**",
+      ".taste-skill/**",
+      "**/worker-configuration.d.ts",
+      "fixtures/golden/**",
+    ],
   },
   staged: {
     "*": "vp check --fix",

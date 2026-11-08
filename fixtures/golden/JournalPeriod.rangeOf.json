@@ -1,0 +1,93 @@
+{
+  "function": "JournalPeriod.rangeOf",
+  "cases": [
+    {
+      "name": "from の日の 0:00 から、to の翌日の 0:00 の手前までを、タイムゾーンで区切る",
+      "input": {
+        "from": {
+          "key": "2026-10-12",
+          "year": 2026,
+          "month": 10,
+          "day": 12
+        },
+        "to": {
+          "key": "2026-10-18",
+          "year": 2026,
+          "month": 10,
+          "day": 18
+        },
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": {
+        "from": "2026-10-11T15:00:00.000Z",
+        "until": "2026-10-18T15:00:00.000Z"
+      }
+    },
+    {
+      "name": "夏時間に切り替わる日も、その日の 0:00 から数える",
+      "input": {
+        "from": {
+          "key": "2026-03-08",
+          "year": 2026,
+          "month": 3,
+          "day": 8
+        },
+        "to": {
+          "key": "2026-03-08",
+          "year": 2026,
+          "month": 3,
+          "day": 8
+        },
+        "timeZone": "America/New_York"
+      },
+      "expected": {
+        "from": "2026-03-08T05:00:00.000Z",
+        "until": "2026-03-09T04:00:00.000Z"
+      }
+    },
+    {
+      "name": "0:00 が夏時間で飛ぶ日は、その日の最初の時刻から数える",
+      "input": {
+        "from": {
+          "key": "2026-09-06",
+          "year": 2026,
+          "month": 9,
+          "day": 6
+        },
+        "to": {
+          "key": "2026-09-06",
+          "year": 2026,
+          "month": 9,
+          "day": 6
+        },
+        "timeZone": "America/Santiago"
+      },
+      "expected": {
+        "from": "2026-09-06T04:00:00.000Z",
+        "until": "2026-09-07T03:00:00.000Z"
+      }
+    },
+    {
+      "name": "年をまたぐ期間でも、to の翌日まで数える",
+      "input": {
+        "from": {
+          "key": "2026-12-31",
+          "year": 2026,
+          "month": 12,
+          "day": 31
+        },
+        "to": {
+          "key": "2026-12-31",
+          "year": 2026,
+          "month": 12,
+          "day": 31
+        },
+        "timeZone": "UTC"
+      },
+      "expected": {
+        "from": "2026-12-31T00:00:00.000Z",
+        "until": "2027-01-01T00:00:00.000Z"
+      }
+    }
+  ]
+}

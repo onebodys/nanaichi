@@ -1,0 +1,1312 @@
+{
+  "function": "JournalCalendar.of",
+  "cases": [
+    {
+      "name": "月の1日から末日まで、日ごとに記入の数を数える",
+      "input": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "writtenAts": [
+          "2026-10-01T01:00:00.000Z",
+          "2026-10-01T02:00:00.000Z",
+          "2026-10-15T10:00:00.000Z"
+        ],
+        "now": "2026-10-20T03:00:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "today": {
+          "key": "2026-10-20",
+          "year": 2026,
+          "month": 10,
+          "day": 20
+        },
+        "days": [
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-01",
+              "year": 2026,
+              "month": 10,
+              "day": 1
+            },
+            "entries": 2
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-02",
+              "year": 2026,
+              "month": 10,
+              "day": 2
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-03",
+              "year": 2026,
+              "month": 10,
+              "day": 3
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-04",
+              "year": 2026,
+              "month": 10,
+              "day": 4
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-05",
+              "year": 2026,
+              "month": 10,
+              "day": 5
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-06",
+              "year": 2026,
+              "month": 10,
+              "day": 6
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-07",
+              "year": 2026,
+              "month": 10,
+              "day": 7
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-08",
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-09",
+              "year": 2026,
+              "month": 10,
+              "day": 9
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-10",
+              "year": 2026,
+              "month": 10,
+              "day": 10
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-11",
+              "year": 2026,
+              "month": 10,
+              "day": 11
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-12",
+              "year": 2026,
+              "month": 10,
+              "day": 12
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-13",
+              "year": 2026,
+              "month": 10,
+              "day": 13
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-15",
+              "year": 2026,
+              "month": 10,
+              "day": 15
+            },
+            "entries": 1
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-16",
+              "year": 2026,
+              "month": 10,
+              "day": 16
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-17",
+              "year": 2026,
+              "month": 10,
+              "day": 17
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-18",
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-19",
+              "year": 2026,
+              "month": 10,
+              "day": 19
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-20",
+              "year": 2026,
+              "month": 10,
+              "day": 20
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-21",
+              "year": 2026,
+              "month": 10,
+              "day": 21
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-22",
+              "year": 2026,
+              "month": 10,
+              "day": 22
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-23",
+              "year": 2026,
+              "month": 10,
+              "day": 23
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-24",
+              "year": 2026,
+              "month": 10,
+              "day": 24
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-25",
+              "year": 2026,
+              "month": 10,
+              "day": 25
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-26",
+              "year": 2026,
+              "month": 10,
+              "day": 26
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-27",
+              "year": 2026,
+              "month": 10,
+              "day": 27
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-28",
+              "year": 2026,
+              "month": 10,
+              "day": 28
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-29",
+              "year": 2026,
+              "month": 10,
+              "day": 29
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-30",
+              "year": 2026,
+              "month": 10,
+              "day": 30
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-31",
+              "year": 2026,
+              "month": 10,
+              "day": 31
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "今日より後の日は、まだ来ていない日になる",
+      "input": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "writtenAts": [],
+        "now": "2026-10-20T03:00:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "today": {
+          "key": "2026-10-20",
+          "year": 2026,
+          "month": 10,
+          "day": 20
+        },
+        "days": [
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-01",
+              "year": 2026,
+              "month": 10,
+              "day": 1
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-02",
+              "year": 2026,
+              "month": 10,
+              "day": 2
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-03",
+              "year": 2026,
+              "month": 10,
+              "day": 3
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-04",
+              "year": 2026,
+              "month": 10,
+              "day": 4
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-05",
+              "year": 2026,
+              "month": 10,
+              "day": 5
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-06",
+              "year": 2026,
+              "month": 10,
+              "day": 6
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-07",
+              "year": 2026,
+              "month": 10,
+              "day": 7
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-08",
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-09",
+              "year": 2026,
+              "month": 10,
+              "day": 9
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-10",
+              "year": 2026,
+              "month": 10,
+              "day": 10
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-11",
+              "year": 2026,
+              "month": 10,
+              "day": 11
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-12",
+              "year": 2026,
+              "month": 10,
+              "day": 12
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-13",
+              "year": 2026,
+              "month": 10,
+              "day": 13
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-15",
+              "year": 2026,
+              "month": 10,
+              "day": 15
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-16",
+              "year": 2026,
+              "month": 10,
+              "day": 16
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-17",
+              "year": 2026,
+              "month": 10,
+              "day": 17
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-18",
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-19",
+              "year": 2026,
+              "month": 10,
+              "day": 19
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-20",
+              "year": 2026,
+              "month": 10,
+              "day": 20
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-21",
+              "year": 2026,
+              "month": 10,
+              "day": 21
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-22",
+              "year": 2026,
+              "month": 10,
+              "day": 22
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-23",
+              "year": 2026,
+              "month": 10,
+              "day": 23
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-24",
+              "year": 2026,
+              "month": 10,
+              "day": 24
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-25",
+              "year": 2026,
+              "month": 10,
+              "day": 25
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-26",
+              "year": 2026,
+              "month": 10,
+              "day": 26
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-27",
+              "year": 2026,
+              "month": 10,
+              "day": 27
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-28",
+              "year": 2026,
+              "month": 10,
+              "day": 28
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-29",
+              "year": 2026,
+              "month": 10,
+              "day": 29
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-30",
+              "year": 2026,
+              "month": 10,
+              "day": 30
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-31",
+              "year": 2026,
+              "month": 10,
+              "day": 31
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "記入は端末のタイムゾーンで書いた日付に数える（日本時間では10月1日）",
+      "input": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "writtenAts": [
+          "2026-09-30T15:30:00.000Z"
+        ],
+        "now": "2026-10-20T03:00:00.000Z",
+        "timeZone": "Asia/Tokyo"
+      },
+      "expected": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "today": {
+          "key": "2026-10-20",
+          "year": 2026,
+          "month": 10,
+          "day": 20
+        },
+        "days": [
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-01",
+              "year": 2026,
+              "month": 10,
+              "day": 1
+            },
+            "entries": 1
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-02",
+              "year": 2026,
+              "month": 10,
+              "day": 2
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-03",
+              "year": 2026,
+              "month": 10,
+              "day": 3
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-04",
+              "year": 2026,
+              "month": 10,
+              "day": 4
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-05",
+              "year": 2026,
+              "month": 10,
+              "day": 5
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-06",
+              "year": 2026,
+              "month": 10,
+              "day": 6
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-07",
+              "year": 2026,
+              "month": 10,
+              "day": 7
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-08",
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-09",
+              "year": 2026,
+              "month": 10,
+              "day": 9
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-10",
+              "year": 2026,
+              "month": 10,
+              "day": 10
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-11",
+              "year": 2026,
+              "month": 10,
+              "day": 11
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-12",
+              "year": 2026,
+              "month": 10,
+              "day": 12
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-13",
+              "year": 2026,
+              "month": 10,
+              "day": 13
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-15",
+              "year": 2026,
+              "month": 10,
+              "day": 15
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-16",
+              "year": 2026,
+              "month": 10,
+              "day": 16
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-17",
+              "year": 2026,
+              "month": 10,
+              "day": 17
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-18",
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-19",
+              "year": 2026,
+              "month": 10,
+              "day": 19
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-20",
+              "year": 2026,
+              "month": 10,
+              "day": 20
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-21",
+              "year": 2026,
+              "month": 10,
+              "day": 21
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-22",
+              "year": 2026,
+              "month": 10,
+              "day": 22
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-23",
+              "year": 2026,
+              "month": 10,
+              "day": 23
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-24",
+              "year": 2026,
+              "month": 10,
+              "day": 24
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-25",
+              "year": 2026,
+              "month": 10,
+              "day": 25
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-26",
+              "year": 2026,
+              "month": 10,
+              "day": 26
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-27",
+              "year": 2026,
+              "month": 10,
+              "day": 27
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-28",
+              "year": 2026,
+              "month": 10,
+              "day": 28
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-29",
+              "year": 2026,
+              "month": 10,
+              "day": 29
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-30",
+              "year": 2026,
+              "month": 10,
+              "day": 30
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-31",
+              "year": 2026,
+              "month": 10,
+              "day": 31
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "月の外の記入は数えない（ロサンゼルスでは前の月の記入になる）",
+      "input": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "writtenAts": [
+          "2026-09-30T15:30:00.000Z"
+        ],
+        "now": "2026-10-20T03:00:00.000Z",
+        "timeZone": "America/Los_Angeles"
+      },
+      "expected": {
+        "month": {
+          "year": 2026,
+          "month": 10
+        },
+        "today": {
+          "key": "2026-10-19",
+          "year": 2026,
+          "month": 10,
+          "day": 19
+        },
+        "days": [
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-01",
+              "year": 2026,
+              "month": 10,
+              "day": 1
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-02",
+              "year": 2026,
+              "month": 10,
+              "day": 2
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-03",
+              "year": 2026,
+              "month": 10,
+              "day": 3
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-04",
+              "year": 2026,
+              "month": 10,
+              "day": 4
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-05",
+              "year": 2026,
+              "month": 10,
+              "day": 5
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-06",
+              "year": 2026,
+              "month": 10,
+              "day": 6
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-07",
+              "year": 2026,
+              "month": 10,
+              "day": 7
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-08",
+              "year": 2026,
+              "month": 10,
+              "day": 8
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-09",
+              "year": 2026,
+              "month": 10,
+              "day": 9
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-10",
+              "year": 2026,
+              "month": 10,
+              "day": 10
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-11",
+              "year": 2026,
+              "month": 10,
+              "day": 11
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-12",
+              "year": 2026,
+              "month": 10,
+              "day": 12
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-13",
+              "year": 2026,
+              "month": 10,
+              "day": 13
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-14",
+              "year": 2026,
+              "month": 10,
+              "day": 14
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-15",
+              "year": 2026,
+              "month": 10,
+              "day": 15
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-16",
+              "year": 2026,
+              "month": 10,
+              "day": 16
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-17",
+              "year": 2026,
+              "month": 10,
+              "day": 17
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-18",
+              "year": 2026,
+              "month": 10,
+              "day": 18
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Day",
+            "date": {
+              "key": "2026-10-19",
+              "year": 2026,
+              "month": 10,
+              "day": 19
+            },
+            "entries": 0
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-20",
+              "year": 2026,
+              "month": 10,
+              "day": 20
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-21",
+              "year": 2026,
+              "month": 10,
+              "day": 21
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-22",
+              "year": 2026,
+              "month": 10,
+              "day": 22
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-23",
+              "year": 2026,
+              "month": 10,
+              "day": 23
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-24",
+              "year": 2026,
+              "month": 10,
+              "day": 24
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-25",
+              "year": 2026,
+              "month": 10,
+              "day": 25
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-26",
+              "year": 2026,
+              "month": 10,
+              "day": 26
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-27",
+              "year": 2026,
+              "month": 10,
+              "day": 27
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-28",
+              "year": 2026,
+              "month": 10,
+              "day": 28
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-29",
+              "year": 2026,
+              "month": 10,
+              "day": 29
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-30",
+              "year": 2026,
+              "month": 10,
+              "day": 30
+            }
+          },
+          {
+            "kind": "Upcoming",
+            "date": {
+              "key": "2026-10-31",
+              "year": 2026,
+              "month": 10,
+              "day": 31
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

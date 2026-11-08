@@ -1,0 +1,269 @@
+{
+  "function": "deriveSetOutcomes",
+  "cases": [
+    {
+      "name": "集中を最後まで終えたセットは、集中を終えた時刻の完了セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:16:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:07:00.000Z"
+          },
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 2,
+            "at": "2026-10-17T00:15:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "集中中に中断すると不成立セットになり、集中を再開始すると同じセット番号でやり直す",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "RestartFocus",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:13:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:12:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "一時停止中の集中を中断しても不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:02:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "集中の途中で終了したセットは不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:11:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:07:00.000Z"
+          },
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 2,
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ジャーナル中に終了しても、不成立セットは増えない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:07:30.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:08:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:07:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "待機中に終了しても、不成立セットは増えない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:04:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:05:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "自動終了した時刻が集中の途中なら、そのセットは不成立セットになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T02:00:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "AbortedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "集中のあとの切り替え待ちで終了しても、そのセットは完了セットのまま",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "End",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:09:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:07:00.000Z"
+          }
+        ]
+      }
+    }
+  ]
+}

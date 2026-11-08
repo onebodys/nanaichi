@@ -1,0 +1,82 @@
+{
+  "function": "AdvanceModeChange.modeAt",
+  "cases": [
+    {
+      "name": "変えたことがなければ、すべての切り替わりが自動",
+      "input": {
+        "changes": [],
+        "time": "2026-10-17T00:00:00.000Z"
+      },
+      "expected": {
+        "FocusToJournal": "Auto",
+        "JournalToFocus": "Auto",
+        "JournalToBreak": "Auto",
+        "BreakToFocus": "Auto"
+      }
+    },
+    {
+      "name": "ある時刻に効いているのは、その時刻までの最後の変更（手動に変えたあと）",
+      "input": {
+        "changes": [
+          {
+            "at": "2026-10-17T00:01:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:05:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ],
+        "time": "2026-10-17T00:03:00.000Z"
+      },
+      "expected": {
+        "FocusToJournal": "Manual",
+        "JournalToFocus": "Auto",
+        "JournalToBreak": "Auto",
+        "BreakToFocus": "Auto"
+      }
+    },
+    {
+      "name": "ある時刻に効いているのは、その時刻までの最後の変更（自動に戻したちょうどの時刻）",
+      "input": {
+        "changes": [
+          {
+            "at": "2026-10-17T00:01:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:05:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ],
+        "time": "2026-10-17T00:05:00.000Z"
+      },
+      "expected": {
+        "FocusToJournal": "Auto",
+        "JournalToFocus": "Auto",
+        "JournalToBreak": "Auto",
+        "BreakToFocus": "Auto"
+      }
+    }
+  ]
+}

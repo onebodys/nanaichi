@@ -1,0 +1,87 @@
+{
+  "function": "upcomingPhaseOf",
+  "cases": [
+    {
+      "name": "集中の次は同じセットのジャーナル",
+      "input": {
+        "state": {
+          "kind": "Focus",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 1,
+          "remainingSeconds": 100,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Journal",
+        "round": 1,
+        "setNumber": 2
+      }
+    },
+    {
+      "name": "1・2セット目のジャーナルの次は、次のセットの集中",
+      "input": {
+        "state": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 2,
+          "completedSets": 2,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Focus",
+        "round": 1,
+        "setNumber": 3
+      }
+    },
+    {
+      "name": "3セット目のジャーナルの次は休憩",
+      "input": {
+        "state": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 3,
+          "completedSets": 3,
+          "remainingSeconds": 30,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Break",
+        "round": 1
+      }
+    },
+    {
+      "name": "休憩の次は次のラウンドの1セット目の集中",
+      "input": {
+        "state": {
+          "kind": "Break",
+          "round": 2,
+          "completedSets": 3,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "1970-01-01T00:00:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "Focus",
+        "round": 3,
+        "setNumber": 1
+      }
+    }
+  ]
+}

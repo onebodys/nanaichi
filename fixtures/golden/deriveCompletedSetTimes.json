@@ -1,0 +1,129 @@
+{
+  "function": "deriveCompletedSetTimes",
+  "cases": [
+    {
+      "name": "完了セットは集中を最後まで終えた時刻に数え、ジャーナルの終わりではない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:16:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "2026-10-17T00:07:00.000Z",
+          "2026-10-17T00:15:00.000Z"
+        ]
+      }
+    },
+    {
+      "name": "一時停止した分だけ、集中を終えた時刻が後ろにずれる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:02:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:11:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "2026-10-17T00:10:00.000Z"
+        ]
+      }
+    },
+    {
+      "name": "中断した不成立セットは数えない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Abort",
+            "at": "2026-10-17T00:03:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:20:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": []
+      }
+    },
+    {
+      "name": "自動終了したら、最後の操作より後に終わるはずだったセットは数えない",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T02:00:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": []
+      }
+    },
+    {
+      "name": "待っている時間は完了セットの集中に数えず、後のセットはその分だけ後ろにずれる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:20:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "2026-10-17T00:07:00.000Z",
+          "2026-10-17T00:17:00.000Z"
+        ]
+      }
+    }
+  ]
+}

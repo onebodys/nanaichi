@@ -1,0 +1,23 @@
+{
+  "function": "Tags.parse",
+  "cases": [
+    {
+      "name": "つけた順に並び、表記ゆれを寄せたうえで同じ名前は1つにまとめる",
+      "input": {
+        "value": [
+          "読書",
+          "#Book",
+          "読書",
+          "book"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "読書",
+          "book"
+        ]
+      }
+    }
+  ]
+}

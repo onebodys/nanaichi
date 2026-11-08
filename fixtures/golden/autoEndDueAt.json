@@ -1,0 +1,29 @@
+{
+  "function": "autoEndDueAt",
+  "cases": [
+    {
+      "name": "セッション中に進め方を変えると、操作として自動終了までの時間が延びる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          }
+        ],
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-17T00:30:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": "2026-10-17T01:28:00.000Z"
+    }
+  ]
+}
