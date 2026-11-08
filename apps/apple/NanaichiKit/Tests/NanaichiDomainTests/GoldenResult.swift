@@ -18,3 +18,28 @@ struct GoldenResult<Value: Encodable, Failure: Error & Encodable>: Encodable {
         }
     }
 }
+
+/// 検証に通らなかった（TS のテストが書き出す `{ "kind": "Invalid" }`）。Swift の検証は失敗できる `init?` なので、
+/// nil をこの失敗として書く
+struct Invalid: Error, Encodable {
+    private enum CodingKeys: String, CodingKey { case kind }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("Invalid", forKey: .kind)
+    }
+}
+
+extension GoldenResult where Failure == Invalid {
+    init(parsed value: Value?) {
+        self.init(value.map(Result.success) ?? .failure(Invalid()))
+    }
+}
+
+/// 入力の値が検証に通らない（ゴールデンケースの入力が壊れている）
+struct InvalidInput: Error { let description: String }
+
+func parsed<T>(_ value: T?, _ description: String = "\(T.self)") throws -> T {
+    guard let value else { throw InvalidInput(description: description) }
+    return value
+}

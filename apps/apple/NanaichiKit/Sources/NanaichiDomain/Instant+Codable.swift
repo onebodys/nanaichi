@@ -17,7 +17,7 @@ extension Instant: Codable {
     }
 }
 
-private let millisecondsPerDay: Int64 = 86_400_000
+let millisecondsPerDay: Int64 = 86_400_000
 
 extension Instant {
     /// `YYYY-MM-DDTHH:MM:SS(.sss)?Z` を読む。タイムゾーンは `Z` だけ受け付ける
@@ -91,7 +91,7 @@ extension Instant {
     }
 }
 
-private func floorDiv(_ a: Int64, _ b: Int64) -> Int64 {
+func floorDiv(_ a: Int64, _ b: Int64) -> Int64 {
     let q = a / b
     return (a % b != 0 && (a < 0) != (b < 0)) ? q - 1 : q
 }
