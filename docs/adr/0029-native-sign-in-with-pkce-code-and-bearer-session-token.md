@@ -54,6 +54,7 @@ Google に登録するリダイレクト URI は変わらない。Google から�
 - 流れの cookie はサーバーに状態を持たない。消したあとでも、cookie の値と印をそろえて送り直されれば、10 分のうちはもう一度コードを発行する。どちらもアプリのブラウザの外には出ないので、ここでは止めない。
 - トークンを `set-auth-token` で受け取る `bearer` の使い方（Better Auth の文書の例）はできない。トークンが欲しいクライアントは、この流れを通る。
 - トークンの署名は better-call の cookie の署名と同じ形で、`native-auth-routes.ts` が自分で付けている。better-auth を上げて形が変われば、引き換えたトークンで API を呼ぶテストが落ちる。
+- PKCE が防ぐのは、ほかのアプリがコードを横取りすることまで。`nanaichi://` を登録した悪意のあるアプリが自分の verifier で流れを始め、その画面で利用者が Google のアカウントを選べば、そのアプリがトークンを得る。カスタム URL スキームの代わりに、https の callback（`ASWebAuthenticationSession.Callback.https` と Associated Domains）にすれば防げる。Associated Domains には Apple Developer Program の登録が要るので、App Store に出すとき（ADR 0028）に切り替える。
 - Sign in with Apple を足すとき（ADR 0028）も、`start` で選ぶプロバイダを増やすだけで、コードと引き換えの流れはそのまま使える。
 
 ## Considered Options
