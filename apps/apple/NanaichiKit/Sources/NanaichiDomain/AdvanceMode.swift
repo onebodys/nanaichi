@@ -99,3 +99,11 @@ public struct AdvanceModeChange: Hashable, Codable, Sendable {
         return Array(changes[max(0, after - 1)...])
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// フェーズの進め方の変更履歴の読み書きの契約（ADR 0016）。履歴は時刻の順で、同じミリ秒は記録した順
+public protocol AdvanceModeStore {
+    func loadAdvanceModeChanges() throws -> [AdvanceModeChange]
+    func saveAdvanceModeChange(_ change: AdvanceModeChange) throws
+}

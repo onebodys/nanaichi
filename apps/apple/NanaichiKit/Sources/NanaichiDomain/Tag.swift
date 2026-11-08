@@ -99,12 +99,19 @@ public enum Tag {
 /// 使っているタグの一覧（`GET /api/tags`）。最近使った順（ADR 0013）
 public struct TagList: Hashable, Sendable, Codable {
     public let tags: [TagName]
+
+    public init(tags: [TagName]) { self.tags = tags }
 }
 
 /// 使っているタグと、それがついている削除していない記入の数
 public struct TagUsage: Hashable, Sendable, Codable {
     public let name: TagName
     public let entryCount: Int
+
+    public init(name: TagName, entryCount: Int) {
+        self.name = name
+        self.entryCount = entryCount
+    }
 
     public init(from decoder: any Decoder) throws {
         let fields = try decoder.fields()
@@ -116,6 +123,8 @@ public struct TagUsage: Hashable, Sendable, Codable {
 /// 使っているタグとその記入の数の一覧（`GET /api/tags/usage`）。最近使った順（ADR 0013）
 public struct TagUsageList: Hashable, Sendable, Codable {
     public let tags: [TagUsage]
+
+    public init(tags: [TagUsage]) { self.tags = tags }
 }
 
 /// タグを削除するときに、そのタグがついている記入をどうするか（GLOSSARY の「タグの削除」、ADR 0017）
@@ -211,4 +220,13 @@ extension Array where Element: Hashable {
         var seen = Set<Element>()
         return filter { seen.insert($0).inserted }
     }
+}
+
+// MARK: - 読み書きの契約
+
+/// 使っているタグを読む契約。どちらも削除していない記入についているタグを、最近使った順
+/// （最後に書いた時刻の新しい順、同じなら名前の UTF-8 のバイト順）に返す
+public protocol TagStore {
+    func listTagsInUse() throws -> [TagName]
+    func listTagUsage() throws -> [TagUsage]
 }

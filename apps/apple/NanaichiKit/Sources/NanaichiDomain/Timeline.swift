@@ -232,3 +232,16 @@ extension DayCompletedSets: Codable {
         }
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// タイムラインに読む範囲。次のページがあるかを見分けるため、`limit` は1ページより1件多くする
+public enum TimelineRange: Hashable, Sendable {
+    case latest(limit: Int)
+    case before(Instant, limit: Int)
+}
+
+/// タイムラインのセッションを、開始時刻の新しい順に読む契約。記入は削除していないものを書いた順に
+public protocol TimelineStore {
+    func findTimelineSessions(_ range: TimelineRange) throws -> [TimelineSession]
+}

@@ -530,3 +530,10 @@ extension StatsActivity: Codable {
         }
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// スタッツを数えるもとの記録を読む契約。セッションの順は問わない
+public protocol StatsStore {
+    func findStatsRecords() throws -> StatsRecords
+}

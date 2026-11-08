@@ -151,6 +151,30 @@ public struct DeletedJournalEntry: Hashable, Sendable, Codable {
     }
 }
 
+/// 記録されている記入。削除した記入は、同じ ID の再送を見分けるために残る（ADR 0010）
+public enum StoredJournalEntry: Hashable, Sendable {
+    case written(JournalEntry)
+    case deleted(DeletedJournalEntry)
+}
+
+/// ジャーナル記入の読み書きの契約（TS の `FindJournalEntry` ほか）。記録先の障害は例外で投げる
+public protocol JournalEntryStore {
+    /// 記入 `id`。削除した記入も返す
+    func findJournalEntry(_ id: JournalEntryId) throws -> StoredJournalEntry?
+    /// 書いたばかりの記入を記録する
+    func saveJournalEntry(_ entry: JournalEntry) throws
+    /// 編集した記入の本文・タグと更新時刻を記録する
+    func saveEditedJournalEntry(_ entry: JournalEntry) throws
+    /// 記入を論理削除する
+    func deleteJournalEntry(_ deleted: DeletedJournalEntry) throws
+    /// 記入 `id` 以外の削除していない記入についているタグ（タグの種類の上限の判断に使う）
+    func listTagsOfOtherEntries(_ id: JournalEntryId) throws -> [TagName]
+    /// タグ `name` のついた削除していない記入（書いた時刻の順）
+    func listJournalEntriesTaggedWith(_ name: TagName) throws -> [JournalEntry]
+    /// 記入のタグだけを書き直す。更新時刻は変えない（タグの削除、ADR 0017）
+    func saveJournalEntryTags(_ entry: JournalEntry) throws
+}
+
 // MARK: - JSON（API の応答と同じ形。ADR 0009）
 
 extension WrittenDuring: Codable {

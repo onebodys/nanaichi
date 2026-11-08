@@ -48,3 +48,16 @@ public enum TaggedEntries {
         return days.map { TaggedEntriesDay(date: $0.date, entries: $0.entries) }
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// タグのついた記入を読む範囲。次のページがあるかを見分けるため、`limit` は1ページより1件多くする
+public enum TaggedEntriesRange: Hashable, Sendable {
+    case latest(tag: TagName, limit: Int)
+    case before(tag: TagName, Instant, limit: Int)
+}
+
+/// タグのついた削除していない記入を、書いた時刻の新しい順に読む契約
+public protocol TaggedEntriesStore {
+    func findJournalEntriesWithTag(_ range: TaggedEntriesRange) throws -> [JournalEntry]
+}

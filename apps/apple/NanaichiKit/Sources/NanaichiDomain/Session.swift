@@ -204,3 +204,18 @@ extension SessionSnapshot: Codable {
         }
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// セッションの読み書きの契約（TS の `FindOpenSession` ほか）。記録先の障害は例外で投げる
+public protocol SessionStore {
+    /// 閉じていないセッション。自動終了の時刻を過ぎていても、閉じるまではここに出る
+    func findOpenSession() throws -> Session?
+    /// 操作イベント `eventId` を含むセッション（閉じたものも含む）
+    func findSessionByEventId(_ eventId: SessionEventId) throws -> Session?
+    /// 始めたばかりのセッションを、開始の操作イベントとともに記録する
+    func saveStartedSession(_ session: Session) throws
+    func appendSessionOperation(_ sessionId: SessionId, _ operation: RecordedSessionEvent<SessionOperation>) throws
+    /// セッションを閉じる。閉じたセッションは閉じ直さない
+    func closeSession(_ sessionId: SessionId, _ ended: TimerState.Ended) throws
+}

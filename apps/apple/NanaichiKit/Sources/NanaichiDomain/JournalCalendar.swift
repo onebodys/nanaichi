@@ -163,3 +163,13 @@ extension JournalCalendarDay: Codable {
         }
     }
 }
+
+// MARK: - 読み書きの契約
+
+/// 書いた時刻が範囲 `window` にある削除していない記入を読む契約
+public protocol JournalCalendarStore {
+    /// 記入を書いた時刻（順は問わない）
+    func findEntryTimesWrittenIn(_ window: WrittenWindow) throws -> [Instant]
+    /// 記入そのもの（書いた順）
+    func findJournalEntriesWrittenIn(_ window: WrittenWindow) throws -> [JournalEntry]
+}
