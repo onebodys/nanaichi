@@ -48,6 +48,8 @@ export type AuthHarness = Readonly<{
   request: (path: string, init?: RequestInit) => Promise<Response>;
   /** 開発サーバー以外のホスト（本番など）からとして、アプリに対してリクエストする */
   requestFrom: (origin: string, path: string, init?: RequestInit) => Promise<Response>;
+  /** アプリがつないでいる D1。Better Auth が置いた行を読むのに使う */
+  database: D1Database;
   /** miniflare を止める。`afterEach` などで必ず呼ぶ */
   dispose: () => Promise<void>;
 }>;
@@ -81,6 +83,7 @@ export const startAuthHarness = async (
     ALLOWED_EMAILS: allowedEmails,
     // レート制限（ADR 0018）は Workers のテスト（rate-limit.workers.test.ts）で確かめるので、ここでは常に通す
     USER_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    NATIVE_AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) },
     ...bindings,
   } satisfies Partial<Env>;
 
@@ -90,6 +93,7 @@ export const startAuthHarness = async (
     signInAs: async (email) => (await testAuth.signInAs(email)).headers,
     request: async (path, init) => app.request(`${ORIGIN}${path}`, init, env),
     requestFrom: async (origin, path, init) => app.request(`${origin}${path}`, init, env),
+    database: db,
     dispose: () => miniflare.dispose(),
   };
 };
