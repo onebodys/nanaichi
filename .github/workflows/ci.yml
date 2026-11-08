@@ -70,9 +70,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
+      # Mac アプリのスクリーンショットへのリンクを PR にコメントする
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7.0.1
       # ランナーに入っている Xcode のうち、いちばん新しいものを使う
@@ -82,6 +84,47 @@ jobs:
           echo "::notice title=Xcode::$xcode"
       - working-directory: apps/apple/NanaichiKit
         run: swift test
+      # Mac アプリの画面を XCUITest で動かし、撮った画面を PR にコメントする（Web の E2E と同じ形）
+      - run: brew install xcodegen
+      - run: sh apps/apple/scripts/ui-test.sh
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-ui-test-results
+          path: apps/apple/.uitest/result.xcresult
+          retention-days: 14
+      # 一覧の HTML は Web の E2E と同じスクリプトで作る。ランナーの Node は TS をそのまま動かせないことがあるので、Node 24 を入れる
+      - if: ${{ !cancelled() }}
+        uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+      - if: ${{ !cancelled() }}
+        run: node apps/web/scripts/screenshot-gallery.ts apps/apple/.uitest/screenshots apps/apple/.uitest/screenshots.html "nanaichi の Mac アプリの画面"
+      - id: screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: apps/apple/.uitest/screenshots.html
+          archive: false
+          retention-days: 14
+      - if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.screenshots.outputs.artifact-url != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ steps.screenshots.outputs.artifact-url }}
+        run: |
+          marker="<!-- apple-screenshots -->"
+          body="$marker
+          Mac アプリの画面のスクリーンショット（$SHA）: [screenshots.html]($URL)"
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body"
+          fi
 
   # 画面を実際のブラウザ（chromium）で動かす E2E テスト（docs/E2E.md）。
   # ローカルの D1 は毎回空から始まり、ランナーが開発サーバー（vp dev）を起動する。
