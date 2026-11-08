@@ -92,10 +92,84 @@ struct LaunchConfiguration {
             @Sendable func signedIn() -> SignedIn {
                 SignedIn(
                     backend: DeviceBackend(location: .inMemory, clock: clock.now),
+                    tasks: StubTaskBackend(clock: clock.now),
                     user: { .success(AccountUser(name: "nanaichi のテスト", email: Sensitive("owner@example.com"))) },
                     signOut: {}, forget: {})
             }
             return AccountGateway(restore: { _ in .signedIn(signedIn()) }, signIn: { _ in .signedIn(signedIn()) })
+        }
+    }
+
+    /// サーバーの代わりに、メモリにタスクと ToDo の設定を置く。ToDo は無効から始まり、ジャーナルから完了したタスクが
+    /// 1件ある（判断モデルを呼ばずに、その表示を撮るため）。同期メッセージは送らず、画面は応答で一覧を変える
+    private actor StubTaskBackend: TaskBackend {
+        private let clock: @Sendable () -> Instant
+        private var setting = TaskSetting.default
+        private var tasks: [TodoTask]
+
+        init(clock: @escaping @Sendable () -> Instant) {
+            self.clock = clock
+            let now = clock()
+            let drafted = TodoTask.create(
+                id: TaskId(UUID().uuidString.lowercased())!, title: TaskTitle("企画書の下書きを書く")!,
+                now: now.adding(milliseconds: -3_600_000))
+            tasks = [
+                .completed(
+                    drafted.complete(
+                        .fromJournal(
+                            entryId: JournalEntryId(UUID().uuidString.lowercased())!, probability: Probability(0.96)!),
+                        now: now))
+            ]
+        }
+
+        func getTaskSetting() async -> Result<TaskSetting, BackendError> { .success(setting) }
+
+        func changeTaskSetting(_ setting: TaskSetting) async -> Result<TaskSetting, BackendError> {
+            self.setting = setting
+            return .success(setting)
+        }
+
+        func getTasks() async -> Result<TaskList, BackendError> { .success(TaskList(tasks: tasks)) }
+
+        func createTask(id: TaskId, title: TaskTitle) async -> Result<TodoTask, BackendError> {
+            if let known = tasks.first(where: { $0.id == id }) { return .success(known) }
+            let created = TodoTask.open(TodoTask.create(id: id, title: title, now: clock()))
+            tasks.append(created)
+            return .success(created)
+        }
+
+        func renameTask(id: TaskId, title: TaskTitle) async -> Result<TodoTask, BackendError> {
+            change(id) { $0.renamed(title, now: $1) }
+        }
+
+        func completeTask(id: TaskId) async -> Result<TodoTask, BackendError> {
+            change(id) { task, now in
+                switch task {
+                case .open(let open): .completed(open.complete(.manual, now: now))
+                case .completed: task
+                }
+            }
+        }
+
+        func reopenTask(id: TaskId) async -> Result<TodoTask, BackendError> {
+            change(id) { task, now in
+                switch task {
+                case .open: task
+                case .completed(let completed): .open(completed.reopen(now: now))
+                }
+            }
+        }
+
+        func deleteTask(id: TaskId) async -> Result<DeletedTask, BackendError> {
+            guard tasks.contains(where: { $0.id == id }) else { return .failure(.rejected(.taskNotFound)) }
+            tasks.removeAll { $0.id == id }
+            return .success(DeletedTask(id: id))
+        }
+
+        private func change(_ id: TaskId, _ transform: (TodoTask, Instant) -> TodoTask) -> Result<TodoTask, BackendError> {
+            guard let index = tasks.firstIndex(where: { $0.id == id }) else { return .failure(.rejected(.taskNotFound)) }
+            tasks[index] = transform(tasks[index], clock())
+            return .success(tasks[index])
         }
     }
 

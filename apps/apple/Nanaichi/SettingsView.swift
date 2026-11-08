@@ -13,7 +13,7 @@ struct SettingsView: View {
     var body: some View {
         TabView(selection: $model.settingsTab) {
             Tab("タイマー", systemImage: "timer", value: .timer) {
-                AdvanceSettings(model: app.advanceMode, recordStore: model.recordStoreName)
+                TimerSettings(advanceMode: app.advanceMode, tasks: app.tasks, recordStore: model.recordStoreName)
             }
                 .accessibilityIdentifier("settings.tab.timer")
             Tab("知らせ方", systemImage: "bell", value: .alert) { AlertSettingsForm(app: app) }
@@ -46,46 +46,91 @@ private struct PerDeviceNote: View {
     }
 }
 
+/// タイマーのタブ。フェーズの進め方と、アカウントの記録先なら ToDo の設定
+private struct TimerSettings: View {
+    let advanceMode: AdvanceModeModel
+    /// この端末の記録先では nil。ToDo 自体を使えないので、項目も案内も出さない（ADR 0027）
+    let tasks: TasksModel?
+    let recordStore: String
+
+    var body: some View {
+        Form {
+            AdvanceSection(model: advanceMode, recordStore: recordStore)
+            if let tasks { TaskSettingSection(model: tasks) }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// ToDo の設定（GLOSSARY の「ToDo の設定」、ADR 0027）。アカウントの設定なので、どの端末でも同じになる
+private struct TaskSettingSection: View {
+    let model: TasksModel
+
+    var body: some View {
+        Section {
+            switch model.setting {
+            case .loading: ProgressView()
+            case .loadFailed: Text("読み込めませんでした").foregroundStyle(.secondary)
+            case .loaded(let setting):
+                Toggle(
+                    isOn: Binding(
+                        get: { setting == .enabled }, set: { model.changeSetting($0 ? .enabled : .disabled) })
+                ) {
+                    Text("ToDo を使う")
+                    Text("メインのウィンドウにタスクの一覧を出します")
+                }
+                .accessibilityIdentifier("settings.tasks")
+            }
+            if let message = model.settingErrorMessage {
+                Text(message).foregroundStyle(.red)
+            }
+        } header: {
+            Text("ToDo")
+        } footer: {
+            Text("オンにすると、「〜が完了した」とジャーナルに書いたとき、合うタスクを自動で完了にします。どの端末でも同じ設定になります。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// フェーズの進め方（GLOSSARY、ADR 0016）。4つの切り替わりごとに自動か手動か。変えるとセッションの途中でもすぐ効く
-private struct AdvanceSettings: View {
+private struct AdvanceSection: View {
     let model: AdvanceModeModel
     /// 進め方を置いている記録先の呼び方
     let recordStore: String
 
     var body: some View {
-        Form {
-            Section {
-                switch model.mode {
-                case .loading: ProgressView()
-                case .loadFailed: Text("読み込めませんでした").foregroundStyle(.secondary)
-                case .loaded(let mode):
-                    ForEach(PhaseTransition.allCases, id: \.self) { transition in
-                        let text = transitionTextOf(transition)
-                        Picker(
-                            selection: Binding(
-                                get: { mode[transition] }, set: { model.change(transition, to: $0) })
-                        ) {
-                            ForEach(advanceChoices, id: \.self) { Text(advanceChoiceTextOf($0)).tag($0) }
-                        } label: {
-                            Text(text.label)
-                            Text(text.description)
-                        }
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("advance.\(transition.rawValue)")
+        Section {
+            switch model.mode {
+            case .loading: ProgressView()
+            case .loadFailed: Text("読み込めませんでした").foregroundStyle(.secondary)
+            case .loaded(let mode):
+                ForEach(PhaseTransition.allCases, id: \.self) { transition in
+                    let text = transitionTextOf(transition)
+                    Picker(
+                        selection: Binding(
+                            get: { mode[transition] }, set: { model.change(transition, to: $0) })
+                    ) {
+                        ForEach(advanceChoices, id: \.self) { Text(advanceChoiceTextOf($0)).tag($0) }
+                    } label: {
+                        Text(text.label)
+                        Text(text.description)
                     }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("advance.\(transition.rawValue)")
                 }
-                if let message = model.errorMessage {
-                    Text(message).foregroundStyle(.red)
-                }
-            } header: {
-                Text("フェーズの進め方")
-            } footer: {
-                Text("手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、進めるまで待ちます。\(recordStore)の設定です。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            if let message = model.errorMessage {
+                Text(message).foregroundStyle(.red)
+            }
+        } header: {
+            Text("フェーズの進め方")
+        } footer: {
+            Text("手動にした切り替わりでは、時間が来ると 0:00 で止まって音で知らせ、進めるまで待ちます。\(recordStore)の設定です。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
     }
 }
 

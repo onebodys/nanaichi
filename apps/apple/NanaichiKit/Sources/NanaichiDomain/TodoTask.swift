@@ -102,6 +102,14 @@ public enum TodoTask: Hashable, Sendable {
         }
     }
 
+    /// 最後に変えた時刻。応答と同期メッセージが前後して届いたとき、新しい内容を古い内容で戻さないために使う
+    public var updatedAt: Instant {
+        switch self {
+        case .open(let task): task.updatedAt
+        case .completed(let task): task.updatedAt
+        }
+    }
+
     public static func create(id: TaskId, title: TaskTitle, now: Instant) -> OpenTask {
         OpenTask(id: id, title: title, createdAt: now, updatedAt: now)
     }
@@ -165,6 +173,8 @@ public struct TaskNotFound: Error, Hashable, Encodable {
 /// タスクの一覧（`GET /api/tasks`）。作った順
 public struct TaskList: Hashable, Sendable, Codable {
     public let tasks: [TodoTask]
+
+    public init(tasks: [TodoTask]) { self.tasks = tasks }
 }
 
 /// 削除したタスク（`DELETE /api/tasks/:id` の応答、同期メッセージの `TaskDeleted`）
