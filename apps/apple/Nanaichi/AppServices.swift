@@ -7,6 +7,9 @@ import NanaichiDomain
 import NanaichiPresentation
 import Observation
 
+/// タイマーとジャーナル記入のメインのウィンドウの ID
+let mainWindowId = "main"
+
 /// スタッツとジャーナル記入の見返しのウィンドウの ID
 let reviewWindowId = "review"
 
