@@ -1,12 +1,7 @@
 import Testing
 
-/// まだ Swift に移していない関数（#139 でタイマー、#140 で記録と振り返りのドメインを移す）。移したらここから消す
+/// まだ Swift に移していない関数（#140 で記録と振り返りのドメインを移す）。移したらここから消す
 private let notYetPorted: Set<String> = [
-    "AdvanceMode.isManual",
-    "AdvanceModeChange.modeAt",
-    "AdvanceModeChange.relevantSince",
-    "ClockOffset.measure",
-    "ClockOffset.serverNow",
     "CompactStats.of",
     "CompactStats.withCalendarOf",
     "DeletedTag.applyTo",
@@ -25,13 +20,6 @@ private let notYetPorted: Set<String> = [
     "JournalPeriod.rangeOf",
     "JournalPeriod.report",
     "JournalPeriod.toJson",
-    "Session.autoEndDueAt",
-    "Session.availableOperations",
-    "Session.operate",
-    "Session.start",
-    "Session.stateAt",
-    "SessionSnapshot.isOlder",
-    "SessionSummary.of",
     "Stats.completedSetsOf",
     "Stats.of",
     "Tag.canAdd",
@@ -57,15 +45,6 @@ private let notYetPorted: Set<String> = [
     "Timeline.removeEntry",
     "Timeline.withCurrentSession",
     "Timeline.withDayCounted",
-    "autoEndDueAt",
-    "deriveCompletedSetTimes",
-    "deriveSetOutcomes",
-    "deriveTimerState",
-    "phaseChangeBetween",
-    "remainingRatioOf",
-    "roundProgressOf",
-    "setsUntilBreakOf",
-    "upcomingPhaseOf",
 ]
 
 @Test("ゴールデンケースのどの関数も、Swift のテストで通すか、まだ移していないと書いてある")
