@@ -29,6 +29,9 @@ public enum ApiErrorCode: String, CaseIterable, Codable, Sendable {
     case crossOriginRejected = "CROSS_ORIGIN_REJECTED"
     /// 同じユーザーからのリクエストが短い時間に多すぎる（429、ADR 0018）
     case rateLimited = "RATE_LIMITED"
+    /// ネイティブアプリのログインのコードが使えない。知らない・使用済み・期限切れ・code_verifier の違い（400、ADR 0029）。
+    /// 同じコードで引き換え直さず、新しい code_verifier でログインし直す
+    case invalidGrant = "INVALID_GRANT"
 }
 
 /// エラーの応答の本文。`error` のほかに、種類ごとの補足（`paths` や `operation`）が付くことがある。
