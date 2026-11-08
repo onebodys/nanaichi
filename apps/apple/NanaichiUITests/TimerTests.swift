@@ -22,8 +22,9 @@ final class TimerTests: XCTestCase {
         app.launchEnvironment = [
             "NANAICHI_TIME_SCALE": String(timeScale), "NANAICHI_TIME_ORIGIN": String(origin),
             "NANAICHI_DATABASE": database, "NANAICHI_RESET_DATABASE": reset ? "1" : "0",
+            "NANAICHI_APPEARANCE": appearance,
         ]
-        app.launchArguments = ["-AppleInterfaceStyle", appearance]
+
         app.launch()
         return app
     }

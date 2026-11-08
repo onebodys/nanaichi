@@ -36,6 +36,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+            // XCUITest がダークの見た目を撮るため。起動引数の -AppleInterfaceStyle は macOS 26 のアプリには効かない
+            switch ProcessInfo.processInfo.environment["NANAICHI_APPEARANCE"] {
+            case "Dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+            case "Light": NSApp.appearance = NSAppearance(named: .aqua)
+            default: break
+            }
+        #endif
         running = Task { await model.run() }
     }
 

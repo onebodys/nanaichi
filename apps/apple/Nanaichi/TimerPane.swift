@@ -322,9 +322,15 @@ private struct OperationButtonView: View {
         Group {
             switch button.emphasis {
             case .primary:
-                Button(action: action) { Text(title).frame(minWidth: 120) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(primaryColorOf(button.kind))
+                switch primaryColorOf(button.kind) {
+                case .phase(let color):
+                    Button(action: action) { Text(title).frame(minWidth: 120) }
+                        .buttonStyle(.borderedProminent)
+                        .tint(color)
+                case .neutral:
+                    Button(action: action) { Text(title).frame(minWidth: 120) }
+                        .buttonStyle(.bordered)
+                }
             case .secondary:
                 Button(title, action: action)
                     .buttonStyle(.bordered)
@@ -340,14 +346,20 @@ private struct OperationButtonView: View {
     }
 
     /// 主な操作の色。集中の再開始は集中、休憩スキップは休憩の色、それ以外はいまのフェーズ（切り替え待ちなら、
-    /// これから始まるフェーズ）の色。一時停止を主にするときは色をつけない
-    private func primaryColorOf(_ kind: SessionOperationKind) -> Color {
+    /// これから始まるフェーズ）の色。一時停止などを主にするときは色をつけず、塗りつぶさないボタンにする
+    /// （`.primary` で塗ると、地と文字が同じ色になって読めない）
+    private func primaryColorOf(_ kind: SessionOperationKind) -> PrimaryColor {
         switch kind {
-        case .restartFocus: PhaseStyle.focus.color
-        case .skipBreak: PhaseStyle.breakTime.color
-        case .resume, .advance: PhaseStyle.of(state).color
-        case .pause, .abort, .end: .primary
+        case .restartFocus: .phase(PhaseStyle.focus.color)
+        case .skipBreak: .phase(PhaseStyle.breakTime.color)
+        case .resume, .advance: .phase(PhaseStyle.of(state).color)
+        case .pause, .abort, .end: .neutral
         }
+    }
+
+    private enum PrimaryColor {
+        case phase(Color)
+        case neutral
     }
 }
 
