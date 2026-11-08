@@ -29,21 +29,34 @@ final class ReviewAndSettingsTests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "\(identifier) が「\(text)」にならない", file: file, line: line)
     }
 
-    /// 文字 `text` を含む要素がどこかに出るまで待つ（リンクを含む本文は、文字がいくつかに分かれて読まれることがある）
+    /// 文字 `text` を含む要素がどこかに出るまで待つ（リンクを含む本文は、文字がいくつかに分かれて読まれることがある）。
+    /// ウィンドウのすべての要素（`.any`）を問い合わせると、タイムラインが長くなったときに問い合わせが時間切れになるので、
+    /// 文字を持つ種類の要素だけを探す
     @MainActor
     private func waitForText(
         _ app: XCUIApplication, _ text: String, timeout: TimeInterval = 10, file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let element = app.descendants(matching: .any).matching(
-            NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@ OR title CONTAINS %@", text, text, text)
-        ).firstMatch
-        XCTAssertTrue(element.waitForExistence(timeout: timeout), "「\(text)」が出ない", file: file, line: line)
+        let found = NSPredicate { _, _ in self.textQueries(app, containing: text).contains { $0.firstMatch.exists } }
+        let expectation = XCTNSPredicateExpectation(predicate: found, object: nil)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [expectation], timeout: timeout), .completed, "「\(text)」が出ない", file: file,
+            line: line)
     }
 
     @MainActor
-    private func texts(_ app: XCUIElement, containing text: String) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", text, text))
+    private func textQueries(_ root: XCUIElement, containing text: String) -> [XCUIElementQuery] {
+        let byValue = NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", text, text)
+        let byTitle = NSPredicate(format: "label CONTAINS %@ OR title CONTAINS %@", text, text)
+        return [
+            root.staticTexts.matching(byValue), root.links.matching(byValue), root.textViews.matching(byValue),
+            root.buttons.matching(byTitle), root.radioButtons.matching(byTitle),
+        ]
+    }
+
+    @MainActor
+    private func texts(_ root: XCUIElement, containing text: String) -> XCUIElementQuery {
+        root.staticTexts.matching(NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", text, text))
     }
 
     @MainActor
