@@ -29,7 +29,7 @@ public enum Phase: Hashable, Sendable {
         }
     }
 
-    var durationMs: Int64 {
+    public var durationMs: Int64 {
         switch self {
         case .focus: focusMs
         case .journal: journalMs
@@ -38,7 +38,7 @@ public enum Phase: Hashable, Sendable {
     }
 
     /// フェーズの自動的な切り替わり: 集中 → ジャーナル → … 3セット後に休憩 → 次のラウンドの集中
-    var next: Phase {
+    public var next: Phase {
         switch self {
         case .focus(let round, let setNumber):
             .journal(round: round, setNumber: setNumber)
