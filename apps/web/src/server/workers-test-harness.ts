@@ -57,7 +57,8 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_WINDOW_ROOM_MS = 40_000;
 
 /**
- * ログイン中のユーザーのレート制限（ADR 0018）を使い切る。通った回数と、弾かれた応答を返す。
+ * `headers` で数えられるレート制限を使い切る。通った回数と、弾かれた応答を返す。
+ * 既定はログイン中のユーザーの制限（ADR 0018）で、`path` を変えればほかの制限も使い切れる。
  *
  * miniflare の窓は実時間の区切りで、区切りをまたぐと数が 0 に戻り、続く確認のリクエストが通ってしまう。
  * そこで窓の残りが少なければ次の窓を待つ。1回ずつ送るとマシンが混んだときに上限に届かないので、
@@ -65,6 +66,7 @@ const RATE_LIMIT_WINDOW_ROOM_MS = 40_000;
  */
 export const exhaustRateLimit = async (
   headers: Headers,
+  path = "/api/session/current",
 ): Promise<Readonly<{ passed: number; rejected: Response }>> => {
   // `Date` を偽物にしているテストからも呼ぶので、本当の時刻を読む
   const left = RATE_LIMIT_WINDOW_MS - (vi.getRealSystemTime() % RATE_LIMIT_WINDOW_MS);
@@ -72,7 +74,7 @@ export const exhaustRateLimit = async (
     await new Promise((resolve) => setTimeout(resolve, left));
   }
   const responses = await Promise.all(
-    Array.from({ length: 150 }, () => request("/api/session/current", { headers })),
+    Array.from({ length: 150 }, () => request(path, { headers, redirect: "manual" })),
   );
   const rejected = responses.find((res) => res.status === 429);
   if (rejected === undefined) {

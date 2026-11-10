@@ -19,6 +19,8 @@ export default defineConfig({
         // 確かめられないので、選べる中で長い 60 秒にする（workers-test-harness.ts の exhaustRateLimit）
         ratelimits: {
           USER_RATE_LIMITER: { namespace_id: "1001", simple: { limit: 100, period: 60 } },
+          // 本番は 60 秒 10 回。ログインの流れを歩くテストが同じ IP（cf-connecting-ip なし）で重なるので緩める
+          NATIVE_AUTH_RATE_LIMITER: { namespace_id: "1002", simple: { limit: 100, period: 60 } },
         },
         // secret は wrangler.jsonc に書かないので、テスト用の値をここで渡す
         bindings: {
