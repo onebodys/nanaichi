@@ -3,7 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+  # labeled: PR に ui-test のラベルを付けたら、Mac アプリの UI テストを走らせる（apple-ui）
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  # Mac アプリの UI テストを手で走らせる（Actions の画面の Run workflow）
+  workflow_dispatch:
+
+# 同じ PR に続けて push したら、古い実行を取り消す（macOS のランナーの分数を無駄にしないため）。
+# ラベルを付けた実行は別の組にして、push の実行を取り消さない。main への push は取り消さない
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && 'label' || 'push' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ドキュメントだけの変更かを判定する。ドキュメントだけなら、テスト・ビルド・E2E を飛ばす。
@@ -15,6 +25,8 @@ jobs:
       contents: read
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      apple: ${{ steps.diff.outputs.apple }}
+      ui: ${{ steps.diff.outputs.ui }}
     steps:
       - id: diff
         env:
@@ -22,8 +34,13 @@ jobs:
           REPO: ${{ github.repository }}
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          ADDED_LABEL: ${{ github.event.label.name }}
+          HAS_UI_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ui-test') }}
         run: |
           code=true
+          apple=true
           if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ]; then
             # compare API が返すファイルは 300 件まで。それを超えたら判定せず全部走らせる
             if files=$(gh api "repos/$REPO/compare/$BASE...$HEAD" --jq 'if (.files | length) < 300 then .files[].filename else error("too many files") end'); then
@@ -32,12 +49,35 @@ jobs:
                 code=false
                 echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、ADR の番号の検査と vp check（書式・lint・型）だけを走らせます。"
               fi
+              # Swift のテストは、Swift のコードかゴールデンケース（TS のテストが書き出す）が変わったときだけ走らせる
+              if ! echo "$files" | grep -qE '(^apps/apple/|^fixtures/golden/|^\.github/workflows/)'; then
+                apple=false
+              fi
             fi
           fi
+          # Mac アプリの UI テスト（XCUITest）は macOS のランナーで長くかかるので、Swift のコードが変わっていて、
+          # 手で走らせたか、PR に ui-test のラベルがあるときだけ走らせる（docs/E2E.md）
+          ui=false
+          if [ "$apple" = true ]; then
+            case "$EVENT/$ACTION" in
+              workflow_dispatch/*) ui=true ;;
+              pull_request/labeled) [ "$ADDED_LABEL" = ui-test ] && ui=true ;;
+              pull_request/*) [ "$HAS_UI_LABEL" = true ] && ui=true ;;
+            esac
+          fi
+          # ラベルを付けただけの実行では、push のときに走らせたテストを繰り返さない
+          if [ "$ACTION" = labeled ]; then
+            code=false
+            apple=false
+          fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "apple=$apple" >> "$GITHUB_OUTPUT"
+          echo "ui=$ui" >> "$GITHUB_OUTPUT"
 
   check:
     needs: changes
+    # ラベルを付けただけの実行では、push のときに確かめたものを繰り返さない
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -56,6 +96,83 @@ jobs:
         run: vp exec knip
       - if: needs.changes.outputs.code == 'true'
         run: vp run -r build
+
+  # Apple のネイティブアプリ（apps/apple、ADR 0028）。ドメインがゴールデンケースで TS と一致することを確かめる。
+  # macOS のランナーは Linux より遅く高いので、Swift のコードかゴールデンケースが変わったときだけ走らせる
+  apple:
+    needs: changes
+    if: needs.changes.outputs.apple == 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+      # ランナーに入っている Xcode のうち、いちばん新しいものを使う
+      - run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+          echo "::notice title=Xcode::$xcode"
+      - working-directory: apps/apple/NanaichiKit
+        run: swift test
+
+  # Mac アプリの画面を XCUITest で動かし、撮った画面を PR にコメントする（Web の E2E と同じ形）。
+  # 手で走らせたときか、PR に ui-test のラベルがあるときだけ（changes の ui）
+  apple-ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Mac アプリのスクリーンショットへのリンクを PR にコメントする
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+          echo "::notice title=Xcode::$xcode"
+      - run: brew install xcodegen
+      - run: sh apps/apple/scripts/ui-test.sh
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-ui-test-results
+          path: apps/apple/.uitest/result.xcresult
+          retention-days: 14
+      # 一覧の HTML は Web の E2E と同じスクリプトで作る。ランナーの Node は TS をそのまま動かせないことがあるので、Node 24 を入れる
+      - if: ${{ !cancelled() }}
+        uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+      - if: ${{ !cancelled() }}
+        run: node apps/web/scripts/screenshot-gallery.ts apps/apple/.uitest/screenshots apps/apple/.uitest/screenshots.html "nanaichi の Mac アプリの画面"
+      - id: screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: apps/apple/.uitest/screenshots.html
+          archive: false
+          retention-days: 14
+      - if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.screenshots.outputs.artifact-url != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          URL: ${{ steps.screenshots.outputs.artifact-url }}
+        run: |
+          marker="<!-- apple-screenshots -->"
+          body="$marker
+          Mac アプリの画面のスクリーンショット（${SHA}）: [screenshots.html](${URL})"
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body"
+          fi
 
   # 画面を実際のブラウザ（chromium）で動かす E2E テスト（docs/E2E.md）。
   # ローカルの D1 は毎回空から始まり、ランナーが開発サーバー（vp dev）を起動する。

@@ -1,0 +1,53 @@
+# Xcode のプロジェクトはこのファイルから XcodeGen で作る（`scripts/ui-test.sh` が作り直す）。
+# 生成した Nanaichi.xcodeproj はコミットしない。差分がレビューできないため
+name: Nanaichi
+options:
+  deploymentTarget:
+    macOS: "26.0"
+  bundleIdPrefix: app.nanaichi
+packages:
+  NanaichiKit:
+    path: NanaichiKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # 当面は自分用のビルドだけなので、Apple Developer Program なしでローカルに署名する（ADR 0028）
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+targets:
+  Nanaichi:
+    type: application
+    platform: macOS
+    sources: [Nanaichi]
+    dependencies:
+      - package: NanaichiKit
+        product: NanaichiDomain
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.mac
+        PRODUCT_NAME: nanaichi
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: nanaichi
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_HARDENED_RUNTIME: YES
+  NanaichiUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [NanaichiUITests]
+    dependencies:
+      - target: Nanaichi
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Nanaichi
+schemes:
+  Nanaichi:
+    build:
+      targets:
+        Nanaichi: all
+    test:
+      targets: [NanaichiUITests]

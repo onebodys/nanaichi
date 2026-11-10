@@ -4,7 +4,9 @@ import type { KnipConfig } from "knip";
 // 各ワークスペースの vite.config.ts を読む。ここには誤検知の除外だけを書く。
 export default {
   // 外部から取り込んだスキル（skills-lock.json で管理）。サンプルコードはどこからも import されない
-  ignore: [".agents/**"],
+  // Apple のネイティブアプリ（apps/apple）は Swift で、knip の対象ではない。Swift のビルド（.build/）が
+  // 取ってくる依存（GRDB の SQLite の JS など）を、未使用のファイルとして数えてしまうので外す
+  ignore: [".agents/**", "apps/apple/**"],
   workspaces: {
     ".": {
       // `vite` は vite-plus-core の別名（pnpm-workspace.yaml の catalog / overrides）。

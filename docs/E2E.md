@@ -157,3 +157,12 @@ pnpm dev:portless                            # → https://<ブランチ名>.nan
 いまはモデルを設定していないので、`agent.act` などの AI ステップは使えない。
 `screen` と `expect` だけの決定的なテストを書く。AI ステップが必要になったら、モデルとその認証を
 `e2e.config.ts` の `agents` に足す（スキルの `references/setup.md`）。
+
+## Mac アプリの画面を確かめる（ADR 0028）
+
+e2e は macOS のネイティブアプリを動かせないので、Mac アプリ（`apps/apple/`）の画面は XCUITest で確かめる。
+
+- `sh apps/apple/scripts/ui-test.sh` で、`apps/apple/project.yml` から Xcode のプロジェクトを作り直し、XCUITest を走らせる。XcodeGen（`brew install xcodegen`）と Xcode が要る。Xcode は `DEVELOPER_DIR` か `xcode-select` のものを使う
+- テストで `attachScreenshot(of:named:)` を呼ぶと、その名前で `apps/apple/.uitest/screenshots/<名前>.png` に書き出す。名前の頭に番号を付けると、その順に並ぶ
+- CI の `apple-ui` ジョブも同じスクリプトを走らせ、Web の E2E と同じく画面の一覧（`screenshots.html`）へのリンクを PR にコメントする。macOS のランナーは長くかかり分数も多く数えられるので、**PR に `ui-test` のラベルを付けたとき**（ラベルがある間は push のたびに）か、Actions の画面から手で走らせたときだけ走る。画面に関わる PR では、ラベルを付けて画面を確かめてから外す
+- ドメインは `apps/apple/NanaichiKit` の `swift test` で確かめる。TS のテストが書き出したゴールデンケース（`fixtures/golden/`）を通す。CI の `apple` ジョブは、Swift のコードかゴールデンケースが変わったときに走る
