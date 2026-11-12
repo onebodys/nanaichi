@@ -206,6 +206,10 @@ public actor DeviceBackend: Backend {
 
     public func checkSyncConnection() {}
 
+    /// 記録に使う時刻はこの端末の時計なので、ずれはない。端末の時計が戻っていても、
+    /// `ClockOffset.serverNow` がスナップショットの時刻より前に戻さない
+    public func clockOffset() -> ClockOffset { ClockOffset(serverAheadMs: 0) }
+
     private func unsubscribe(_ id: UUID) {
         subscribers[id] = nil
     }

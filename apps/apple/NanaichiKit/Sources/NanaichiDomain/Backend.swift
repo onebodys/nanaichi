@@ -67,4 +67,22 @@ public protocol Backend: Sendable {
     func subscribe() async -> AsyncStream<SyncEvent>
     /// 今すぐ繋がっているかを確かめる。画面に戻ってきたときやオンラインに戻ったときに呼ぶ
     func checkSyncConnection() async
+    /// 時計のずれ（GLOSSARY）。最後にスナップショットを受け取ったやり取りで測ったもの。
+    /// 同期メッセージで届いたスナップショットは送った時刻がわからないので、測り直さずにこれを使う
+    func clockOffset() async -> ClockOffset
+}
+
+/// タスクと ToDo の設定の記録先（ADR 0026・0027、TS の `TaskApi`）。タスクはアカウントの記録先でだけ使えるので、
+/// この端末の記録先（`Backend`）には載せない
+public protocol TaskBackend: Sendable {
+    func getTaskSetting() async -> Result<TaskSetting, BackendError>
+    /// ToDo の設定を変える。変えたあとの設定が返る
+    func changeTaskSetting(_ setting: TaskSetting) async -> Result<TaskSetting, BackendError>
+    func getTasks() async -> Result<TaskList, BackendError>
+    /// タスクを作る。`id` は画面が発行し、やり直すときは同じ ID で送れば二重に作らない
+    func createTask(id: TaskId, title: TaskTitle) async -> Result<TodoTask, BackendError>
+    func renameTask(id: TaskId, title: TaskTitle) async -> Result<TodoTask, BackendError>
+    func completeTask(id: TaskId) async -> Result<TodoTask, BackendError>
+    func reopenTask(id: TaskId) async -> Result<TodoTask, BackendError>
+    func deleteTask(id: TaskId) async -> Result<DeletedTask, BackendError>
 }
