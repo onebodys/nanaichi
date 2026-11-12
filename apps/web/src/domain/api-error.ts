@@ -33,6 +33,8 @@ const API_ERROR_CODES = [
   "CROSS_ORIGIN_REJECTED",
   /** 同じユーザーからのリクエストが短い時間に多すぎる（429、ADR 0018） */
   "RATE_LIMITED",
+  /** ネイティブアプリのログインのコードが使えない。知らない・使用済み・期限切れ・code_verifier の違い（400、ADR 0029） */
+  "INVALID_GRANT",
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

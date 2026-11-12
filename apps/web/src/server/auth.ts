@@ -1,6 +1,6 @@
-import { betterAuth } from "better-auth";
+import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { jwt } from "better-auth/plugins";
+import { bearer, jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
 import { Allowlist } from "../domain/allowlist.ts";
 import { servesMcpOn } from "./base-url.ts";
@@ -25,6 +25,25 @@ export const guardUserCreation =
       message: "このメールアドレスでは登録できません",
     });
   };
+
+/**
+ * Bearer トークンを cookie の代わりに受ける、Better Auth の `bearer` プラグインのうち受ける側だけ（ADR 0029）。
+ *
+ * プラグインの `after` のフックは、セッションの cookie を設定する応答のすべてに `set-auth-token` の
+ * ヘッダでトークンを載せる。画面の `get-session` などの応答にも載り、HttpOnly の cookie に入れた
+ * トークンをページの JavaScript が読めてしまう。ネイティブアプリには使い捨てのコードと引き換えに
+ * 渡す（native-auth-routes.ts）ので、`after` は外す。
+ *
+ * 署名のないトークンを受けると、D1 の `session.token` を読めただけでなりすませるので、署名つきだけを受ける。
+ */
+const acceptBearerToken = () => {
+  const plugin = bearer({ requireSignature: true });
+  return {
+    id: plugin.id,
+    version: plugin.version,
+    hooks: { before: plugin.hooks.before },
+  } satisfies BetterAuthPlugin;
+};
 
 /** MCP サーバーのパス（mcp-routes.ts）。アクセストークンはこの URL に宛てて発行する */
 export const MCP_PATH = "/api/mcp";
@@ -68,6 +87,8 @@ export const createAuth = (config: AuthConfig, baseURL: string) =>
     // jwt プラグインの `/token`（セッションから JWT を作る）は使わない。MCP のトークンは OAuth の `/oauth2/token` で出す
     disabledPaths: ["/token"],
     plugins: [
+      // ネイティブアプリは cookie の代わりに `Authorization: Bearer <セッションのトークン>` を送る（ADR 0029）
+      acceptBearerToken(),
       // アクセストークンを JWT にして、MCP のルートが D1 を引かずに署名で確かめられるようにする（ADR 0023）
       jwt(),
       // portless の `*.localhost` では MCP サーバーを出さない（base-url.ts の `servesMcpOn`）
