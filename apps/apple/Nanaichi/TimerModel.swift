@@ -87,10 +87,8 @@ final class TimerModel {
             // 受け取り始めたとき（繋ぎ直したとき）は、届かなかった変更があるかもしれないので読み込み直す
             case .connected: await load()
             case .message(.sessionChanged(let snapshot)):
-                // 送った時刻がわからないので時計のずれは測り直さず、直前に測ったものを使う
-                if let current = loading.received {
-                    apply(Received(snapshot: snapshot, offset: current.offset))
-                }
+                // 送った時刻がわからないので、記録先が直前に測った時計のずれを使う
+                apply(Received(snapshot: snapshot, offset: await backend.clockOffset()))
             case .message(.journalEntrySaved), .message(.journalEntryDeleted), .message(.tagDeleted),
                 .message(.advanceModeChanged), .message(.taskSaved), .message(.taskDeleted),
                 .message(.taskSettingChanged):
@@ -116,19 +114,13 @@ final class TimerModel {
 
     // MARK: - 記録先とのやり取り
 
-    /// 記録先を呼び、送ってから受け取るまでの端末の時刻で時計のずれを測る
+    /// 記録先を呼び、受け取ったスナップショットを、記録先がそのやり取りで測った時計のずれと組にする
     private func receive(_ call: () async -> Result<SessionSnapshot, BackendError>) async
         -> Result<Received, BackendError>
     {
-        let requestedAt = clock.now()
         let result = await call()
-        let receivedAt = clock.now()
-        return result.map { snapshot in
-            Received(
-                snapshot: snapshot,
-                offset: ClockOffset.measure(
-                    .init(requestedAt: requestedAt, receivedAt: receivedAt, serverTime: snapshot.serverTime)))
-        }
+        let offset = await backend.clockOffset()
+        return result.map { Received(snapshot: $0, offset: offset) }
     }
 
     private func load() async {
@@ -243,6 +235,11 @@ final class TimerModel {
             scheduleNotifications(for: snapshot, sound: true)
         }
         await notifications.settle()
+    }
+
+    /// 記録先を替えて、このモデルを使わなくなるときに呼ぶ。App Nap を止めたままにしない
+    func release() {
+        holdActivity(during: false)
     }
 
     private func holdActivity(during inSession: Bool) {

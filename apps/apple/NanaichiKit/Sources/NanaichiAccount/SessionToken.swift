@@ -31,15 +31,28 @@ public struct TokenStoreError: Error, Hashable, Sendable {
     public let status: OSStatus
 }
 
-/// Keychain の汎用パスワードにトークンを置く。この端末だけで使い（バックアップや別の端末へ移さない）、
-/// 起動して一度ロックを解いたあとは、バックグラウンドの同期でも読める
+/// Keychain の汎用パスワードにトークンを置く。この端末だけで使う（バックアップや別の端末へ移さない）
 public struct KeychainTokenStore: TokenStore {
+    /// どの Keychain に置くか
+    public enum Keychain: Sendable {
+        /// iOS と同じ Keychain。起動して一度ロックを解いたあとは、バックグラウンドの同期でも読める。
+        /// Keychain の entitlement のある、チームで署名したアプリでだけ使える
+        case dataProtection
+        /// macOS のログインの Keychain（ファイルの Keychain）。チームのない署名（ADR 0028 のローカルの署名）でも使える。
+        /// 項目を作ったアプリだけが確かめなしで読めるので、ビルドし直して署名が変わると、読むときに macOS が許可を求める
+        case fileBased
+    }
+
     private let service: String
     private let account: String
+    private let keychain: Keychain
 
-    public init(service: String = "app.nanaichi.session-token", account: String = "account") {
+    public init(
+        service: String = "app.nanaichi.session-token", account: String = "account", keychain: Keychain = .dataProtection
+    ) {
         self.service = service
         self.account = account
+        self.keychain = keychain
     }
 
     private var query: [String: Any] {
@@ -47,9 +60,16 @@ public struct KeychainTokenStore: TokenStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            // macOS でも iOS と同じ Keychain を使う。署名した（Keychain の entitlement がある）アプリでだけ使える
-            kSecUseDataProtectionKeychain as String: true,
+            kSecUseDataProtectionKeychain as String: keychain == .dataProtection,
         ]
+    }
+
+    /// 読める時機と移せる範囲。ファイルの Keychain にはこの属性がない
+    private var accessibility: [String: Any] {
+        switch keychain {
+        case .dataProtection: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+        case .fileBased: [:]
+        }
     }
 
     public func load() throws(TokenStoreError) -> SessionToken? {
@@ -66,9 +86,8 @@ public struct KeychainTokenStore: TokenStore {
 
     public func save(_ token: SessionToken) throws(TokenStoreError) {
         try delete()
-        let attributes = query.merging([
-            kSecValueData as String: Data(token.value.unwrap().utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        let attributes = query.merging(accessibility) { $1 }.merging([
+            kSecValueData as String: Data(token.value.unwrap().utf8)
         ]) { $1 }
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else { throw TokenStoreError(status: status) }

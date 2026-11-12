@@ -65,7 +65,8 @@ public enum SignInCallback: Hashable, Sendable {
 /// 3. コードなら `exchange(_:pkce:)` でトークンに引き換える。`rejected(.invalidGrant)` なら、
 ///    同じコードで引き換え直さず、新しい `PKCE` で 1 からやり直す
 public struct NativeSignIn: Sendable {
-    /// ブラウザがアプリに戻すカスタム URL スキーム。Info.plist の `CFBundleURLTypes` に登録する
+    /// ブラウザがアプリに戻すカスタム URL スキーム。戻り先は `ASWebAuthenticationSession` が自分で受け取るので、
+    /// Info.plist の `CFBundleURLTypes` には登録しない（登録すると、ログインの外で開いた `nanaichi://` でもアプリが開く）
     public static let callbackScheme = "nanaichi"
 
     private let server: URL

@@ -5,7 +5,13 @@ import SwiftUI
 /// メニューバーの「タイマー」。どの操作もキーボードでできるようにし、押せない操作は押せなくする。
 /// ショートカットはここにだけ付ける（ボタンにも付けると、同じキーが2つに割り当たる）
 struct TimerCommands: Commands {
-    let model: TimerModel
+    let app: AppModel
+    /// 記録先が替わると、そのときの画面の状態を指す
+    private var model: TimerModel { app.services.timer }
+
+    init(model: AppModel) {
+        app = model
+    }
 
     var body: some Commands {
         // 「新規ウインドウ」の代わりに置く。ウィンドウは1つなので、新しく作るのはセッション
