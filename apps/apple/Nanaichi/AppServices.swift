@@ -23,10 +23,15 @@ final class AppServices {
     let tags: TagsModel
     let advanceMode: AdvanceModeModel
     let review: ReviewModel
+    /// ToDo。アカウントの記録先でだけあり、この端末の記録先では nil（ADR 0026）
+    let tasks: TasksModel?
     let alertSettings: AlertSettingsStore
     let alert: PhaseAlertPlayer
 
-    init(backend: any Backend, clock: AppClock, alertSettings: AlertSettingsStore, alert: PhaseAlertPlayer) {
+    init(
+        backend: any Backend, tasks: (any TaskBackend)?, clock: AppClock, alertSettings: AlertSettingsStore,
+        alert: PhaseAlertPlayer
+    ) {
         self.backend = backend
         self.alertSettings = alertSettings
         self.alert = alert
@@ -37,6 +42,7 @@ final class AppServices {
         tags = TagsModel(backend: backend)
         advanceMode = AdvanceModeModel(backend: backend)
         review = ReviewModel(backend: backend)
+        self.tasks = tasks.map { TasksModel(backend: backend, api: $0) }
     }
 
     func run() async {
@@ -46,6 +52,7 @@ final class AppServices {
             group.addTask { await self.tags.run() }
             group.addTask { await self.advanceMode.run() }
             group.addTask { await self.review.run() }
+            if let tasks = self.tasks { group.addTask { await tasks.run() } }
         }
     }
 }
@@ -96,7 +103,7 @@ final class AppModel {
         self.configuration = configuration
         device = DeviceBackend(location: configuration.database, clock: configuration.clock.now)
         services = AppServices(
-            backend: device, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
+            backend: device, tasks: nil, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
         let id = UUID()
         switch configuration.accounts.restore(expiryHandler(for: id)) {
         case .signedOut: break
@@ -139,12 +146,15 @@ final class AppModel {
     /// 記録先を `store` に替え、画面の状態を作り直す
     private func open(_ store: RecordStore) {
         let backend: any Backend
+        let tasks: (any TaskBackend)?
         switch store {
         case .device:
             backend = device
+            tasks = nil
             account = .signedOut
         case .account(let signedIn, let id):
             backend = signedIn.backend
+            tasks = signedIn.tasks
             account = .signedIn(.loading)
             Task { await loadUser(signedIn, id: id) }
         }
@@ -154,7 +164,7 @@ final class AppModel {
         services.timer.release()
         recordStore = store
         services = AppServices(
-            backend: backend, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
+            backend: backend, tasks: tasks, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
         if wasRunning { running = Task { [services] in await services.run() } }
     }
 

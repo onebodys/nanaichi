@@ -6,6 +6,8 @@ import NanaichiDomain
 /// ログインしているときの記録先（GLOSSARY の「アカウント」）と、その後始末
 struct SignedIn {
     let backend: any Backend
+    /// タスクと ToDo の設定。アカウントの記録先にだけある（ADR 0026）
+    let tasks: any TaskBackend
     let user: @Sendable () async -> Result<AccountUser, BackendError>
     /// ログアウトする。サーバーのセッションを消し（届かなくても）、手元のトークンを消し、同期を閉じる
     let signOut: @Sendable () async -> Void
@@ -50,6 +52,7 @@ extension AccountGateway {
             let backend = AccountBackend(token: token, clock: clock.now, onSignedOut: onExpired)
             return SignedIn(
                 backend: backend,
+                tasks: backend,
                 user: { await backend.getMe() },
                 signOut: {
                     // 届かなくてもトークンは 7 日で切れるので、結果にかかわらず手元のトークンを消す（ADR 0029）

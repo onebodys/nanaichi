@@ -6,9 +6,10 @@ import SwiftUI
 /// ラウンドの進み具合、その状態でできる操作を出す。状態の計算と判断は `TimerModel` とドメインにある
 struct TimerPane: View {
     let model: TimerModel
+    var layout = TimerLayout.full
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: layout.spacing) {
             switch model.view {
             case .loading:
                 ProgressView("読み込み中…")
@@ -32,9 +33,50 @@ struct TimerPane: View {
                     .accessibilityIdentifier("timer.error")
             }
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(layout.padding)
+        .frame(maxWidth: .infinity, maxHeight: layout.maxHeight)
+        .environment(\.timerLayout, layout)
     }
+}
+
+/// タイマーの配置（Web の timer-panel.tsx の `TimerLayout`）。`full` は円と大きな数字を出し、
+/// `compact` は ToDo の一覧の上に置くため、円を出さずに数字を小さくする（ADR 0027）
+enum TimerLayout {
+    case full
+    case compact
+
+    fileprivate var spacing: CGFloat {
+        switch self {
+        case .full: 20
+        case .compact: 12
+        }
+    }
+
+    fileprivate var padding: CGFloat {
+        switch self {
+        case .full: 32
+        case .compact: 20
+        }
+    }
+
+    /// 簡略のときは中身の高さだけを取り、残りを ToDo の一覧に回す
+    fileprivate var maxHeight: CGFloat? {
+        switch self {
+        case .full: .infinity
+        case .compact: nil
+        }
+    }
+
+    fileprivate var countdownSize: CGFloat {
+        switch self {
+        case .full: 76
+        case .compact: 52
+        }
+    }
+}
+
+extension EnvironmentValues {
+    @Entry fileprivate var timerLayout = TimerLayout.full
 }
 
 private struct LoadFailedView: View {
@@ -197,8 +239,16 @@ private struct Dial<Content: View>: View {
     var dashed = false
     @ViewBuilder let content: Content
     @ScaledMetric(relativeTo: .largeTitle) private var size = 300
+    @Environment(\.timerLayout) private var layout
 
     var body: some View {
+        switch layout {
+        case .full: dial
+        case .compact: VStack(spacing: 4) { content }
+        }
+    }
+
+    private var dial: some View {
         ZStack {
             Circle()
                 .stroke(
@@ -221,10 +271,11 @@ private struct Dial<Content: View>: View {
 private struct Countdown: View {
     let remainingSeconds: Int
     let dimmed: Bool
+    @Environment(\.timerLayout) private var layout
 
     var body: some View {
         Text(countdownTextOf(remainingSeconds: remainingSeconds))
-            .font(.system(size: 76, weight: .light, design: .rounded))
+            .font(.system(size: layout.countdownSize, weight: .light, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(dimmed ? .secondary : .primary)
             .contentTransition(.numericText(countsDown: true))
