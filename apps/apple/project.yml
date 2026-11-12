@@ -2,8 +2,7 @@
 # 生成した Nanaichi.xcodeproj はコミットしない。差分がレビューできないため
 name: Nanaichi
 options:
-  # 画面は日本語だけ。英語の環境（CI のランナーなど）だと、リンクを含む本文の「画」「直」などの漢字が
-  # 中国語の字形のフォントで探され、欠けて表示された
+  # 画面は日本語だけなので、英語の Mac でも日本語のアプリとして動かす
   developmentLanguage: ja
   deploymentTarget:
     macOS: "26.0"
