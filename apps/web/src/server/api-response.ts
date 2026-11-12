@@ -16,6 +16,7 @@ export const bodyOf = async (c: Context<AppEnv>): Promise<unknown> =>
 const statusOf = (code: ApiErrorCode): ContentfulStatusCode => {
   switch (code) {
     case "INVALID_REQUEST":
+    case "INVALID_GRANT":
       return 400;
     case "UNAUTHENTICATED":
       return 401;
