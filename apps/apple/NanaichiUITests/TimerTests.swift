@@ -58,12 +58,13 @@ final class TimerTests: XCTestCase {
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(of: app, named: "02-集中中")
 
-        // ジャーナルは4秒しかないので、入ったらすぐ撮って一時停止し、止めたまま書く
+        // ジャーナルは4秒しかないので、入ったらすぐ一時停止し、止めてから撮って書く。
+        // スクリーンショットは CI で3秒ほどかかり、先に撮るとジャーナルが終わってから止まる
         waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: phaseTimeout(minutes: 7))
-        attachScreenshot(of: app, named: "03-ジャーナル")
         app.typeKey("p", modifierFlags: .command)
         XCTAssertTrue(app.staticTexts["timer.paused"].waitForExistence(timeout: 5), "一時停止にならない")
         waitFor(app, "timer.phase", toRead: "ジャーナル")
+        attachScreenshot(of: app, named: "03-ジャーナル")
 
         let body = app.textViews["journal.body"]
         body.click()
