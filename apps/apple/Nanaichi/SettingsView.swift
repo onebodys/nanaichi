@@ -213,6 +213,8 @@ private struct JournalSettings: View {
 
 private struct LookSettings: View {
     @AppStorage(PreferenceKey.theme) private var theme = ThemePreference.system
+    @AppStorage(PreferenceKey.showsMenuBarExtra) private var showsMenuBarExtra = true
+    @AppStorage(PreferenceKey.keepsRunningWithoutWindows) private var keepsRunningWithoutWindows = true
 
     var body: some View {
         Form {
@@ -222,6 +224,15 @@ private struct LookSettings: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("settings.theme")
+            }
+            Section {
+                Toggle("メニューバーに表示", isOn: $showsMenuBarExtra)
+                    .accessibilityIdentifier("settings.menuBarExtra")
+                Toggle(isOn: $keepsRunningWithoutWindows) {
+                    Text("ウィンドウを閉じても終了しない")
+                    Text("タイマーと音と通知を続けます。メニューバーか Dock から開き直せます")
+                }
+                .accessibilityIdentifier("settings.keepsRunning")
             } footer: {
                 PerDeviceNote(text: "この Mac の設定です")
             }

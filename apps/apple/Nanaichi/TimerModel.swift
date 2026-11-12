@@ -26,6 +26,8 @@ final class TimerModel {
     private(set) var endedEntries: EntryCount = .notYetCounted
     /// ジャーナル記入の入力欄にカーソルを置く頼み。増えるたびに置く
     private(set) var journalFocusRequests = 0
+    /// メニューバーの表示。値が変わったとき（1秒に1回まで）だけ書き換え、刻みのたびにメニューバーを描き直さない
+    private(set) var menuBarLabel = menuBarLabelOf(.loading)
 
     @ObservationIgnored private let backend: any Backend
     @ObservationIgnored private let clock: AppClock
@@ -110,6 +112,12 @@ final class TimerModel {
             alert.play(to: to.kind, settings: alertSettings())
         }
         refreshDerivedCounts()
+        refreshMenuBarLabel()
+    }
+
+    private func refreshMenuBarLabel() {
+        let label = menuBarLabelOf(view)
+        if label != menuBarLabel { menuBarLabel = label }
     }
 
     // MARK: - 記録先とのやり取り
@@ -135,6 +143,7 @@ final class TimerModel {
         let before = loading.received?.snapshot
         loading = loading.applying(received)
         deviceNow = clock.now()
+        refreshMenuBarLabel()
         guard let after = loading.received?.snapshot, after != before else { return }
         scheduleNotifications(for: after, sound: false)
         holdActivity(during: view.isInSession)

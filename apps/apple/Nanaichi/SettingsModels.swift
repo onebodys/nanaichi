@@ -84,4 +84,11 @@ func applyTheme(_ preference: ThemePreference) {
 enum PreferenceKey {
     static let submitKey = "submitKey"
     static let theme = "theme"
+    /// メニューバーにタイマーを出すか。初めは出す
+    static let showsMenuBarExtra = "showsMenuBarExtra"
+    /// 最後のウィンドウを閉じても終了せず、メニューバー（と Dock）に残るか。初めは残る
+    static let keepsRunningWithoutWindows = "keepsRunningWithoutWindows"
+
+    /// `@AppStorage` の外（AppDelegate）でも、まだ選んでいない設定を初めの値で読めるようにする
+    static var initialValues: [String: Any] { [showsMenuBarExtra: true, keepsRunningWithoutWindows: true] }
 }

@@ -105,7 +105,8 @@ private struct InSessionView: View {
         }
         body(of: state)
         RoundBar(progress: roundProgressOf(state))
-        OperationButtons(model: model, state: state, operations: operations)
+            .accessibilityIdentifier("timer.round")
+        OperationButtons(model: model, state: state, operations: operations, identifierPrefix: "")
         Text(
             currentSessionTextOf(
                 startedAt: session.events.start.event.at, completedSets: state.completedSets,
@@ -247,7 +248,7 @@ private struct Caption: View {
 }
 
 /// ラウンドの進み具合（3つのセットと休憩）
-private struct RoundBar: View {
+struct RoundBar: View {
     let progress: RoundProgress
 
     var body: some View {
@@ -269,7 +270,6 @@ private struct RoundBar: View {
         .frame(height: 6)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(untilBreakTextOf(progress) ?? "休憩中")
-        .accessibilityIdentifier("timer.round")
     }
 }
 
@@ -295,16 +295,18 @@ private struct SegmentBar: View {
     }
 }
 
-/// その状態でできる操作のボタン。主な操作を目立たせ、終了は文字だけで最後に置く（`operationButtonsOf`）
-private struct OperationButtons: View {
+/// その状態でできる操作のボタン。主な操作を目立たせ、終了は文字だけで最後に置く（`operationButtonsOf`）。
+/// メニューバーのパネルにも同じ並びで出す。識別子の頭に `identifierPrefix` を付け、メインのウィンドウのボタンと見分ける
+struct OperationButtons: View {
     let model: TimerModel
     let state: UnendedTimerState
     let operations: [SessionOperationKind]
+    let identifierPrefix: String
 
     var body: some View {
         HStack(spacing: 10) {
             ForEach(operationButtonsOf(operations), id: \.kind) { button in
-                OperationButtonView(model: model, state: state, button: button)
+                OperationButtonView(model: model, state: state, button: button, identifierPrefix: identifierPrefix)
             }
         }
         .controlSize(.large)
@@ -315,6 +317,7 @@ private struct OperationButtonView: View {
     let model: TimerModel
     let state: UnendedTimerState
     let button: OperationButton
+    let identifierPrefix: String
 
     var body: some View {
         let title = operationButtonTextOf(button.kind, state)
@@ -342,7 +345,7 @@ private struct OperationButtonView: View {
         }
         .disabled(model.pending)
         .help("\(title)（\(shortcutTextOf(button.kind))）")
-        .accessibilityIdentifier("operation.\(button.kind.rawValue)")
+        .accessibilityIdentifier("\(identifierPrefix)operation.\(button.kind.rawValue)")
     }
 
     /// 主な操作の色。集中の再開始は集中、休憩スキップは休憩の色、それ以外はいまのフェーズ（切り替え待ちなら、
