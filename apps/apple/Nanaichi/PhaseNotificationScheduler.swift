@@ -1,4 +1,6 @@
+import AVFoundation
 import Foundation
+import NanaichiDomain
 import NanaichiPresentation
 import UserNotifications
 import os
@@ -31,8 +33,8 @@ final class PhaseNotificationScheduler {
         }
     }
 
-    /// 予約を `plan` に置き換える。`sound` が false なら、通知は音を鳴らさない（アプリが自分で鳴らすとき）
-    func reschedule(_ plan: [PlannedPhaseNotification], sound: Bool) {
+    /// 予約を `plan` に置き換える。`sound` の知らせ方の音色と音量で鳴らす。nil なら鳴らさない（アプリが自分で鳴らすとき）
+    func reschedule(_ plan: [PlannedPhaseNotification], sound: AlertSettings?) {
         let previous = queue
         queue = Task {
             await previous?.value
@@ -45,7 +47,7 @@ final class PhaseNotificationScheduler {
         await queue?.value
     }
 
-    private func replace(with plan: [PlannedPhaseNotification], sound: Bool) async {
+    private func replace(with plan: [PlannedPhaseNotification], sound: AlertSettings?) async {
         let stale = await center.pendingNotificationRequests().map(\.identifier)
             .filter { $0.hasPrefix(phaseNotificationIdentifierPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: stale)
@@ -59,7 +61,7 @@ final class PhaseNotificationScheduler {
             content.title = item.title
             content.body = item.body
             content.threadIdentifier = "phase-change"
-            content.sound = sound ? .default : nil
+            content.sound = sound.map { soundOf(item.to.kind, settings: $0) }
             let trigger = UNCalendarNotificationTrigger(
                 dateMatching: Calendar.current.dateComponents(
                     [.year, .month, .day, .hour, .minute, .second], from: fireAt),
@@ -74,7 +76,43 @@ final class PhaseNotificationScheduler {
         let pending = await center.pendingNotificationRequests().count
         let status = await center.notificationSettings().authorizationStatus
         log.info(
-            "通知を予約した: \(added, privacy: .public)件（保留中 \(pending, privacy: .public)件、音 \(sound, privacy: .public)、許可 \(String(describing: status), privacy: .public)）"
+            "通知を予約した: \(added, privacy: .public)件（保留中 \(pending, privacy: .public)件、音 \(sound != nil, privacy: .public)、許可 \(String(describing: status), privacy: .public)）"
         )
     }
+}
+
+/// 通知の音。アプリが鳴らすのと同じ音色と音量の音を、通知が読める Library/Sounds に書き出しておく
+/// （アプリを終了している間に届く通知も、どのフェーズに移ったかを音で聞き分けられるように）。
+/// 書き出せなければシステムの通知音にする
+private func soundOf(_ to: PhaseKind, settings: AlertSettings) -> UNNotificationSound {
+    let name = chimeSoundFileNameOf(to: to, settings: settings)
+    let directory = URL.libraryDirectory.appending(path: "Sounds", directoryHint: .isDirectory)
+    let url = directory.appending(path: name)
+    if !FileManager.default.fileExists(atPath: url.path) {
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try writeChime(to: to, settings: settings, at: url)
+        } catch {
+            return .default
+        }
+    }
+    return UNNotificationSound(named: UNNotificationSoundName(name))
+}
+
+/// 合成した音を 16 ビットの PCM の CAF に書く。書きかけのファイルを残さないよう、書き終えてから置く
+private func writeChime(to: PhaseKind, settings: AlertSettings, at url: URL) throws {
+    let buffer = renderChime(to: to, settings: settings)
+    let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).partial")
+    try? FileManager.default.removeItem(at: partial)
+    do {
+        let file = try AVAudioFile(
+            forWriting: partial,
+            settings: [
+                AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: buffer.format.sampleRate,
+                AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false,
+            ],
+            commonFormat: .pcmFormatFloat32, interleaved: false)
+        try file.write(from: buffer)
+    }
+    try FileManager.default.moveItem(at: partial, to: url)
 }

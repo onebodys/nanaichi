@@ -25,6 +25,8 @@ final class TimerTests: XCTestCase {
             "NANAICHI_APPEARANCE": appearance,
         ]
 
+        // 前のテストが開いたウィンドウ（スタッツなど）を復元させない。復元したウィンドウがメインのウィンドウに重なり、クリックが当たらなくなる
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         app.launch()
         return app
     }

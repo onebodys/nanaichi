@@ -102,3 +102,15 @@ public func peakOf(_ volume: Volume) -> Double {
     case .high: 0.95
     }
 }
+
+/// 通知の音にする、楽譜を書き出したファイルの名前（アプリを終了している間に届く通知も、同じ音色と音量で鳴らす）。
+/// 行き先のフェーズ・音色・音量の組ごとに1つ
+public func chimeSoundFileNameOf(to: PhaseKind, settings: AlertSettings) -> String {
+    let phase: String =
+        switch to {
+        case .focus: "Focus"
+        case .journal: "Journal"
+        case .breakTime: "Break"
+        }
+    return "nanaichi-\(phase)-\(settings.tones[to].rawValue)-\(settings.volume.rawValue).caf"
+}

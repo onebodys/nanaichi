@@ -43,6 +43,7 @@ struct LaunchConfiguration {
     ///   テストが同じ値を渡す。なければ起動した時刻
     /// - `NANAICHI_DATABASE`: 記録のファイル名（Application Support/nanaichi の中）。`:memory:` なら残さない
     /// - `NANAICHI_RESET_DATABASE`: `1` なら、開く前にそのファイルを消す
+    /// - `NANAICHI_RESET_DEFAULTS`: `1` なら、端末ごとの設定（知らせ方・テーマ・送信キー・つけたままのタグ）を初期に戻す
     extension LaunchConfiguration {
         fileprivate static func debugConfiguration(_ environment: [String: String]) -> LaunchConfiguration? {
             let scale = environment["NANAICHI_TIME_SCALE"].flatMap(Double.init)
@@ -60,6 +61,9 @@ struct LaunchConfiguration {
                 case let name?: .file(databaseURL(named: name))
                 case nil: .file(databaseURL(named: "device.sqlite"))
                 }
+            if environment["NANAICHI_RESET_DEFAULTS"] == "1", let domain = Bundle.main.bundleIdentifier {
+                UserDefaults.standard.removePersistentDomain(forName: domain)
+            }
             if environment["NANAICHI_RESET_DATABASE"] == "1", case .file(let url) = database {
                 for suffix in ["", "-wal", "-shm"] {
                     try? FileManager.default.removeItem(at: URL(filePath: url.path + suffix))

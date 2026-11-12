@@ -33,10 +33,10 @@ final class TimerModel {
     @ObservationIgnored private let notifications: PhaseNotificationScheduler
     @ObservationIgnored private let alertSettings: () -> AlertSettings
     @ObservationIgnored private var watch = PhaseChangeWatch()
-    /// 書けなかった記入。同じ本文で送り直すときは同じ ID で送り、二重に書かない（ADR 0010）
-    @ObservationIgnored private var failedDraft: (id: JournalEntryId, body: String)?
+    /// 書けなかった記入。同じ本文とタグで送り直すときは同じ ID で送り、二重に書かない（ADR 0010）
+    @ObservationIgnored private var failedDraft: (id: JournalEntryId, body: String, tags: [TagName])?
     /// 今日の集中時間を読み込み直すかを決める値。完了セットが増えうるときだけ読み込み直す（ADR 0014）
-    @ObservationIgnored private var todayFocusKey: TodayFocusKey?
+    @ObservationIgnored private var todayFocusKey: StatsRefreshKey?
     @ObservationIgnored private var countedEndedSession: SessionId?
     /// セッション中は App Nap で刻みが遅れないようにする（音が遅れて鳴らないように）
     @ObservationIgnored private var activity: NSObjectProtocol?
@@ -60,6 +60,9 @@ final class TimerModel {
 
     /// 時計のずれで補正した、記録先の今の時刻の見積もり
     var serverNow: Instant { loading.received?.serverNow(deviceNow: deviceNow) ?? deviceNow }
+
+    /// スタッツと今日の集中時間を読み込み直すきっかけ。完了セットが増えうるときと日付が変わったときだけ変わる
+    var statsRefreshKey: StatsRefreshKey { .of(view, serverNow: serverNow, timeZone: deviceTimeZone()) }
 
     // MARK: - 動かし続ける
 
@@ -91,7 +94,7 @@ final class TimerModel {
             case .message(.journalEntrySaved), .message(.journalEntryDeleted), .message(.tagDeleted),
                 .message(.advanceModeChanged), .message(.taskSaved), .message(.taskDeleted),
                 .message(.taskSettingChanged):
-                // 進め方の変更は sessionChanged もあわせて届く。記入とタグはタイムライン（#143）が受け取る
+                // 進め方の変更は sessionChanged もあわせて届く。記入とタグはタイムラインとタグの一覧が受け取る
                 break
             }
         }
@@ -198,16 +201,17 @@ final class TimerModel {
         Task { await load() }
     }
 
-    /// ジャーナル記入を書く。書けたら true。書くと自動終了の時刻が延びるので、セッションの変更も同期メッセージで届く
-    func write(_ body: String) async -> Bool {
+    /// ジャーナル記入を書く。書けたら true。書くと自動終了の時刻が延びるので、セッションの変更も同期メッセージで届く。
+    /// 書いた記入は同期メッセージでタイムラインに届く
+    func write(_ body: String, tags: [TagName]) async -> Bool {
         writeErrorMessage = nil
-        let id = failedDraft.flatMap { $0.body == body ? $0.id : nil } ?? newEntryId()
-        switch await backend.writeJournalEntry(id: id, body: body, tags: []) {
+        let id = failedDraft.flatMap { $0.body == body && $0.tags == tags ? $0.id : nil } ?? newEntryId()
+        switch await backend.writeJournalEntry(id: id, body: body, tags: tags) {
         case .success:
             failedDraft = nil
             return true
         case .failure(let error):
-            failedDraft = (id, body)
+            failedDraft = (id, body, tags)
             writeErrorMessage = writeErrorMessageOf(error)
             return false
         }
@@ -215,15 +219,28 @@ final class TimerModel {
 
     // MARK: - 通知
 
+    /// 通知を予約し直す。`sound` が true なら知らせ方の音色で鳴らす（アプリが鳴らせなくなるとき）
     private func scheduleNotifications(for snapshot: SessionSnapshot, sound: Bool) {
+        let settings = alertSettings()
         notifications.reschedule(
-            phaseNotificationPlanOf(snapshot, now: serverNow, settings: alertSettings()), sound: sound)
+            phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings),
+            sound: sound && settings.sound ? settings : nil)
+    }
+
+    /// 通知の許可を求める（設定で通知を出すにしたとき）
+    func requestNotificationAuthorization() {
+        notifications.requestAuthorization()
+    }
+
+    /// 知らせ方の設定を変えたら、通知を出すかどうかを予約にも当てる
+    func alertSettingsChanged() {
+        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot, sound: false) }
     }
 
     /// アプリを終了する前に呼ぶ。アプリが音を鳴らせなくなるので、通知の予約を音の鳴るものに入れ替える
     func prepareForTermination() async {
         if let snapshot = loading.received?.snapshot {
-            scheduleNotifications(for: snapshot, sound: alertSettings().sound)
+            scheduleNotifications(for: snapshot, sound: true)
         }
         await notifications.settle()
     }
@@ -245,14 +262,8 @@ final class TimerModel {
 
     private func refreshDerivedCounts() {
         let view = view
-        let completedSets: Int? =
-            switch view {
-            case .inSession(_, let state, _): state.completedSets
-            case .ended(_, let ended): ended.completedSets
-            case .loading, .loadFailed, .noSession: nil
-            }
         let timeZone = deviceTimeZone()
-        let key = TodayFocusKey(today: timeZone.localDate(at: serverNow), completedSets: completedSets)
+        let key = statsRefreshKey
         if key != todayFocusKey {
             todayFocusKey = key
             Task {
@@ -274,11 +285,6 @@ final class TimerModel {
             }
         }
     }
-}
-
-private struct TodayFocusKey: Hashable {
-    let today: LocalDate
-    let completedSets: Int?
 }
 
 /// 端末のタイムゾーン。読めない名前なら UTC で数える

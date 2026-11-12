@@ -6,15 +6,19 @@ import SwiftUI
 /// ジャーナル記入の入力欄（docs/PRODUCT.md「画面」の中央）。
 ///
 /// 送るキーは送信キー（GLOSSARY）で選び、送信ボタンの隣で切り替える。送信すると空になり、続けて書ける。
+/// 入力欄の上でつけたタグは、外すかセッションが終わるまで、続けて書く記入すべてにつく（GLOSSARY の「タグ」）。
 /// セッションの外では書けないので、入力欄を使えなくする。ジャーナルのフェーズに入ったら、すぐ書けるよう
 /// カーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする
 struct JournalInput: View {
     let model: TimerModel
-    @AppStorage("submitKey") private var submitKey = SubmitKey.defaultKey
+    let tags: TagsModel
+    @AppStorage(PreferenceKey.submitKey) private var submitKey = SubmitKey.defaultKey
     @State private var draft = ""
     @State private var sending = false
     /// 入力欄にカーソルを置く合図。増えるたびに置く
     @State private var focusSignal = 0
+
+    private var attachedTags: [TagName] { tags.attached(in: model.view.writableSession) }
 
     private var inSession: Bool { model.view.writableSession != nil }
     private var inJournalPhase: Bool { model.view.journalPhase != nil }
@@ -26,6 +30,9 @@ struct JournalInput: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ジャーナル記入")
                 .font(.headline)
+            TagInput(
+                known: tags.known, attached: attachedTags,
+                onChange: { tags.attach($0, in: model.view.writableSession) })
             editor
             HStack(spacing: 8) {
                 Spacer()
@@ -50,6 +57,7 @@ struct JournalInput: View {
             if phase != nil { focusSignal += 1 }
         }
         .onChange(of: model.journalFocusRequests) { focusSignal += 1 }
+        .onChange(of: model.view.writableSession, initial: true) { _, session in tags.adopt(by: session) }
     }
 
     private var editor: some View {
@@ -88,7 +96,7 @@ struct JournalInput: View {
         // 送っている間も続けて書けるよう、先に空にする。書けなかったら、その間に何も書いていなければ戻す
         draft = ""
         Task {
-            if await !model.write(body), draft.isEmpty { draft = body }
+            if await !model.write(body, tags: attachedTags), draft.isEmpty { draft = body }
             sending = false
         }
     }

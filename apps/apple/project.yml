@@ -2,6 +2,8 @@
 # 生成した Nanaichi.xcodeproj はコミットしない。差分がレビューできないため
 name: Nanaichi
 options:
+  # 画面は日本語だけなので、英語の Mac でも日本語のアプリとして動かす
+  developmentLanguage: ja
   deploymentTarget:
     macOS: "26.0"
   bundleIdPrefix: app.nanaichi
@@ -34,6 +36,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.mac
         PRODUCT_NAME: nanaichi
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Nanaichi/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: nanaichi
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         ENABLE_APP_SANDBOX: YES
