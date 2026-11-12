@@ -62,25 +62,23 @@ export const JournalInput = ({
   inJournalPhase: boolean;
 }>) => {
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
   const [submitKey, setSubmitKey] = useSubmitKey();
   const [attachedTags, setAttachedTags] = useAttachedTags(attachedTagsKey, sessionId);
   const inSession = sessionId !== undefined;
-  const canSend = inSession && !sending && draft.trim().length > 0;
+  // 送信と同時に空にするので、同じ本文を二重に送ることはない。前の記入の保存を待たずに、続けて送れる
+  const canSend = inSession && draft.trim().length > 0;
 
   const submit = async () => {
     if (!canSend) {
       return;
     }
     const body = draft;
-    setSending(true);
     // 送信中も続けて書けるよう、先に空にする。失敗したら、その間に何も書いていなければ戻す
     setDraft("");
     const written = await write(body, attachedTags);
     if (!written) {
       setDraft((current) => (current === "" ? body : current));
     }
-    setSending(false);
   };
 
   return (

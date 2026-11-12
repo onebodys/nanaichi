@@ -25,6 +25,10 @@ targets:
     dependencies:
       - package: NanaichiKit
         product: NanaichiDomain
+      - package: NanaichiKit
+        product: NanaichiPresentation
+      - package: NanaichiKit
+        product: NanaichiDevice
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.mac

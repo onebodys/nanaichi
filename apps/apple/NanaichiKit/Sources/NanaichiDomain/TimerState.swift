@@ -29,7 +29,7 @@ public enum Phase: Hashable, Sendable {
         }
     }
 
-    var durationMs: Int64 {
+    public var durationMs: Int64 {
         switch self {
         case .focus: focusMs
         case .journal: journalMs
@@ -38,7 +38,7 @@ public enum Phase: Hashable, Sendable {
     }
 
     /// フェーズの自動的な切り替わり: 集中 → ジャーナル → … 3セット後に休憩 → 次のラウンドの集中
-    var next: Phase {
+    public var next: Phase {
         switch self {
         case .focus(let round, let setNumber):
             .journal(round: round, setNumber: setNumber)
@@ -176,7 +176,7 @@ public enum InPhase: Hashable, Sendable {
         }
     }
 
-    var phase: Phase {
+    public var phase: Phase {
         switch self {
         case .focus(let state): .focus(round: state.round, setNumber: state.setNumber)
         case .journal(let state): .journal(round: state.round, setNumber: state.setNumber)
@@ -184,11 +184,19 @@ public enum InPhase: Hashable, Sendable {
         }
     }
 
-    var remainingSeconds: Int {
+    public var remainingSeconds: Int {
         switch self {
         case .focus(let state): state.remainingSeconds
         case .journal(let state): state.remainingSeconds
         case .breakTime(let state): state.remainingSeconds
+        }
+    }
+
+    public var clock: Clock {
+        switch self {
+        case .focus(let state): state.clock
+        case .journal(let state): state.clock
+        case .breakTime(let state): state.clock
         }
     }
 }
@@ -209,6 +217,36 @@ public enum UnendedTimerState: Hashable, Sendable {
         case .breakTime(let breakTime): self = .breakTime(breakTime)
         case .awaitingAdvance(let awaiting): self = .awaitingAdvance(awaiting)
         case .ended: return nil
+        }
+    }
+
+    public var kind: TimerStateKind {
+        switch self {
+        case .idle: .idle
+        case .focus: .focus
+        case .journal: .journal
+        case .breakTime: .breakTime
+        case .awaitingAdvance: .awaitingAdvance
+        }
+    }
+
+    public var completedSets: Int {
+        switch self {
+        case .idle(let state): state.completedSets
+        case .focus(let state): state.completedSets
+        case .journal(let state): state.completedSets
+        case .breakTime(let state): state.completedSets
+        case .awaitingAdvance(let state): state.completedSets
+        }
+    }
+
+    /// フェーズのどれかにあれば、そのフェーズの状態（待機・切り替え待ちでは nil）
+    public var inPhase: InPhase? {
+        switch self {
+        case .focus(let focus): .focus(focus)
+        case .journal(let journal): .journal(journal)
+        case .breakTime(let breakTime): .breakTime(breakTime)
+        case .idle, .awaitingAdvance: nil
         }
     }
 }
