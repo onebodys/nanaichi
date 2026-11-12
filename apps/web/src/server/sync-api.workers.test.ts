@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { Result } from "@praha/byethrow";
 import { schemaResult } from "../domain/schema-result.ts";
 import { SyncMessageJsonSchema } from "../domain/sync-message.ts";
-import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
+import {
+  eventually,
+  prepareDatabase,
+  request,
+  resetStorage,
+  signInAs,
+} from "./workers-test-harness.ts";
 
 // 時計の扱いは session-api.workers.test.ts と同じ。alarm がすぐ鳴らないよう、本当の時計より先の時刻でテストする
 const STARTED_AT = Date.UTC(2100, 0, 1, 0, 0, 0);
@@ -69,7 +75,7 @@ const decode = (data: string | undefined) =>
 
 /** 届くまで待つ。WebSocket のメッセージは HTTP の応答より後に届くことがある */
 const waitFor = async (received: Array<string>, count: number) =>
-  vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(count));
+  eventually(() => expect(received.length).toBeGreaterThanOrEqual(count));
 
 /** メッセージが届かないことを確かめるために、届くはずなら届くまでの時間だけ待つ */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));

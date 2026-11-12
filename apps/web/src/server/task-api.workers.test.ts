@@ -17,7 +17,13 @@ import {
   TaskJsonSchema,
   TaskListJsonSchema,
 } from "../domain/task.ts";
-import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
+import {
+  eventually,
+  prepareDatabase,
+  request,
+  resetStorage,
+  signInAs,
+} from "./workers-test-harness.ts";
 
 // 時計の扱いは journal-api.workers.test.ts と同じ。alarm がすぐ鳴らないよう、本当の時計より先の時刻でテストする
 const STARTED_AT = Date.UTC(2100, 0, 1, 12, 0, 0);
@@ -256,7 +262,7 @@ describe("タスクを変える", () => {
     await completeTask(id);
     await deleteTask(id);
 
-    await vi.waitFor(() => expect(received).toHaveLength(3));
+    await eventually(() => expect(received).toHaveLength(3));
     expect(received.map((data) => decode(data))).toMatchObject([
       { type: "Success", value: { kind: "TaskSaved", task: { kind: "Open", id } } },
       { type: "Success", value: { kind: "TaskSaved", task: { kind: "Completed", id } } },
@@ -281,7 +287,7 @@ describe("ToDo の設定", () => {
     expect(res.status).toBe(200);
     expect(v.parse(TaskSettingJsonSchema, await res.json())).toEqual({ kind: "Enabled" });
     expect(await taskSettingNow()).toEqual({ kind: "Enabled" });
-    await vi.waitFor(() => expect(received).toHaveLength(1));
+    await eventually(() => expect(received).toHaveLength(1));
     expect(decode(received[0])).toMatchObject({
       type: "Success",
       value: { kind: "TaskSettingChanged", setting: { kind: "Enabled" } },
@@ -296,7 +302,7 @@ describe("ToDo の設定", () => {
     await putTaskSetting({ kind: "Disabled" });
 
     expect(await taskSettingNow()).toEqual({ kind: "Disabled" });
-    await vi.waitFor(() => expect(received).toHaveLength(2));
+    await eventually(() => expect(received).toHaveLength(2));
     await settle();
     expect(received).toHaveLength(2);
   });
@@ -345,7 +351,7 @@ describe("ToDo の設定", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した");
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    await eventually(() => expect(calls).toHaveLength(1));
   });
 });
 
@@ -363,7 +369,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した、次は README の更新に取り掛かる", entryId);
 
-    await vi.waitFor(async () => expect((await tasksNow())[0]?.kind).toBe("Completed"));
+    await eventually(async () => expect((await tasksNow())[0]?.kind).toBe("Completed"));
     expect((await tasksNow())[0]).toMatchObject({
       id,
       completion: { kind: "FromJournal", entryId, probability: 0.95 },
@@ -374,7 +380,7 @@ describe("ジャーナルからの完了", () => {
         titles: ["ログイン画面のバグ修正"],
       },
     ]);
-    await vi.waitFor(() =>
+    await eventually(() =>
       expect(
         received
           .map((data) => decode(data))
@@ -394,7 +400,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した");
 
-    await vi.waitFor(async () => expect((await tasksNow())[0]?.kind).toBe("Completed"));
+    await eventually(async () => expect((await tasksNow())[0]?.kind).toBe("Completed"));
   });
 
   test("確率が 0.89 の判断なら、タスクは未完了のまま。答えは惜しいものとして残る", async () => {
@@ -404,7 +410,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正をほぼ終えた", entryId);
 
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect(
         await sqlOf((sql) => sql.exec("SELECT outcome FROM task_decision_runs").toArray()),
       ).toEqual([{ outcome: "Judged" }]),
@@ -422,7 +428,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("調べている");
 
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect(
         await sqlOf((sql) => sql.exec("SELECT input_tokens FROM task_decision_runs").toArray()),
       ).toEqual([{ input_tokens: 321 }]),
@@ -436,7 +442,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した");
 
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect((await tasksNow()).map(({ title, kind }) => [title, kind])).toEqual([
         ["ログイン画面のバグ修正", "Completed"],
         ["README の更新", "Open"],
@@ -479,7 +485,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した");
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    await eventually(() => expect(calls).toHaveLength(1));
   });
 
   test("前の日の判断は今日の回数に数えない", async () => {
@@ -490,7 +496,7 @@ describe("ジャーナルからの完了", () => {
 
     await writeEntry("ログイン画面のバグ修正が完了した");
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    await eventually(() => expect(calls).toHaveLength(1));
   });
 
   test("同じ記入を再送しても、判断モデルを呼ぶのは1回だけ", async () => {
@@ -499,7 +505,7 @@ describe("ジャーナルからの完了", () => {
     const entryId = crypto.randomUUID();
 
     await writeEntry("ログイン画面のバグ修正が完了した", entryId);
-    await vi.waitFor(() => expect(calls).toHaveLength(1));
+    await eventually(() => expect(calls).toHaveLength(1));
     await writeEntry("ログイン画面のバグ修正が完了した", entryId);
     await settle();
 
@@ -517,7 +523,7 @@ describe("ジャーナルからの完了", () => {
     const res = await writeEntry("ログイン画面のバグ修正が完了した");
 
     expect(res.status).toBe(200);
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect(
         await sqlOf((sql) => sql.exec("SELECT outcome FROM task_decision_runs").toArray()),
       ).toEqual([{ outcome: "Unavailable" }]),
@@ -543,7 +549,7 @@ describe("ジャーナルからの完了", () => {
     await completeTask(id);
     resolveRelease();
 
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect(
         await sqlOf((sql) => sql.exec("SELECT outcome FROM task_decision_runs").toArray()),
       ).toEqual([{ outcome: "Judged" }]),
@@ -560,7 +566,7 @@ describe("ジャーナルからの完了", () => {
     const res = await writeEntry("ログイン画面のバグ修正が完了した");
 
     expect(res.status).toBe(200);
-    await vi.waitFor(async () =>
+    await eventually(async () =>
       expect(
         await sqlOf((sql) => sql.exec("SELECT outcome FROM task_decision_runs").toArray()),
       ).toEqual([{ outcome: "Unavailable" }]),

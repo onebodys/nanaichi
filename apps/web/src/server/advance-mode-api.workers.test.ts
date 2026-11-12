@@ -4,7 +4,13 @@ import { AdvanceModeJsonSchema } from "../domain/advance-mode.ts";
 import { schemaResult } from "../domain/schema-result.ts";
 import { SessionSnapshotJsonSchema } from "../domain/session.ts";
 import { SyncMessageJsonSchema } from "../domain/sync-message.ts";
-import { prepareDatabase, request, resetStorage, signInAs } from "./workers-test-harness.ts";
+import {
+  eventually,
+  prepareDatabase,
+  request,
+  resetStorage,
+  signInAs,
+} from "./workers-test-harness.ts";
 
 // 時計の扱いは session-api.workers.test.ts と同じ。alarm がすぐ鳴らないよう、本当の時計より先の時刻でテストする
 const STARTED_AT = Date.UTC(2100, 0, 1, 0, 0, 0);
@@ -181,7 +187,7 @@ describe("手動の切り替わりのあるセッション", () => {
 
     await putMode(MANUAL_FOCUS_TO_JOURNAL);
 
-    await vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(2));
+    await eventually(() => expect(received.length).toBeGreaterThanOrEqual(2));
     const [mode, session] = received.map((data) =>
       schemaResult(SyncMessageJsonSchema)(JSON.parse(data)),
     );
