@@ -227,6 +227,84 @@
       }
     },
     {
+      "name": "一時停止した分だけ、集中を終えた時刻が後ろにずれる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Pause",
+            "at": "2026-10-17T00:02:00.000Z"
+          },
+          {
+            "kind": "Resume",
+            "at": "2026-10-17T00:05:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:11:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:10:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "待っている時間は完了セットの集中に数えず、後のセットはその分だけ後ろにずれる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:20:00.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 1,
+            "at": "2026-10-17T00:07:00.000Z"
+          },
+          {
+            "kind": "CompletedSet",
+            "round": 1,
+            "setNumber": 2,
+            "at": "2026-10-17T00:17:00.000Z"
+          }
+        ]
+      }
+    },
+    {
       "name": "集中のあとの切り替え待ちで終了しても、そのセットは完了セットのまま",
       "input": {
         "events": [

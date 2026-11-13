@@ -1,11 +1,8 @@
-import { describe, expect, test } from "vite-plus/test";
-import { Result } from "@praha/byethrow";
 import { goldenCases, settled } from "../testing/golden.ts";
 import { AdvanceMode, type AdvanceModeChange } from "./advance-mode.ts";
 import type { SessionEvents, SessionOperation } from "./session-event.ts";
 import {
   autoEndDueAt,
-  deriveCompletedSetTimes,
   deriveSetOutcomes,
   deriveTimerState,
   type TimerState,
@@ -630,6 +627,24 @@ goldenCases("deriveTimerState", runDeriveTimerState, [
     }),
   },
   {
+    // 進めたあとに同じミリ秒で変えた記録でも、進めた操作の判断を変えない（.claude/skills/session-history）
+    name: "切り替え待ちで進めたのと同じ時刻に進め方を自動に変えても、進めた操作は受け付けたままになる",
+    input: input(
+      [...start, { kind: "Advance", at: at(9) }],
+      at(9, 15),
+      [],
+      [...focusToJournal, { at: at(9), mode: AdvanceMode.default }],
+    ),
+    expected: success({
+      kind: "Journal",
+      round: 1,
+      setNumber: 1,
+      completedSets: 1,
+      remainingSeconds: 45,
+      clock: running(at(10)),
+    }),
+  },
+  {
     // 開始より前に2回変えている。効くのは開始の時点で最後のもの
     name: "始める前に変えた進め方でセッションを計算し、その後の変更はその時刻から効く",
     input: input(
@@ -665,40 +680,6 @@ goldenCases("deriveTimerState", runDeriveTimerState, [
     }),
   },
 ]);
-
-goldenCases(
-  "deriveCompletedSetTimes",
-  (i: DerivationInput) =>
-    settled(deriveCompletedSetTimes(i.events, i.now, i.journalEntryTimes, i.advanceModeChanges)),
-  [
-    {
-      name: "完了セットは集中を最後まで終えた時刻に数え、ジャーナルの終わりではない",
-      input: input(start, at(16)),
-      expected: { kind: "Success", value: [at(7), at(15)] },
-    },
-    {
-      name: "一時停止した分だけ、集中を終えた時刻が後ろにずれる",
-      input: input([...start, { kind: "Pause", at: at(2) }, { kind: "Resume", at: at(5) }], at(11)),
-      expected: { kind: "Success", value: [at(10)] },
-    },
-    {
-      name: "中断した不成立セットは数えない",
-      input: input([...start, { kind: "Abort", at: at(3) }], at(20)),
-      expected: { kind: "Success", value: [] },
-    },
-    {
-      name: "自動終了したら、最後の操作より後に終わるはずだったセットは数えない",
-      input: input(start, at(120)),
-      expected: { kind: "Success", value: [] },
-    },
-    {
-      // 1セット目は 7分に終え、2分待ってからジャーナル（9〜10分）、2セット目の集中は 10〜17分
-      name: "待っている時間は完了セットの集中に数えず、後のセットはその分だけ後ろにずれる",
-      input: input([...start, { kind: "Advance", at: at(9) }], at(20), [], focusToJournal),
-      expected: { kind: "Success", value: [at(7), at(17)] },
-    },
-  ],
-);
 
 goldenCases(
   "deriveSetOutcomes",
@@ -775,6 +756,26 @@ goldenCases(
       },
     },
     {
+      name: "一時停止した分だけ、集中を終えた時刻が後ろにずれる",
+      input: input([...start, { kind: "Pause", at: at(2) }, { kind: "Resume", at: at(5) }], at(11)),
+      expected: {
+        kind: "Success",
+        value: [{ kind: "CompletedSet", round: 1, setNumber: 1, at: at(10) }],
+      },
+    },
+    {
+      // 1セット目は 7分に終え、2分待ってからジャーナル（9〜10分）、2セット目の集中は 10〜17分
+      name: "待っている時間は完了セットの集中に数えず、後のセットはその分だけ後ろにずれる",
+      input: input([...start, { kind: "Advance", at: at(9) }], at(20), [], focusToJournal),
+      expected: {
+        kind: "Success",
+        value: [
+          { kind: "CompletedSet", round: 1, setNumber: 1, at: at(7) },
+          { kind: "CompletedSet", round: 1, setNumber: 2, at: at(17) },
+        ],
+      },
+    },
+    {
       name: "集中のあとの切り替え待ちで終了しても、そのセットは完了セットのまま",
       input: input([...start, { kind: "End", at: at(9) }], at(9), [], focusToJournal),
       expected: {
@@ -801,39 +802,3 @@ goldenCases(
     },
   ],
 );
-
-describe("計算の整合", () => {
-  const derivedOf = (events: SessionEvents, now: Date) => {
-    const derived = deriveTimerState(events, now, [], []);
-    if (Result.isFailure(derived)) {
-      throw new Error(`状態を計算できなかった: ${derived.error.kind}`);
-    }
-    return derived.value;
-  };
-
-  test("完了セットになった時刻の数はタイマーの状態の完了セット数と一致する", () => {
-    const events = [
-      ...start,
-      { kind: "Pause", at: at(20) },
-      { kind: "Resume", at: at(21) },
-    ] as const satisfies SessionEvents;
-    const times = deriveCompletedSetTimes(events, at(40), [], []);
-
-    expect(Result.isSuccess(times) && times.value).toHaveLength(
-      derivedOf(events, at(40)).completedSets,
-    );
-  });
-
-  test("セットの結末の完了セットの数はタイマーの状態の完了セット数と一致する", () => {
-    const events = [
-      ...start,
-      { kind: "Abort", at: at(10) },
-      { kind: "RestartFocus", at: at(11) },
-    ] as const satisfies SessionEvents;
-    const outcomes = deriveSetOutcomes(events, at(40), [], []);
-
-    expect(
-      Result.isSuccess(outcomes) && outcomes.value.filter((set) => set.kind === "CompletedSet"),
-    ).toHaveLength(derivedOf(events, at(40)).completedSets);
-  });
-});

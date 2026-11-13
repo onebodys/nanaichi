@@ -7,6 +7,10 @@ import { defineConfig } from "vite-plus";
  * 入れたまま vitest を走らせると Node 組み込みモジュールの external 指定と衝突する。
  */
 export default defineConfig({
+  // セッションの記録の網羅検査の手数（.claude/skills/session-history）。push のたびに走る既定は数秒で終わる 3
+  define: {
+    __SESSION_HISTORY_DEPTH__: JSON.stringify(Number(process.env["SESSION_HISTORY_DEPTH"] ?? "3")),
+  },
   test: {
     name: "node",
     include: ["src/**/*.test.ts"],

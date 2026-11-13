@@ -25,16 +25,6 @@ func deriveTimerStateCases(_ golden: GoldenCase) throws {
     }
 }
 
-@Test("deriveCompletedSetTimes", arguments: Golden.cases("deriveCompletedSetTimes"))
-func deriveCompletedSetTimesCases(_ golden: GoldenCase) throws {
-    try Golden.check(golden, Derivation.self) {
-        GoldenResult(
-            deriveCompletedSetTimes(
-                $0.events, now: $0.now, journalEntryTimes: $0.journalEntryTimes,
-                advanceModeChanges: $0.advanceModeChanges))
-    }
-}
-
 @Test("deriveSetOutcomes", arguments: Golden.cases("deriveSetOutcomes"))
 func deriveSetOutcomesCases(_ golden: GoldenCase) throws {
     try Golden.check(golden, Derivation.self) {
