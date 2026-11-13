@@ -1,1 +1,1 @@
-sh scripts/check-adr-numbers.sh && vp check && vp test && pnpm exec knip
+sh scripts/check-adr-numbers.sh && vp check && vp test && pnpm exec knip && sh scripts/swift-test-if-changed.sh
