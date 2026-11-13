@@ -15,7 +15,7 @@ func iso8601RoundTrip(_ text: String) throws {
 
 @Test("UNIX エポックからのミリ秒で持つ")
 func epochMilliseconds() throws {
-    #expect(Instant(iso8601: "1970-01-01T00:00:01.500Z")?.milliseconds == 1501)
+    #expect(Instant(iso8601: "1970-01-01T00:00:01.500Z")?.milliseconds == 1500)
     #expect(Instant(iso8601: "2026-10-17T00:00:00Z")?.milliseconds == 1_792_195_200_000)
 }
 
