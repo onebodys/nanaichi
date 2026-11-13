@@ -134,7 +134,9 @@ private final class WebAuthentication: NSObject, ASWebAuthenticationPresentation
         await withCheckedContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: url, callback: .customScheme(NativeSignIn.callbackScheme)
-            ) { callback, error in
+            ) { @Sendable callback, error in
+                // macOS はこの完了の処理をメインスレッドの外で呼ぶ。@Sendable を外すと、Swift 6 は
+                // @MainActor の中で書いたこのクロージャをメインスレッドのものとみなし、呼ばれた瞬間に落ちる
                 if let callback {
                     continuation.resume(returning: .returned(callback))
                 } else if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
