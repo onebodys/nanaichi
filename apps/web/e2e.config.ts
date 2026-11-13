@@ -27,7 +27,7 @@ export default {
             GOOGLE_CLIENT_ID: "e2e-dummy-client-id",
             GOOGLE_CLIENT_SECRET: "e2e-dummy-client-secret",
             ALLOWED_EMAILS:
-              "e2e@example.com,e2e-journal@example.com,e2e-sync@example.com,e2e-screenshot@example.com",
+              "e2e@example.com,e2e-journal@example.com,e2e-sync@example.com,e2e-screenshot@example.com,e2e-import@example.com",
             // Google を通さないテスト用のログイン（/api/test/sign-in）を開く（ADR 0008）。
             // ログインのしかたは tests/sign-in.setup.e2e.ts
             TEST_SIGN_IN: "enabled",

@@ -7,6 +7,7 @@ private struct Texts: Decodable { let value: [String] }
 
 private struct WithinLimit: Decodable {
     let inUse: [TagName]
+    let kept: [TagName]
     let tags: [TagName]
 }
 
@@ -39,7 +40,7 @@ func tagsParseCases(_ golden: GoldenCase) throws {
 @Test("Tag.ensureWithinLimit", arguments: Golden.cases("Tag.ensureWithinLimit"))
 func ensureWithinLimitCases(_ golden: GoldenCase) throws {
     try Golden.check(golden, WithinLimit.self) {
-        GoldenResult(Tag.ensureWithinLimit(inUse: $0.inUse, tags: $0.tags))
+        GoldenResult(Tag.ensureWithinLimit(inUse: $0.inUse, kept: $0.kept, tags: $0.tags))
     }
 }
 

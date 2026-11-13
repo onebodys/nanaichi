@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { Result } from "@praha/byethrow";
 import { AdvanceModeJsonSchema } from "../domain/advance-mode.ts";
 import { ApiErrorBodyJsonSchema } from "../domain/api-error.ts";
+import { ImportBatch, ImportReceiptJsonSchema, type ImportReceipt } from "../domain/import.ts";
 import { schemaResult } from "../domain/schema-result.ts";
 import { DeletedJournalEntryJsonSchema, JournalEntryJsonSchema } from "../domain/journal-entry.ts";
 import {
@@ -60,6 +61,14 @@ const decode =
     );
   };
 
+const noticeSignedOut =
+  (onSignedOut: () => void) =>
+  (error: BackendError): void => {
+    if (error.kind === "Rejected" && error.code === "UNAUTHENTICATED") {
+      onSignedOut();
+    }
+  };
+
 export const requestApi =
   (fetchApi: Fetch, onSignedOut: () => void) =>
   <T>(
@@ -71,11 +80,7 @@ export const requestApi =
       send(fetchApi)(path, init),
       Result.andThen(receive),
       Result.andThen(decode(schema)),
-      Result.inspectError((error) => {
-        if (error.kind === "Rejected" && error.code === "UNAUTHENTICATED") {
-          onSignedOut();
-        }
-      }),
+      Result.inspectError(noticeSignedOut(onSignedOut)),
     );
 
 export const sendJson = (
@@ -167,5 +172,51 @@ export const createRemoteBackend = ({
     changeAdvanceMode: (mode) =>
       request("/api/settings/advance-mode", AdvanceModeJsonSchema, sendJson("PUT", mode)),
     subscribe: (handlers) => connectSync(handlers, openSocket ?? openBrowserSocket(syncUrl())),
+  };
+};
+
+/** 取り込みの束を送って失敗したとき。429 だけは待てば通るので、待つ時間とともに分ける */
+export type ImportCallError =
+  | BackendError
+  /** 429（送りすぎ）。`retryAfterMs` は Retry-After（秒）から。読めなければ 10 秒 */
+  | Readonly<{ kind: "RateLimited"; retryAfterMs: number }>;
+
+export type ImportApi = Readonly<{
+  sendBatch: (batch: ImportBatch) => Result.ResultAsync<ImportReceipt, ImportCallError>;
+}>;
+
+const DEFAULT_RETRY_AFTER_MS = 10_000;
+
+const retryAfterMsOf = (response: Response): number => {
+  const seconds = Number(response.headers.get("retry-after") ?? Number.NaN);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_RETRY_AFTER_MS;
+};
+
+/**
+ * 取り込み（`POST /api/imports`、ADR 0020）の通信。`requestApi` と同じ fetch → スキーマ検証 → Result だが、
+ * 429 は本文ではなくヘッダーを読むので、本文を読む前に分ける
+ */
+export const createImportApi = ({
+  fetchApi = (path, init) => fetch(path, init),
+  onSignedOut,
+}: Omit<RemoteBackendDeps, "openSocket">): ImportApi => {
+  const receiveReceipt = (
+    response: Response,
+  ): Result.ResultAsync<ImportReceipt, ImportCallError> =>
+    response.status === 429
+      ? Promise.resolve(
+          Result.fail({ kind: "RateLimited", retryAfterMs: retryAfterMsOf(response) }),
+        )
+      : Result.pipe(
+          receive(response),
+          Result.andThen(decode(ImportReceiptJsonSchema)),
+          Result.inspectError(noticeSignedOut(onSignedOut)),
+        );
+  return {
+    sendBatch: (batch) =>
+      Result.pipe(
+        send(fetchApi)("/api/imports", postJson(ImportBatch.toJson(batch))),
+        Result.andThen(receiveReceipt),
+      ),
   };
 };

@@ -1,5 +1,6 @@
 import { Result } from "@praha/byethrow";
 import type { AdvanceMode } from "../domain/advance-mode.ts";
+import type { ImportReceipt } from "../domain/import.ts";
 import type { DeletedJournalEntry, JournalEntry, JournalEntryId } from "../domain/journal-entry.ts";
 import type { SessionId, SessionSnapshot } from "../domain/session.ts";
 import type { SyncMessage } from "../domain/sync-message.ts";
@@ -37,6 +38,12 @@ import {
   type EditJournalEntryError,
 } from "./edit-journal-entry.ts";
 import { getCurrentSession } from "./get-current-session.ts";
+import {
+  importSessions,
+  type ImportOutcome,
+  type ImportSessionsDeps,
+  type ImportSessionsError,
+} from "./import-sessions.ts";
 import {
   operateSession,
   type OperateSessionDeps,
@@ -201,4 +208,33 @@ export const finishCompletionFromJournalCommand =
   ): Executed<ReadonlyArray<CompletedTask>> =>
     withMessages((completed: ReadonlyArray<CompletedTask>) => completed.flatMap(taskSaved))(
       finishCompletionFromJournal(deps)(entryId, decision, now),
+    );
+
+/**
+ * 取り込んだセッションがあれば `RecordsImported` を送り、画面はタイムラインなどを読み込み直す。
+ * アカウントのいまの進め方を変えたら、あわせて `AdvanceModeChanged` を送る
+ */
+const importMessages = (imported: ImportOutcome): ReadonlyArray<SyncMessage> => [
+  ...(imported.outcomes.some(({ kind }) => kind === "Imported")
+    ? [{ kind: "RecordsImported" } as const satisfies SyncMessage]
+    : []),
+  ...(imported.currentMode.kind === "Changed"
+    ? [
+        {
+          kind: "AdvanceModeChanged",
+          mode: imported.currentMode.mode,
+        } as const satisfies SyncMessage,
+      ]
+    : []),
+];
+
+export const importSessionsCommand =
+  (deps: ImportSessionsDeps) =>
+  (raw: unknown, now: Date): Result.Result<Executed<ImportReceipt>, ImportSessionsError> =>
+    Result.pipe(
+      importSessions(deps)(raw, now),
+      Result.map((imported) => ({
+        value: { outcomes: imported.outcomes },
+        messages: importMessages(imported),
+      })),
     );

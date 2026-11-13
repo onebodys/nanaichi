@@ -1,16 +1,15 @@
 import { AdvanceModeChange } from "../domain/advance-mode.ts";
+import type { JournalEntry, JournalEntryId, StoredJournalEntry } from "../domain/journal-entry.ts";
 import type {
-  DeletedJournalEntry,
-  JournalEntry,
-  JournalEntryId,
-  StoredJournalEntry,
-} from "../domain/journal-entry.ts";
-import type { RecordedSessionEvents } from "../domain/session-event.ts";
+  ClosedSession,
+  SessionRecord,
+  StoredEntry,
+  StoredSession,
+} from "../domain/session-record.ts";
 import type { Session, SessionId } from "../domain/session.ts";
 import type { EntryMark } from "../domain/stats.ts";
 import type { TagName, TagUsage } from "../domain/tag.ts";
 import type { TimelineSession } from "../domain/timeline.ts";
-import type { Ended } from "../domain/timer-state.ts";
 import type { ChangeAdvanceModeDeps } from "../workflows/change-advance-mode.ts";
 import type { DeleteJournalEntryDeps } from "../workflows/delete-journal-entry.ts";
 import type { DeleteTagDeps } from "../workflows/delete-tag.ts";
@@ -28,29 +27,6 @@ import type { OperateSessionDeps } from "../workflows/operate-session.ts";
 import type { StartSessionDeps } from "../workflows/start-session.ts";
 import type { WriteJournalEntryDeps } from "../workflows/write-journal-entry.ts";
 
-/**
- * 記録されている記入。削除した記入は本文とタグを捨て、ID・削除した時刻・セッション・書いた時刻だけを残す。
- * ID は同じ記入の再送を見分けるため、書いた時刻は自動終了の判断で削除した記入も数えるため（ADR 0010）。
- */
-export type StoredEntry =
-  | Readonly<{ kind: "Written"; entry: JournalEntry }>
-  | Readonly<{
-      kind: "Deleted";
-      deleted: DeletedJournalEntry;
-      sessionId: SessionId;
-      writtenAt: Date;
-    }>;
-
-/** `events` は SQLite の `ORDER BY at, rowid` の順に並べておく。同じミリ秒の操作は記録した順になる */
-type StoredSession = Readonly<{
-  id: SessionId;
-  events: RecordedSessionEvents;
-  entries: ReadonlyArray<StoredEntry>;
-}>;
-
-/** 閉じたセッション。`sessions.ended_at` / `ended_by` と同じものだけを持ち、終了の状態はドメインで計算し直す */
-export type ClosedSession = StoredSession & Readonly<{ endedAt: Date; endedBy: Ended["endedBy"] }>;
-
 type OpenSlot =
   | Readonly<{ kind: "NoOpenSession" }>
   | Readonly<{ kind: "Open"; session: StoredSession }>;
@@ -66,11 +42,6 @@ export type DeviceRecords = Readonly<{
 export const DeviceRecords = {
   empty: { closed: [], open: { kind: "NoOpenSession" }, advanceModeChanges: [] },
 } as const satisfies Readonly<{ empty: DeviceRecords }>;
-
-/** 保存するときの1件。IndexedDB にはセッションごとに1件ずつ置く（ADR 0019） */
-export type SessionRecord =
-  | Readonly<{ kind: "Open"; session: StoredSession }>
-  | Readonly<{ kind: "Closed"; session: ClosedSession }>;
 
 export const sessionRecordsOf = (records: DeviceRecords): ReadonlyArray<SessionRecord> => {
   const closed = records.closed.map((session): SessionRecord => ({ kind: "Closed", session }));
@@ -88,6 +59,17 @@ export const changedSessionRecords = (
 ): ReadonlyArray<SessionRecord> => {
   const unchanged = new Set<StoredSession>(sessionRecordsOf(base).map(({ session }) => session));
   return sessionRecordsOf(current).filter(({ session }) => !unchanged.has(session));
+};
+
+/** `base` にあって `current` にないセッション。この端末から消したもの（取り込み、ADR 0020） */
+export const removedSessionIds = (
+  base: DeviceRecords,
+  current: DeviceRecords,
+): ReadonlyArray<SessionId> => {
+  const kept = new Set(sessionRecordsOf(current).map(({ session }) => session.id));
+  return sessionRecordsOf(base)
+    .map(({ session }) => session.id)
+    .filter((id) => !kept.has(id));
 };
 
 const latestRecordedAt = (records: DeviceRecords): Date | undefined => {
@@ -467,13 +449,8 @@ export const recordsDeps = (draft: Draft): RecordsDeps => {
       const current = records();
       const sessionRecords = sessionRecordsOf(current);
       return {
-        // 閉じたあとの変更は計算に影響しないので、閉じた時刻で絞らない（stats-sqlite.ts と同じ）
-        sessions: sessionRecords.map(({ session }) =>
-          sessionFrom(
-            session,
-            AdvanceModeChange.relevantSince(current.advanceModeChanges, startedAtOf(session)),
-          ),
-        ),
+        // 閉じたセッションは閉じた時刻までの変更で計算する（stats-sqlite.ts、タイムラインと同じ）
+        sessions: sessionRecords.map((record) => sessionOf(current, record)),
         entries: sessionRecords
           .flatMap(({ session }) => writtenEntriesIn(session))
           .toSorted(byWrittenAt)

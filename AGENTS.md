@@ -86,8 +86,8 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 
 - レスポンスのスキーマ（valibot）は `domain/` に、レスポンスが表す型の隣に `<型名>JsonSchema` として置く（例: `domain/session.ts` の `SessionSnapshotJsonSchema`、`domain/api-error.ts` の `ApiErrorBodyJsonSchema`）。JSON にした値（時刻は ISO 8601 の文字列）を検証してドメインの型（時刻は `Date`）に戻す。出力の型は `v.GenericSchema<unknown, ドメインの型>` で注釈する。
 - サーバーはドメインの型をそのまま `c.json` で返す。エラーの本文は `satisfies ApiErrorBody` で種類を縛る。
-- 画面は `fetch` を直接呼ばず、`client/api.ts` の通信層（fetch → スキーマ検証 → byethrow の Result）を通す。失敗は `NetworkError` / `ApiRejected` / `UnexpectedResponse` で、画面は `kind` で扱いを決める。
-- エンドポイントを足したら、スキーマを `domain/` に、関数を `client/api.ts` に足し、「実際の応答がスキーマに合う」ことを結合テスト（`*.workers.test.ts` など）で、「通信層が Result で返す」ことを `client/api.test.ts` で確かめる。
+- 画面は `fetch` を直接呼ばず、`client/remote-backend.ts` の通信層（fetch → スキーマ検証 → byethrow の Result）を通す。失敗は `BackendError`（`domain/backend.ts`。通信できない `Unreachable`、断られた `Rejected`、応答の形が違う `Broken` など）で、画面は `kind` で扱いを決める。
+- エンドポイントを足したら、スキーマを `domain/` に、関数を `client/remote-backend.ts` に足し、「実際の応答がスキーマに合う」ことを結合テスト（`*.workers.test.ts` など）で、「通信層が Result で返す」ことを `client/remote-backend.test.ts` で確かめる。
 
 ## 6. 用語とコードの対応
 
