@@ -82,3 +82,12 @@ export const exhaustRateLimit = async (
   }
   return { passed: responses.filter((res) => res.status !== 429).length, rejected };
 };
+
+/**
+ * 非同期に起きることを、起きるまで待って確かめる。`vi.waitFor` の既定の上限（1 秒）では、
+ * マシンが混んでいるとき（push 時のフックが並行して走るなど）に、正しく動いていても時間切れで落ちる（Issue #31）。
+ * 上限は振る舞いの検証ではなく、起きないまま止まったテストを見つけるためのもの（`vitest.workers.config.ts` の
+ * `testTimeout` と同じ考え方）
+ */
+export const eventually = <T>(assertion: () => T | Promise<T>): Promise<T> =>
+  vi.waitFor(assertion, { timeout: 10_000 });

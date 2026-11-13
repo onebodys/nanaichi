@@ -1,9 +1,10 @@
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import * as v from "valibot";
 import { ApiErrorBodyJsonSchema } from "../domain/api-error.ts";
 import { bearer, signInNatively } from "./native-auth-test-flow.ts";
 import {
+  eventually,
   exhaustRateLimit,
   prepareDatabase,
   request,
@@ -66,7 +67,7 @@ describe("Bearer トークンでの同期の WebSocket", () => {
     });
 
     expect(res.status).toBe(101);
-    await vi.waitFor(() => expect(received.length).toBeGreaterThanOrEqual(1));
+    await eventually(() => expect(received.length).toBeGreaterThanOrEqual(1));
     expect(JSON.parse(received[0] ?? "null")).toMatchObject({ kind: "SessionChanged" });
   });
 
