@@ -21,6 +21,8 @@ import { Sensitive } from "./sensitive.ts";
 import { SessionEventId } from "./session-event.ts";
 import { SessionRecord, type ClosedSession, type StoredEntry } from "./session-record.ts";
 import { Session, SessionId } from "./session.ts";
+// Mac アプリの Swift のテストが、送る束がこの形になることを確かめている
+import macImportBatch from "../../../apple/NanaichiKit/Tests/NanaichiDomainTests/Fixtures/import-batch.json" with { type: "json" };
 
 const T0 = Date.UTC(2026, 10, 2, 9, 0, 0);
 const at = (minutes: number) => new Date(T0 + minutes * 60_000);
@@ -528,5 +530,20 @@ describe("取り込みのダイアログに出す数", () => {
     ];
 
     expect(Import.summaryOf(sessions)).toEqual({ sessions: 2, entries: 2 });
+  });
+});
+
+describe("Mac アプリが送る取り込みの束", () => {
+  test("Mac アプリが送る形の束を検証でき、記入の本文は Sensitive に包み直す", () => {
+    const parsed = v.parse(ImportBatchJsonSchema, macImportBatch);
+
+    expect(parsed.sessions.map(({ id, endedBy }) => ({ id, endedBy }))).toEqual([
+      { id: "00000000-0000-4000-8000-000000000101", endedBy: "End" },
+      { id: "00000000-0000-4000-8000-000000000102", endedBy: "AutoEnd" },
+    ]);
+    const [written, deleted] = parsed.sessions[0]?.entries ?? [];
+    expect(written?.kind === "Written" && written.entry.body.unwrap()).toBe("設計を読んだ");
+    expect(deleted?.kind).toBe("Deleted");
+    expect(parsed.advanceModeChanges).toHaveLength(1);
   });
 });

@@ -35,7 +35,7 @@ func fixture(_ name: String) -> StubResponse {
 
 /// 応答の例 `name` の本文を、ドメインの型に戻したもの
 func decoded<T: Decodable>(_: T.Type, _ name: String) -> T {
-    guard case .http(_, let body) = fixture(name), let value = try? JSONDecoder().decode(T.self, from: body) else {
+    guard case .http(_, let body, _) = fixture(name), let value = try? JSONDecoder().decode(T.self, from: body) else {
         fatalError("応答の例を \(T.self) として読めない: \(name)")
     }
     return value
@@ -54,7 +54,7 @@ func canonicalJSON(_ text: String) -> String? { canonicalJSON(Data(text.utf8)) }
 // MARK: - URLProtocol でサーバーの代わりをする
 
 enum StubResponse: Sendable {
-    case http(status: Int, body: Data)
+    case http(status: Int, body: Data, headers: [String: String] = [:])
     /// 届かない（オフラインなど）
     case unreachable
 
@@ -132,11 +132,11 @@ private final class StubProtocol: URLProtocol {
 
     override func startLoading() {
         switch StubServer.handle(request) {
-        case .http(let status, let body):
+        case .http(let status, let body, let headers):
             guard let url = request.url,
                 let response = HTTPURLResponse(
                     url: url, statusCode: status, httpVersion: "HTTP/1.1",
-                    headerFields: ["Content-Type": "application/json"])
+                    headerFields: headers.merging(["Content-Type": "application/json"]) { first, _ in first })
             else { return }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: body)

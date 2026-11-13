@@ -26,7 +26,8 @@ final class AdvanceModeModel {
             case .connected: mode = mode.replacing(with: await backend.getAdvanceMode())
             case .message(.advanceModeChanged(let changed)): mode = .loaded(changed)
             case .message(.sessionChanged), .message(.journalEntrySaved), .message(.journalEntryDeleted),
-                .message(.tagDeleted), .message(.taskSaved), .message(.taskDeleted), .message(.taskSettingChanged):
+                .message(.tagDeleted), .message(.taskSaved), .message(.taskDeleted), .message(.taskSettingChanged),
+                .message(.recordsImported):
                 break
             }
         }

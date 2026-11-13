@@ -190,6 +190,22 @@ public actor DeviceBackend: Backend {
         }
     }
 
+    // MARK: - 取り込み（ADR 0020）
+
+    /// 取り込める記録。自動終了の時刻を過ぎた開いているセッションは、先に閉じて記録する。
+    /// ログインしたあとの画面が使う口で、アカウントの記録先とは別に、この Mac の記録先を読む
+    public func loadImportable() -> Result<ImportableRecords, BackendError> {
+        read { records, _ in try records.importableRecords() }
+    }
+
+    /// 閉じたセッションを、1つのトランザクションでこの端末から消す。消すのは、サーバーが
+    /// `Imported` / `AlreadyImported` と返したものだけ。ない ID と開いているセッションの ID は無視するので、
+    /// やり直しても同じ結果になる。この Mac の記録先の画面には同期メッセージを送らない
+    /// （ログインしている間は使っておらず、ログアウトして戻ったときに読み込み直す）
+    public func removeClosedSessions(_ ids: [SessionId]) -> Result<Void, BackendError> {
+        read { records, _ in try records.removeClosedSessions(ids) }
+    }
+
     // MARK: - 同期メッセージ
 
     /// 受け取り始めた時点で繋がっている（同じアプリの中なので、繋ぎ直しはない）

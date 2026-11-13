@@ -87,4 +87,75 @@ final class AccountTests: XCTestCase {
         app.buttons["account.signIn"].click()
         waitFor(app, "account.email", toRead: "owner@example.com")
     }
+    /// ログインした直後に、この Mac の閉じたセッションを取り込むかを確かめ、取り込むとこの Mac から消える（Issue #19、ADR 0020）。
+    /// 代わりのアカウントは、どのセッションも取り込んだと答える
+    @MainActor
+    func testImportsDeviceRecordsRightAfterSignIn() throws {
+        let app = launch(stub: true)
+        openAccountSettings(app)
+        waitFor(app, "account.email", toRead: "owner@example.com")
+        // 起動したときにログインしていたなら確かめは出さず、取り込むものもない
+        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
+        app.buttons["account.signOut"].click()
+        XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログアウトしても戻らない")
+        app.typeKey("w", modifierFlags: .command)
+
+        // この Mac の記録先でセッションを1つ終える
+        let start = app.buttons["timer.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.click()
+        let end = app.buttons["operation.End"]
+        XCTAssertTrue(end.waitForExistence(timeout: 5), "セッションが始まらない")
+        end.click()
+        XCTAssertTrue(start.waitForExistence(timeout: 5), "セッションが終わらない")
+
+        openAccountSettings(app)
+        app.buttons["account.signIn"].click()
+        waitFor(app, "account.email", toRead: "owner@example.com")
+        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない1セッション・記入 0件があります")
+        app.typeKey("w", modifierFlags: .command)
+
+        let prompt = app.staticTexts["import.prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
+        attachScreenshot(of: app, named: "46-取り込みの確かめ")
+        app.buttons["import.start"].click()
+        waitFor(app, "import.result", toRead: "1セッションをアカウントに取り込みました。")
+        attachScreenshot(of: app, named: "47-取り込みました")
+        app.buttons["import.close"].click()
+        XCTAssertFalse(prompt.exists)
+
+        openAccountSettings(app)
+        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
+        XCTAssertFalse(app.buttons["account.import"].exists, "取り込んだのに、まだ取り込むボタンがある")
+    }
+
+    /// 「あとで」を選んでも、設定のアカウントのタブから取り込める
+    @MainActor
+    func testImportLaterFromSettings() throws {
+        let app = launch(stub: true)
+        openAccountSettings(app)
+        waitFor(app, "account.email", toRead: "owner@example.com")
+        app.buttons["account.signOut"].click()
+        XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログアウトしても戻らない")
+        app.typeKey("w", modifierFlags: .command)
+
+        let start = app.buttons["timer.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.click()
+        app.buttons["operation.End"].click()
+        XCTAssertTrue(start.waitForExistence(timeout: 5), "セッションが終わらない")
+
+        openAccountSettings(app)
+        app.buttons["account.signIn"].click()
+        waitFor(app, "account.email", toRead: "owner@example.com")
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(app.buttons["import.later"].waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
+        app.buttons["import.later"].click()
+
+        openAccountSettings(app)
+        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない1セッション・記入 0件があります")
+        attachScreenshot(of: app, named: "48-設定（アカウント・取り込んでいない記録）")
+        app.buttons["account.import"].click()
+        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
+    }
 }

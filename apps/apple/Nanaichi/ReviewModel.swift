@@ -64,7 +64,9 @@ final class ReviewModel {
     func run() async {
         for await event in await backend.subscribe() {
             switch event {
-            case .message(.journalEntrySaved), .message(.journalEntryDeleted), .message(.tagDeleted):
+            // 取り込んだ記録は届かないので、スタッツと見返しを読み込み直す（ADR 0020）
+            case .message(.journalEntrySaved), .message(.journalEntryDeleted), .message(.tagDeleted),
+                .message(.recordsImported):
                 revision += 1
             case .connected, .message(.sessionChanged), .message(.advanceModeChanged), .message(.taskSaved),
                 .message(.taskDeleted), .message(.taskSettingChanged):

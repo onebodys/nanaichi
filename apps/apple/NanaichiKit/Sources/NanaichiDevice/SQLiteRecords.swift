@@ -455,3 +455,68 @@ extension SQLiteRecords: StatsStore {
         return StatsRecords(sessions: sessions, entries: entries)
     }
 }
+
+// MARK: - 取り込み（ADR 0020）
+
+/// 記録されている記入を、取り込みで送る形にする。削除した記入は本文とタグを送らず、書いた時刻とセッションを残す
+private func storedEntry(_ row: Row) throws -> StoredEntry {
+    let reader = RowReader(row: row, table: "journal_entries")
+    switch try storedJournalEntry(row) {
+    case .written(let entry): return .written(entry)
+    case .deleted(let deleted):
+        return .deleted(
+            deleted, sessionId: try reader.parsed("session_id", SessionId.init),
+            writtenAt: try reader.instant("written_at"))
+    }
+}
+
+extension SQLiteRecords {
+    /// 取り込める記録。閉じたセッションを始めた時刻の順に、操作イベント（同じミリ秒は記録した順）と
+    /// 記入（削除した記入の印を含む、書いた時刻の順）とともに読む。自動終了は呼び出し側が先に確定させておく
+    func importableRecords() throws -> ImportableRecords {
+        let closed = try Row.fetchAll(
+            db, sql: "SELECT id, ended_at, ended_by FROM sessions WHERE ended_at IS NOT NULL ORDER BY started_at, rowid")
+        let sessions = try closed.map { row in
+            let reader = RowReader(row: row, table: "sessions")
+            let id = try reader.parsed("id", SessionId.init)
+            return ClosedSession(
+                id: id,
+                events: try recordedEvents(
+                    Row.fetchAll(
+                        db, sql: "SELECT id, kind, at FROM session_events WHERE session_id = ? ORDER BY at, rowid",
+                        arguments: [id.rawValue])),
+                entries: try Row.fetchAll(
+                    db,
+                    sql: """
+                        SELECT \(journalEntryColumns) FROM journal_entries
+                        WHERE session_id = ? ORDER BY written_at, rowid
+                        """, arguments: [id.rawValue]
+                ).map(storedEntry),
+                endedAt: try reader.instant("ended_at"),
+                endedBy: try reader.parsed("ended_by", EndedBy.init(rawValue:)))
+        }
+        let open = try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM sessions WHERE ended_at IS NULL)") ?? false
+        return ImportableRecords(
+            sessions: sessions, advanceModeChanges: try advanceModeChanges(),
+            open: open ? .openSessionLeft : .noOpenSession)
+    }
+
+    /// 閉じたセッションを、操作イベント・記入・記入のタグとともに消す。開いているセッションとない ID は無視する。
+    /// 進め方の変更履歴は消さない（ほかのセッションとこれからのセッションの計算に要る、ADR 0016）
+    func removeClosedSessions(_ ids: [SessionId]) throws {
+        for id in ids {
+            guard
+                try Bool.fetchOne(
+                    db, sql: "SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND ended_at IS NOT NULL)",
+                    arguments: [id.rawValue]) == true
+            else { continue }
+            try db.execute(
+                sql: """
+                    DELETE FROM journal_entry_tags WHERE entry_id IN (SELECT id FROM journal_entries WHERE session_id = ?);
+                    DELETE FROM journal_entries WHERE session_id = ?;
+                    DELETE FROM session_events WHERE session_id = ?;
+                    DELETE FROM sessions WHERE id = ?;
+                    """, arguments: [id.rawValue, id.rawValue, id.rawValue, id.rawValue])
+        }
+    }
+}

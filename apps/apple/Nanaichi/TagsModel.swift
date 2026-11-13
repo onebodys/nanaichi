@@ -54,7 +54,7 @@ final class TagsModel {
     func run() async {
         for await event in await backend.subscribe() {
             switch event {
-            case .connected, .message(.journalEntrySaved), .message(.journalEntryDeleted):
+            case .connected, .message(.journalEntrySaved), .message(.journalEntryDeleted), .message(.recordsImported):
                 await refresh()
             case .message(.tagDeleted(let deleted)):
                 store(attached.deletingTag(deleted))

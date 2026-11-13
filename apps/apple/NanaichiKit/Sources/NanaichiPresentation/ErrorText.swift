@@ -3,7 +3,7 @@ import NanaichiDomain
 // 画面に出す失敗の文言。記録先の文言はそのまま出さない（Web の use-session-timer.ts・use-timeline.ts）
 
 /// この端末に保存できなかったときの文言（ADR 0019・0028）
-private func storageFailedMessageOf(_ failure: StorageFailure) -> String {
+func storageFailedMessageOf(_ failure: StorageFailure) -> String {
     switch failure {
     case .quotaExceeded: "ディスクの空きが足りず、記録を保存できませんでした。"
     case .unavailable: "この Mac に記録を保存できませんでした。もう一度お試しください。"
