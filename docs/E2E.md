@@ -167,4 +167,4 @@ e2e は macOS のネイティブアプリを動かせないので、Mac アプ�
 - CI の `apple-ui` ジョブも同じスクリプトを走らせ、Web の E2E と同じく画面の一覧（`screenshots.html`）へのリンクを PR にコメントする。macOS のランナーは長くかかり分数も多く数えられるので、**PR に `ui-test` のラベルを付けたとき**（ラベルがある間は push のたびに）か、Actions の画面から手で走らせたときだけ走る。画面に関わる PR では、ラベルを付けて画面を確かめてから外す
 - XCUITest はデバッグのビルドにだけある環境変数でアプリを起動する（`apps/apple/Nanaichi/LaunchConfiguration.swift`）。`NANAICHI_TIME_SCALE` で時計を速め（15倍なら1ラウンドが2分ほど）、`NANAICHI_TIME_ORIGIN` に同じ起点を渡せば開き直しても時刻が続く。`NANAICHI_DATABASE` はアプリのコンテナの中の記録のファイル名で、`NANAICHI_RESET_DATABASE=1` なら開く前に消す。リリースのビルドはこれらを読まない
 - ローカルで XCUITest を走らせるには、Mac の開発者モード（`DevToolsSecurity -enable`）か、最初に出る認証のダイアログでの許可が要る。許可していないと `The test runner failed to initialize for UI testing` で落ちる
-- ドメインは `apps/apple/NanaichiKit` の `swift test` で確かめる。TS のテストが書き出したゴールデンケース（`fixtures/golden/`）を通す。CI の `apple` ジョブは、Swift のコードかゴールデンケースが変わったときに走る
+- ドメインは `apps/apple/NanaichiKit` の `swift test` で確かめる。TS のテストが書き出したゴールデンケース（`fixtures/golden/`）を通す。CI の `apple` ジョブは、Swift のコードかゴールデンケースが変わったときに走る。手元でも、同じ条件で push 時のフックとエージェントの Stop フックが `swift test` を走らせる（`scripts/swift-test-if-changed.sh`）。Command Line Tools が選ばれていれば `/Applications` のいちばん新しい Xcode を使う
