@@ -23,7 +23,9 @@ public func timelineChangeOf(_ message: SyncMessage) -> TimelineChange? {
     case .journalEntrySaved(let entry): { Timeline.putEntry($0, entry) }
     case .journalEntryDeleted(let deleted): { Timeline.removeEntry($0, id: deleted.id) }
     case .tagDeleted(let deleted): { Timeline.deleteTag($0, deleted) }
-    case .sessionChanged(.noSession), .advanceModeChanged, .taskSaved, .taskDeleted, .taskSettingChanged: nil
+    case .sessionChanged(.noSession), .advanceModeChanged, .taskSaved, .taskDeleted, .taskSettingChanged,
+        .recordsImported:
+        nil
     }
 }
 

@@ -88,6 +88,8 @@ final class AppModel {
     var signedOutByExpiry = false
     /// 設定で開いているタブ。メニューの「アカウント…」から、アカウントのタブを開く
     var settingsTab: SettingsTab = .timer
+    /// ログインしている間の、この Mac の記録の取り込み（ADR 0020）。この Mac の記録先では nil
+    private(set) var importer: ImportModel?
 
     @ObservationIgnored private let configuration: LaunchConfiguration
     /// この Mac の記録先。ログインしている間も閉じずに持ち、ログアウトしたらまた使う
@@ -107,7 +109,8 @@ final class AppModel {
         let id = UUID()
         switch configuration.accounts.restore(expiryHandler(for: id)) {
         case .signedOut: break
-        case .signedIn(let signedIn): open(.account(signedIn, id: id))
+        // 起動したときにログインしていたなら確かめは出さず、設定から取り込める
+        case .signedIn(let signedIn): open(.account(signedIn, id: id), askToImport: false)
         case .unreadable(let message): accountMessage = message
         }
     }
@@ -143,8 +146,9 @@ final class AppModel {
 
     // MARK: - 記録先を替える
 
-    /// 記録先を `store` に替え、画面の状態を作り直す
-    private func open(_ store: RecordStore) {
+    /// 記録先を `store` に替え、画面の状態を作り直す。`askToImport` なら、ログインした直後として
+    /// この Mac の記録を取り込むかを確かめる（ADR 0020）
+    private func open(_ store: RecordStore, askToImport: Bool = false) {
         let backend: any Backend
         let tasks: (any TaskBackend)?
         switch store {
@@ -152,11 +156,15 @@ final class AppModel {
             backend = device
             tasks = nil
             account = .signedOut
+            importer = nil
         case .account(let signedIn, let id):
             backend = signedIn.backend
             tasks = signedIn.tasks
             account = .signedIn(.loading)
+            let importer = ImportModel(device: device, account: signedIn, askNow: askToImport)
+            self.importer = importer
             Task { await loadUser(signedIn, id: id) }
+            Task { await importer.check() }
         }
         // 起動の途中（`start()` の前）なら、動かし始めるのは `start()` に任せる
         let wasRunning = running != nil
@@ -214,7 +222,7 @@ final class AppModel {
                 account = .signedOut
                 accountMessage = refusal
             } else {
-                open(.account(signedIn, id: id))
+                open(.account(signedIn, id: id), askToImport: true)
             }
         case .cancelled: account = .signedOut
         case .failed(let message):

@@ -9,6 +9,8 @@ struct SignedIn {
     /// タスクと ToDo の設定。アカウントの記録先にだけある（ADR 0026）
     let tasks: any TaskBackend
     let user: @Sendable () async -> Result<AccountUser, BackendError>
+    /// この Mac の記録の束をアカウントへ取り込む（ADR 0020）
+    let sendImportBatch: @Sendable (ImportBatch) async -> Result<ImportReceipt, ImportCallError>
     /// ログアウトする。サーバーのセッションを消し（届かなくても）、手元のトークンを消し、同期を閉じる
     let signOut: @Sendable () async -> Void
     /// ログインが切れていた。手元のトークンを消し、同期を閉じる
@@ -54,6 +56,7 @@ extension AccountGateway {
                 backend: backend,
                 tasks: backend,
                 user: { await backend.getMe() },
+                sendImportBatch: { await backend.sendImportBatch($0) },
                 signOut: {
                     // 届かなくてもトークンは 7 日で切れるので、結果にかかわらず手元のトークンを消す（ADR 0029）
                     _ = await nativeSignIn.signOut(token)

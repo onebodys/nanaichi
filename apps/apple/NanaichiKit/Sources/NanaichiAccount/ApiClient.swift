@@ -61,6 +61,33 @@ struct ApiClient: Sendable {
         return result
     }
 
+    /// 429（送りすぎ）を、Retry-After とともに失敗の1つとして返す（取り込みの束を待って送り直すため）。
+    /// それ以外は `call` と同じ
+    func callRetryingAfter<Value: Decodable>(_ request: ApiRequest, as _: Value.Type = Value.self) async
+        -> Result<Value, ImportCallError>
+    {
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: urlRequest(request))
+        } catch {
+            return .failure(.backend(.unreachable))
+        }
+        guard let response = response as? HTTPURLResponse else { return .failure(.backend(.broken)) }
+        if response.statusCode == 429 {
+            return .failure(.rateLimited(retryAfterMs: Self.retryAfterMs(response.value(forHTTPHeaderField: "Retry-After"))))
+        }
+        let result = Self.decode(Value.self, status: response.statusCode, body: data)
+        if case .failure(.rejected(.unauthenticated)) = result { onSignedOut() }
+        return result.mapError(ImportCallError.backend)
+    }
+
+    /// Retry-After（秒）をミリ秒にする。読めなければ 10 秒（Web と同じ）
+    static func retryAfterMs(_ header: String?) -> Int {
+        guard let seconds = header.flatMap(Double.init), seconds.isFinite, seconds > 0 else { return 10_000 }
+        return Int(seconds * 1000)
+    }
+
     private func urlRequest(_ request: ApiRequest) -> URLRequest {
         var urlRequest = URLRequest(url: AccountServer.url(server, path: request.path, query: request.query))
         urlRequest.httpMethod = request.method.rawValue

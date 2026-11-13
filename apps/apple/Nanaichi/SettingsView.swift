@@ -342,10 +342,11 @@ private struct AccountSettings: View {
             } header: {
                 Text("アカウント")
             } footer: {
-                Text("この Mac の記録は、ログインしても消えずに残ります。ログアウトすると、また使えます。")
+                Text("この Mac の記録は、取り込むまでログインしても消えずに残ります。ログアウトすると、また使えます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let importer = model.importer { DeviceRecordsSection(importer: importer) }
         }
         .formStyle(.grouped)
     }

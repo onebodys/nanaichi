@@ -20,6 +20,7 @@ private func kinds(_ messages: [SyncMessage]) -> [String] {
         case .taskSaved: "TaskSaved"
         case .taskDeleted: "TaskDeleted"
         case .taskSettingChanged: "TaskSettingChanged"
+        case .recordsImported: "RecordsImported"
         }
     }
 }

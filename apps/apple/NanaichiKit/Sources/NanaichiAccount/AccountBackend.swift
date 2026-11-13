@@ -140,6 +140,14 @@ public actor AccountBackend: Backend, TaskBackend {
         await api.call(.get("me"), as: MeBody.self).map { AccountUser(name: $0.user.name, email: Sensitive($0.user.email)) }
     }
 
+    // MARK: - 取り込み（ADR 0020）
+
+    /// この Mac の閉じたセッションの束を、アカウントへ取り込む（`POST /api/imports`）。
+    /// 429 は待って送り直せるよう、Retry-After とともに返す
+    public func sendImportBatch(_ batch: ImportBatch) async -> Result<ImportReceipt, ImportCallError> {
+        await api.callRetryingAfter(.send(.post, "imports", json: batch))
+    }
+
     // MARK: - 同期メッセージ
 
     /// 受け取り始めるたびに、WebSocket の接続を1本張る（Web のタブごとの接続と同じ）

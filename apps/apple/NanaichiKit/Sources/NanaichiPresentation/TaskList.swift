@@ -40,7 +40,7 @@ public func taskListChangeOf(_ message: SyncMessage) -> (([TodoTask]) -> [TodoTa
     case .taskSaved(let task): return { tasks in upsertTask(tasks, task) }
     case .taskDeleted(let deleted): return { tasks in removeTask(tasks, id: deleted.id) }
     case .sessionChanged, .journalEntrySaved, .journalEntryDeleted, .tagDeleted, .advanceModeChanged,
-        .taskSettingChanged:
+        .taskSettingChanged, .recordsImported:
         return nil
     }
 }

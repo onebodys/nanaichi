@@ -19,6 +19,8 @@ public enum SyncMessage: Hashable, Sendable {
     case taskDeleted(DeletedTask)
     /// ToDo の設定を変えた（ADR 0027）
     case taskSettingChanged(TaskSetting)
+    /// この端末の記録を取り込んだ（ADR 0020）。取り込んだ記録は送らず、画面がタイムライン・スタッツ・タグを読み込み直す
+    case recordsImported
 
     /// 送る文字列にする。記入の本文は JSON にするときだけ取り出す（`JournalEntry` の JSON）
     public func serialize() throws -> String {
@@ -41,6 +43,7 @@ extension SyncMessage: Codable {
         case taskSaved = "TaskSaved"
         case taskDeleted = "TaskDeleted"
         case taskSettingChanged = "TaskSettingChanged"
+        case recordsImported = "RecordsImported"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -55,6 +58,7 @@ extension SyncMessage: Codable {
         case .taskSaved: self = .taskSaved(try field("task"))
         case .taskDeleted: self = .taskDeleted(try field("deleted"))
         case .taskSettingChanged: self = .taskSettingChanged(try field("setting"))
+        case .recordsImported: self = .recordsImported
         }
     }
 
@@ -71,6 +75,7 @@ extension SyncMessage: Codable {
         case .taskSaved(let task): try write(.taskSaved, "task", task)
         case .taskDeleted(let deleted): try write(.taskDeleted, "deleted", deleted)
         case .taskSettingChanged(let setting): try write(.taskSettingChanged, "setting", setting)
+        case .recordsImported: try encoder.encode(kind: Kind.recordsImported) { _ in }
         }
     }
 }

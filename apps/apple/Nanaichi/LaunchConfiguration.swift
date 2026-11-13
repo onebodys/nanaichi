@@ -94,6 +94,12 @@ struct LaunchConfiguration {
                     backend: DeviceBackend(location: .inMemory, clock: clock.now),
                     tasks: StubTaskBackend(clock: clock.now),
                     user: { .success(AccountUser(name: "nanaichi のテスト", email: Sensitive("owner@example.com"))) },
+                    // サーバーの代わりに、どのセッションも取り込んだと答える（アカウントの記録先には書かない）
+                    sendImportBatch: { batch in
+                        .success(
+                            ImportReceipt(
+                                outcomes: batch.sessions.map { SessionImportOutcome(sessionId: $0.id, kind: .imported) }))
+                    },
                     signOut: {}, forget: {})
             }
             return AccountGateway(restore: { _ in .signedIn(signedIn()) }, signIn: { _ in .signedIn(signedIn()) })

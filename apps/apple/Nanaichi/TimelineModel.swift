@@ -44,7 +44,8 @@ final class TimelineModel {
     func run() async {
         for await event in await backend.subscribe() {
             switch event {
-            case .connected: await loadLatest()
+            // 取り込んだ記録は届かないので、繋ぎ直したときと同じく読み込み直す（ADR 0020）
+            case .connected, .message(.recordsImported): await loadLatest()
             case .message(let message):
                 if let change = timelineChangeOf(message) { apply(change) }
             }

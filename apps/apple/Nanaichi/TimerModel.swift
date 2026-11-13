@@ -87,7 +87,8 @@ final class TimerModel {
         for await event in await backend.subscribe() {
             switch event {
             // 受け取り始めたとき（繋ぎ直したとき）は、届かなかった変更があるかもしれないので読み込み直す
-            case .connected: await load()
+            // 取り込んだ記録は届かないので、繋ぎ直したときと同じく読み込み直す（ADR 0020、Web と同じ）
+            case .connected, .message(.recordsImported): await load()
             case .message(.sessionChanged(let snapshot)):
                 // 送った時刻がわからないので、記録先が直前に測った時計のずれを使う
                 apply(Received(snapshot: snapshot, offset: await backend.clockOffset()))
