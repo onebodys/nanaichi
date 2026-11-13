@@ -496,17 +496,23 @@ const ensureChronological = (
     : Result.fail({ kind: "EventOutOfOrder", at: outOfOrder.at });
 };
 
-/** セッションを始めた時刻 `startedAt` より後で、時刻 `now` までのもの。同じ時刻なら進め方の変更を先にする */
+/**
+ * セッションを始めた時刻 `startedAt` より後で、時刻 `now` までのもの。同じ時刻なら操作を先にする。
+ *
+ * 同じミリ秒の記録は、操作・進め方の変更・記入のどの順で記録されたかがわからない。受け付けたかどうかが
+ * 順に左右されるのは操作だけなので、操作を先に並べれば、あとから同じミリ秒に記録したものが
+ * 受け付け済みの操作の判断を変えない（.claude/skills/session-history/SKILL.md）
+ */
 const activitiesBetween = (
   inputs: DerivationInputs,
   startedAt: number,
   now: Date,
 ): ReadonlyArray<Activity> =>
   [
+    ...inputs.operations.map((operation): Activity => ({ kind: "Operation", operation })),
     ...inputs.advanceModeChanges
       .filter((change) => change.at.getTime() > startedAt)
       .map((change): Activity => ({ kind: "AdvanceModeChanged", change })),
-    ...inputs.operations.map((operation): Activity => ({ kind: "Operation", operation })),
     ...inputs.journalEntryTimes.map((at): Activity => ({ kind: "JournalEntry", at })),
   ]
     .filter((activity) => atOf(activity) <= now.getTime())
@@ -653,25 +659,6 @@ export const deriveTimerState = (
   Result.pipe(
     progressAt(events, now, journalEntryTimes, advanceModeChanges),
     Result.map((progress) => toTimerState(progress, now.getTime())),
-  );
-
-/**
- * 時刻 `now` までに完了セットになったセットの、集中を終えた時刻（古い順）。
- *
- * タイムラインで、日付ごとの完了セット数を数えるのに使う。完了セットはその集中を終えた時刻の日付に数える。
- * 計算は `deriveTimerState` と同じなので、数は `TimerState` の `completedSets` と必ず一致する。
- */
-export const deriveCompletedSetTimes = (
-  events: SessionEvents,
-  now: Date,
-  journalEntryTimes: ReadonlyArray<Date>,
-  advanceModeChanges: ReadonlyArray<AdvanceModeChange>,
-): Result.Result<ReadonlyArray<Date>, DeriveTimerStateError> =>
-  Result.pipe(
-    progressAt(events, now, journalEntryTimes, advanceModeChanges),
-    Result.map((progress) =>
-      progress.sets.filter((set) => set.kind === "CompletedSet").map((set) => new Date(set.at)),
-    ),
   );
 
 /**

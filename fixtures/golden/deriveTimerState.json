@@ -1952,6 +1952,57 @@
       }
     },
     {
+      "name": "切り替え待ちで進めたのと同じ時刻に進め方を自動に変えても、進めた操作は受け付けたままになる",
+      "input": {
+        "events": [
+          {
+            "kind": "Start",
+            "at": "2026-10-17T00:00:00.000Z"
+          },
+          {
+            "kind": "Advance",
+            "at": "2026-10-17T00:09:00.000Z"
+          }
+        ],
+        "now": "2026-10-17T00:09:15.000Z",
+        "journalEntryTimes": [],
+        "advanceModeChanges": [
+          {
+            "at": "2026-10-16T23:59:00.000Z",
+            "mode": {
+              "FocusToJournal": "Manual",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          },
+          {
+            "at": "2026-10-17T00:09:00.000Z",
+            "mode": {
+              "FocusToJournal": "Auto",
+              "JournalToFocus": "Auto",
+              "JournalToBreak": "Auto",
+              "BreakToFocus": "Auto"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": {
+          "kind": "Journal",
+          "round": 1,
+          "setNumber": 1,
+          "completedSets": 1,
+          "remainingSeconds": 45,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:10:00.000Z"
+          }
+        }
+      }
+    },
+    {
       "name": "始める前に変えた進め方でセッションを計算し、その後の変更はその時刻から効く",
       "input": {
         "events": [

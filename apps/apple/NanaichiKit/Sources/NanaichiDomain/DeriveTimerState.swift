@@ -205,14 +205,15 @@ private func apply(_ activity: Activity, to derivation: Derivation)
     }
 }
 
-/// セッションを始めた時刻 `startedAt` より後で、時刻 `now` までのもの。同じ時刻なら進め方の変更を先にする
+/// セッションを始めた時刻 `startedAt` より後で、時刻 `now` までのもの。同じ時刻なら操作を先にする
+/// （受け付けたかどうかが順に左右されるのは操作だけ。TS の `activitiesBetween` を参照）
 private func activitiesBetween(
     _ events: SessionEvents, _ journalEntryTimes: [Instant],
     _ advanceModeChanges: [AdvanceModeChange], now: Instant
 ) -> [Activity] {
     let activities: [Activity] =
-        advanceModeChanges.filter { $0.at > events.start.at }.map(Activity.advanceModeChanged)
-        + events.operations.map(Activity.operation)
+        events.operations.map(Activity.operation)
+        + advanceModeChanges.filter { $0.at > events.start.at }.map(Activity.advanceModeChanged)
         + journalEntryTimes.map(Activity.journalEntry)
     // 同じ時刻のものは並べた順を保つ（TS の安定な `toSorted`）
     return activities.enumerated()
@@ -302,17 +303,6 @@ func deriveTimerState(
     progressAt(
         events, now: now, journalEntryTimes: journalEntryTimes, advanceModeChanges: advanceModeChanges
     ).map { toTimerState($0, now: now) }
-}
-
-/// 時刻 `now` までに完了セットになったセットの、集中を終えた時刻（古い順）。
-/// 計算は `deriveTimerState` と同じなので、数は `completedSets` と必ず一致する
-func deriveCompletedSetTimes(
-    _ events: SessionEvents, now: Instant, journalEntryTimes: [Instant],
-    advanceModeChanges: [AdvanceModeChange]
-) -> Result<[Instant], DeriveTimerStateError> {
-    deriveSetOutcomes(
-        events, now: now, journalEntryTimes: journalEntryTimes, advanceModeChanges: advanceModeChanges
-    ).map { $0.filter { $0.kind == .completedSet }.map(\.at) }
 }
 
 /// 時刻 `now` までのセットの結末（完了セットと不成立セット）を、時刻の古い順に並べたもの

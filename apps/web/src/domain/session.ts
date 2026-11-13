@@ -12,7 +12,6 @@ import {
 } from "./session-event.ts";
 import {
   autoEndDueAt,
-  deriveCompletedSetTimes,
   deriveSetOutcomes,
   deriveTimerState,
   TimerStateJsonSchema,
@@ -181,19 +180,14 @@ export const Session = {
       ),
     ),
 
-  /** 時刻 `now` までに完了セットになったセットの、集中を終えた時刻。計算できないのは `stateAt` と同じく不変条件違反 */
-  completedSetTimesAt: (session: Session, now: Date): ReadonlyArray<Date> => {
-    const derived = deriveCompletedSetTimes(
-      session.events,
-      now,
-      session.journalEntryTimes,
-      session.advanceModeChanges,
-    );
-    if (Result.isFailure(derived)) {
-      throw new Error(`記録済みの操作イベントから完了セットを計算できない: ${derived.error.kind}`);
-    }
-    return derived.value;
-  },
+  /**
+   * 時刻 `now` までに完了セットになったセットの、集中を終えた時刻（古い順）。
+   * タイムラインで、完了セットをその集中を終えた時刻の日付に数えるのに使う
+   */
+  completedSetTimesAt: (session: Session, now: Date): ReadonlyArray<Date> =>
+    Session.setOutcomesAt(session, now)
+      .filter((set) => set.kind === "CompletedSet")
+      .map((set) => set.at),
 
   /** 時刻 `now` までのセットの結末（完了セットと不成立セット）を古い順に。計算できないのは `stateAt` と同じく不変条件違反 */
   setOutcomesAt: (session: Session, now: Date): ReadonlyArray<SetOutcome> => {
