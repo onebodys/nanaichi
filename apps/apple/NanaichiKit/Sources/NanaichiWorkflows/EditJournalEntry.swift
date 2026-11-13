@@ -18,7 +18,7 @@ private func findWritten(_ store: some JournalEntryStore, _ id: JournalEntryId) 
 
 /// ジャーナル記入の本文とタグを書き直す。
 ///
-/// 入力の検証 → 削除していない記入の読み込み → 使っているタグの種類が上限を超えないかの確認
+/// 入力の検証 → 削除していない記入の読み込み → まだ使っていないタグをつけるなら上限を超えないかの確認
 /// → 書き直す → 記録。新しく書くのではないので、セッションが終わったあとでもできる（ADR 0010）。
 /// 書いた時刻と紐付きは変えない
 public func editJournalEntry(
@@ -29,7 +29,8 @@ public func editJournalEntry(
             try parseTags(tags).mapError(EditJournalEntryError.invalidInput)
                 .andThen { tags in
                     try findWritten(store, id).andThen { entry in
-                        try Tag.ensureWithinLimit(inUse: store.listTagsOfOtherEntries(id), tags: tags)
+                        try Tag.ensureWithinLimit(
+                            inUse: store.listTagsOfOtherEntries(id), kept: entry.tags, tags: tags)
                             .mapError(EditJournalEntryError.tagLimitExceeded)
                             .map { entry.edit(body: body, tags: $0, now: now) }
                     }

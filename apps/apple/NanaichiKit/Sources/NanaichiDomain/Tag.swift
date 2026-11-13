@@ -77,19 +77,28 @@ public enum Tag {
     /// 1人が使えるタグの種類の上限（GLOSSARY の「タグ」）
     public static let kindsMax = 20
 
-    /// 記入に `tags` をつけても、使っているタグの種類が上限を超えないことを確かめる。
+    /// 記入に `tags` をつけてよいかを確かめる。まだ使っていないタグをつけるときだけ、
+    /// 合わせた種類が上限を超えないかを見る（ADR 0020）。
     ///
-    /// `inUse` はその記入以外の削除していない記入についているタグ。どの記入にもついていない
-    /// タグは存在しないので数えない（ADR 0013）
-    public static func ensureWithinLimit(inUse: [TagName], tags: [TagName])
+    /// - `inUse`: その記入以外の削除していない記入についているタグ。どの記入にもついていない
+    ///   タグは存在しないので数えない（ADR 0013）
+    /// - `kept`: その記入にいまついているタグ（書き直すとき）。新しく書くときは空
+    ///
+    /// `inUse` と `kept` にあるタグだけなら、上限を超えていてもつけられる。取り込みでは上限を超えうるので、
+    /// そのあともタグをつけない記入や使っているタグだけの記入は書ける
+    public static func ensureWithinLimit(inUse: [TagName], kept: [TagName], tags: [TagName])
         -> Result<[TagName], TagLimitExceeded>
     {
-        Set(inUse + tags).count > kindsMax ? .failure(TagLimitExceeded(limit: kindsMax)) : .success(tags)
+        let known = Set(inUse + kept)
+        let addsNew = tags.contains { !known.contains($0) }
+        // 数えるのは書いたあとに使われているタグ。`kept` のうち外すものは数えない（付け替えて種類が増えなければつけられる）
+        return addsNew && Set(inUse + tags).count > kindsMax
+            ? .failure(TagLimitExceeded(limit: kindsMax)) : .success(tags)
     }
 
     /// 新しいタグ `name` を作れるか（つけているもの・使っているものなら作るのではないので、いつでもつけられる）
     public static func canAdd(inUse: [TagName], attached: [TagName], name: TagName) -> Bool {
-        switch ensureWithinLimit(inUse: inUse, tags: attached + [name]) {
+        switch ensureWithinLimit(inUse: inUse, kept: [], tags: attached + [name]) {
         case .success: true
         case .failure: false
         }

@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import type { AdvanceMode } from "../domain/advance-mode.ts";
+import type { ImportReceipt } from "../domain/import.ts";
 import {
   JournalEntry,
   type DeletedJournalEntry,
@@ -50,6 +51,7 @@ import { getTags } from "../workflows/get-tags.ts";
 import { getTaskSetting } from "../workflows/get-task-setting.ts";
 import { getTasks } from "../workflows/get-tasks.ts";
 import { getTimeline, type GetTimelineError } from "../workflows/get-timeline.ts";
+import type { ImportSessionsError } from "../workflows/import-sessions.ts";
 import type { OperateSessionError } from "../workflows/operate-session.ts";
 import type { RenameTaskError } from "../workflows/rename-task.ts";
 import type { ReopenTaskError } from "../workflows/reopen-task.ts";
@@ -64,6 +66,7 @@ import {
   deleteTaskCommand,
   editJournalEntryCommand,
   finishCompletionFromJournalCommand,
+  importSessionsCommand,
   operateSessionCommand,
   renameTaskCommand,
   reopenTaskCommand,
@@ -72,6 +75,7 @@ import {
   type Executed,
 } from "../workflows/user-commands.ts";
 import type { WriteJournalEntryError } from "../workflows/write-journal-entry.ts";
+import { importSqlite } from "./import-sqlite.ts";
 import { journalSqlite, type JournalSqlite } from "./journal-sqlite.ts";
 import { sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
 import { statsSqlite } from "./stats-sqlite.ts";
@@ -311,6 +315,19 @@ export class UserDO extends DurableObject<Env> {
     raw: unknown,
   ): Promise<Result.Result<AdvanceMode, ChangeAdvanceModeError>> {
     return this.#execute((now) => changeAdvanceModeCommand(this.#sessions)(raw, now));
+  }
+
+  /**
+   * `POST /api/imports`（ADR 0020）。`raw` はリクエストの本文（取り込みの束）で、検証はワークフローが行う。
+   * 束全体を1つのトランザクションで書く。応答はセッションの ID と結果だけなので、本文を含まずに RPC で返せる
+   */
+  async importSessions(raw: unknown): Promise<Result.Result<ImportReceipt, ImportSessionsError>> {
+    return this.#execute((now) =>
+      importSessionsCommand({
+        ...importSqlite(this.ctx.storage.sql, this.#journal),
+        loadAdvanceModeChanges: this.#sessions.loadAdvanceModeChanges,
+      })(raw, now),
+    );
   }
 
   /**

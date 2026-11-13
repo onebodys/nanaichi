@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Result } from "@praha/byethrow";
 import { authClient } from "./auth-client.ts";
+import { LinkButton } from "./components/ui/button.tsx";
 import { LogoMark } from "./logo-mark.tsx";
 
 /**
@@ -17,8 +19,30 @@ type LoginPageProps = Readonly<{
   error: string | undefined;
 }>;
 
+/**
+ * この端末で開いたままのセッションがあるか。取り込めるのは閉じたセッションだけで（ADR 0020）、
+ * ログインするとこの端末の記録先では操作できなくなるので、開いていればログインさせない。
+ * 読めなければ止めない（取り込みのときに、読めなかったと知らせる）
+ */
+type DeviceSessionCheck =
+  | Readonly<{ kind: "Checking" }>
+  | Readonly<{ kind: "SessionOpen" }>
+  | Readonly<{ kind: "Clear" }>;
+
+const checkDeviceSession = async (): Promise<DeviceSessionCheck> => {
+  const { openBrowserDeviceImport } = await import("../device/index.ts");
+  const loaded = await openBrowserDeviceImport().load();
+  return Result.isSuccess(loaded) && loaded.value.open.kind === "OpenSessionLeft"
+    ? { kind: "SessionOpen" }
+    : { kind: "Clear" };
+};
+
 export const LoginPage = ({ error }: LoginPageProps) => {
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [deviceSession, setDeviceSession] = useState<DeviceSessionCheck>({ kind: "Checking" });
+  useEffect(() => {
+    void checkDeviceSession().then(setDeviceSession);
+  }, []);
   const errorMessage =
     error === undefined ? undefined : (ERROR_MESSAGES.get(error) ?? "ログインできませんでした。");
 
@@ -26,7 +50,8 @@ export const LoginPage = ({ error }: LoginPageProps) => {
     setIsRedirecting(true);
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/",
+      // ログインした直後だとホーム画面に知らせ、この端末の記録を取り込むかを尋ねる（ADR 0020）
+      callbackURL: "/?from=login",
       errorCallbackURL: "/login",
     });
   };
@@ -44,25 +69,40 @@ export const LoginPage = ({ error }: LoginPageProps) => {
 
         <RoundPreview />
 
-        <div className="flex w-full flex-col gap-3 rounded-2xl border bg-card p-5 shadow-xs">
-          <button
-            type="button"
-            onClick={signInWithGoogle}
-            disabled={isRedirecting}
-            className="flex h-12 items-center justify-center gap-3 rounded-xl border bg-background text-[15px] font-medium transition outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+        {deviceSession.kind === "SessionOpen" ? (
+          <div
+            role="alert"
+            className="flex w-full flex-col items-center gap-4 rounded-2xl border bg-card p-5 text-center shadow-xs"
           >
-            <GoogleIcon />
-            {isRedirecting ? "Google へ移動しています…" : "Google でログイン"}
-          </button>
-
-          {errorMessage !== undefined && (
-            <p role="alert" className="text-center text-sm text-destructive">
-              {errorMessage}
+            <p className="text-[15px] font-medium">セッションを終えてからログインしてください</p>
+            <p className="text-sm text-muted-foreground">
+              この端末で開いたままのセッションがあります。ログインすると、この端末の記録のうち終えたセッションをアカウントに取り込めます。
             </p>
-          )}
-        </div>
+            <LinkButton href="/" variant="outline">
+              ホームに戻る
+            </LinkButton>
+          </div>
+        ) : (
+          <div className="flex w-full flex-col gap-3 rounded-2xl border bg-card p-5 shadow-xs">
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={isRedirecting || deviceSession.kind === "Checking"}
+              className="flex h-12 items-center justify-center gap-3 rounded-xl border bg-background text-[15px] font-medium transition outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+            >
+              <GoogleIcon />
+              {isRedirecting ? "Google へ移動しています…" : "Google でログイン"}
+            </button>
 
-        {import.meta.env.DEV && <TestSignInForm />}
+            {errorMessage !== undefined && (
+              <p role="alert" className="text-center text-sm text-destructive">
+                {errorMessage}
+              </p>
+            )}
+          </div>
+        )}
+
+        {import.meta.env.DEV && deviceSession.kind === "Clear" && <TestSignInForm />}
       </div>
     </main>
   );

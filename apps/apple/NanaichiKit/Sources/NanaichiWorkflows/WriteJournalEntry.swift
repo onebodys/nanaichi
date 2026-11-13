@@ -39,7 +39,7 @@ private func write(_ store: some WriteJournalEntryStore, _ input: ValidInput, no
 {
     try ensureSessionInProgress(loadOpenSession(store, now: now))
         .andThen { session in
-            try Tag.ensureWithinLimit(inUse: store.listTagsOfOtherEntries(input.id), tags: input.tags)
+            try Tag.ensureWithinLimit(inUse: store.listTagsOfOtherEntries(input.id), kept: [], tags: input.tags)
                 .mapError(WriteJournalEntryError.tagLimitExceeded)
                 .flatMap { tags in
                     JournalEntry.write(

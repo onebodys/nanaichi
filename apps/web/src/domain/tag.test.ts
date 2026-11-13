@@ -75,25 +75,87 @@ goldenCases("Tags.parse", parseTags, [
   },
 ]);
 
+const LIMIT_EXCEEDED = {
+  kind: "Failure",
+  error: { kind: "TagLimitExceeded", limit: TAG_KINDS_MAX },
+} as const;
+
 goldenCases(
   "Tag.ensureWithinLimit",
-  (input: Readonly<{ inUse: ReadonlyArray<TagName>; tags: ReadonlyArray<TagName> }>) =>
-    settled(Tag.ensureWithinLimit(input.inUse, input.tags)),
+  (
+    input: Readonly<{
+      inUse: ReadonlyArray<TagName>;
+      kept: ReadonlyArray<TagName>;
+      tags: ReadonlyArray<TagName>;
+    }>,
+  ) => settled(Tag.ensureWithinLimit(input)),
   [
     {
       name: `ほかの記入で使っているタグとあわせて${TAG_KINDS_MAX}種類までならつけられる`,
-      input: { inUse: tagsNumbered(TAG_KINDS_MAX - 1), tags: [tag("読書")] },
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX - 1), kept: [], tags: [tag("読書")] },
       expected: { kind: "Success", value: ["読書"] },
     },
     {
       name: `${TAG_KINDS_MAX}種類を使っていると、新しいタグはつけられない`,
-      input: { inUse: tagsNumbered(TAG_KINDS_MAX), tags: [tag("読書")] },
-      expected: { kind: "Failure", error: { kind: "TagLimitExceeded", limit: TAG_KINDS_MAX } },
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX), kept: [], tags: [tag("読書")] },
+      expected: LIMIT_EXCEEDED,
     },
     {
       name: `${TAG_KINDS_MAX}種類を使っていても、使っているタグならつけられる`,
-      input: { inUse: tagsNumbered(TAG_KINDS_MAX), tags: [tag("tag1"), tag("tag2")] },
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX), kept: [], tags: [tag("tag1"), tag("tag2")] },
       expected: { kind: "Success", value: ["tag1", "tag2"] },
+    },
+    {
+      name: `使っているタグが${TAG_KINDS_MAX}種類を超えていても（取り込みのあと）、タグをつけない記入は書ける`,
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX + 5), kept: [], tags: [] },
+      expected: { kind: "Success", value: [] },
+    },
+    {
+      name: `使っているタグが${TAG_KINDS_MAX}種類を超えていても、使っているタグだけをつける記入は書ける`,
+      input: {
+        inUse: tagsNumbered(TAG_KINDS_MAX + 5),
+        kept: [],
+        tags: [tag("tag3"), tag("tag25")],
+      },
+      expected: { kind: "Success", value: ["tag3", "tag25"] },
+    },
+    {
+      name: "上限を超えたアカウントで、その記入にしかないタグをつけた記入の本文を書き直せる",
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX + 1), kept: [tag("読書")], tags: [tag("読書")] },
+      expected: { kind: "Success", value: ["読書"] },
+    },
+    {
+      name: "上限を超えたアカウントで、その記入にしかないタグを外して書き直せる",
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX + 1), kept: [tag("読書")], tags: [] },
+      expected: { kind: "Success", value: [] },
+    },
+    {
+      name: "上限を超えたアカウントで、まだ使っていないタグをつけて書き直すことはできない",
+      input: {
+        inUse: tagsNumbered(TAG_KINDS_MAX + 1),
+        kept: [tag("読書")],
+        tags: [tag("読書"), tag("本")],
+      },
+      expected: LIMIT_EXCEEDED,
+    },
+    {
+      name: "その記入にしかないタグを外して新しいタグに付け替えるなら、種類が増えないのでつけられる",
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX - 1), kept: [tag("読書")], tags: [tag("本")] },
+      expected: { kind: "Success", value: ["本"] },
+    },
+    {
+      name: "その記入にしかないタグを残したまま新しいタグを足して上限を超えるなら、つけられない",
+      input: {
+        inUse: tagsNumbered(TAG_KINDS_MAX - 1),
+        kept: [tag("読書")],
+        tags: [tag("読書"), tag("本")],
+      },
+      expected: LIMIT_EXCEEDED,
+    },
+    {
+      name: "まだ使っていないタグを2つつけて合わせて上限を超えるなら、タグの上限で断る",
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX - 1), kept: [], tags: [tag("読書"), tag("本")] },
+      expected: LIMIT_EXCEEDED,
     },
   ],
 );
@@ -130,6 +192,16 @@ goldenCases(
         name: tag("tag1"),
       },
       expected: true,
+    },
+    {
+      name: `使っているタグが${TAG_KINDS_MAX}種類を超えていても、使っているタグは入力欄でつけられる`,
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX + 5), attached: [tag("tag1")], name: tag("tag2") },
+      expected: true,
+    },
+    {
+      name: `使っているタグが${TAG_KINDS_MAX}種類を超えていると、新しいタグは作れない`,
+      input: { inUse: tagsNumbered(TAG_KINDS_MAX + 5), attached: [], name: tag("本") },
+      expected: false,
     },
   ],
 );

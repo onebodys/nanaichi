@@ -13,6 +13,8 @@ import type { TimelineState } from "./use-timeline.ts";
 
 type Receivers = Readonly<{
   timer: SessionTimer;
+  /** スタッツと今日の集中時間（ヘッダー）。ふだんはタイマーの状態から読み込み直す（stats-refresh.ts） */
+  stats: Readonly<{ refresh: () => void }>;
   timeline: TimelineState;
   tags: TagsState;
   tasks: TasksState;
@@ -28,7 +30,17 @@ type Receivers = Readonly<{
  */
 const deliver = (
   message: SyncMessage,
-  { timer, timeline, tags, tasks, taskSetting, tagUsage, advanceMode, attachedTagsKey }: Receivers,
+  {
+    timer,
+    stats,
+    timeline,
+    tags,
+    tasks,
+    taskSetting,
+    tagUsage,
+    advanceMode,
+    attachedTagsKey,
+  }: Receivers,
 ): void => {
   switch (message.kind) {
     case "SessionChanged":
@@ -55,6 +67,14 @@ const deliver = (
       return tasks.receiveDeleted(message.deleted);
     case "TaskSettingChanged":
       return taskSetting.receive(message.setting);
+    case "RecordsImported":
+      // 取り込んだ記録は届かないので、繋ぎ直したときと同じく読み込み直す（ADR 0020）
+      // 取り込んだ過去のセッションはタイマーの状態を変えないので、スタッツも読み込み直す
+      timer.refresh();
+      stats.refresh();
+      timeline.refresh();
+      tags.refresh();
+      return tagUsage.refresh();
   }
 };
 

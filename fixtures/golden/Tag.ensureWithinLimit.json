@@ -25,6 +25,7 @@
           "tag18",
           "tag19"
         ],
+        "kept": [],
         "tags": [
           "読書"
         ]
@@ -61,6 +62,7 @@
           "tag19",
           "tag20"
         ],
+        "kept": [],
         "tags": [
           "読書"
         ]
@@ -98,6 +100,7 @@
           "tag19",
           "tag20"
         ],
+        "kept": [],
         "tags": [
           "tag1",
           "tag2"
@@ -109,6 +112,322 @@
           "tag1",
           "tag2"
         ]
+      }
+    },
+    {
+      "name": "使っているタグが20種類を超えていても（取り込みのあと）、タグをつけない記入は書ける",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20",
+          "tag21",
+          "tag22",
+          "tag23",
+          "tag24",
+          "tag25"
+        ],
+        "kept": [],
+        "tags": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": []
+      }
+    },
+    {
+      "name": "使っているタグが20種類を超えていても、使っているタグだけをつける記入は書ける",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20",
+          "tag21",
+          "tag22",
+          "tag23",
+          "tag24",
+          "tag25"
+        ],
+        "kept": [],
+        "tags": [
+          "tag3",
+          "tag25"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "tag3",
+          "tag25"
+        ]
+      }
+    },
+    {
+      "name": "上限を超えたアカウントで、その記入にしかないタグをつけた記入の本文を書き直せる",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20",
+          "tag21"
+        ],
+        "kept": [
+          "読書"
+        ],
+        "tags": [
+          "読書"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "読書"
+        ]
+      }
+    },
+    {
+      "name": "上限を超えたアカウントで、その記入にしかないタグを外して書き直せる",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20",
+          "tag21"
+        ],
+        "kept": [
+          "読書"
+        ],
+        "tags": []
+      },
+      "expected": {
+        "kind": "Success",
+        "value": []
+      }
+    },
+    {
+      "name": "上限を超えたアカウントで、まだ使っていないタグをつけて書き直すことはできない",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19",
+          "tag20",
+          "tag21"
+        ],
+        "kept": [
+          "読書"
+        ],
+        "tags": [
+          "読書",
+          "本"
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagLimitExceeded",
+          "limit": 20
+        }
+      }
+    },
+    {
+      "name": "その記入にしかないタグを外して新しいタグに付け替えるなら、種類が増えないのでつけられる",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19"
+        ],
+        "kept": [
+          "読書"
+        ],
+        "tags": [
+          "本"
+        ]
+      },
+      "expected": {
+        "kind": "Success",
+        "value": [
+          "本"
+        ]
+      }
+    },
+    {
+      "name": "その記入にしかないタグを残したまま新しいタグを足して上限を超えるなら、つけられない",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19"
+        ],
+        "kept": [
+          "読書"
+        ],
+        "tags": [
+          "読書",
+          "本"
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagLimitExceeded",
+          "limit": 20
+        }
+      }
+    },
+    {
+      "name": "まだ使っていないタグを2つつけて合わせて上限を超えるなら、タグの上限で断る",
+      "input": {
+        "inUse": [
+          "tag1",
+          "tag2",
+          "tag3",
+          "tag4",
+          "tag5",
+          "tag6",
+          "tag7",
+          "tag8",
+          "tag9",
+          "tag10",
+          "tag11",
+          "tag12",
+          "tag13",
+          "tag14",
+          "tag15",
+          "tag16",
+          "tag17",
+          "tag18",
+          "tag19"
+        ],
+        "kept": [],
+        "tags": [
+          "読書",
+          "本"
+        ]
+      },
+      "expected": {
+        "kind": "Failure",
+        "error": {
+          "kind": "TagLimitExceeded",
+          "limit": 20
+        }
       }
     }
   ]
