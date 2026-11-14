@@ -236,4 +236,40 @@ final class ReviewAndSettingsTests: XCTestCase {
         app.buttons["operation.Advance"].click()
         waitFor(app, "timer.phase", toRead: "ジャーナル")
     }
+
+    /// タグの候補はクリックでも札になり、↓ で選んで Return でもつけられ、札の × で外せる（Issue #43、Web と同じ）
+    @MainActor
+    func testTagSuggestionsAttachOnClick() throws {
+        let app = launch(database: "uitest-tags.sqlite")
+        let start = app.buttons["timer.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.click()
+        waitFor(app, "timer.phase", toRead: "集中")
+        // 使っているタグを2つ作る
+        write(app, body: "第3章を読んだ", tag: "読書")
+        write(app, body: "画面を見直した", tag: "設計")
+        for chip in app.descendants(matching: .any).matching(identifier: "tag.attached").allElementsBoundByIndex.reversed() {
+            chip.buttons.firstMatch.click()
+        }
+        XCTAssertFalse(element(app, "tag.attached").exists, "札の × で外せない")
+
+        let tags = app.textFields["tags.input"]
+        tags.click()
+        tags.typeText("読")
+        let suggestion = app.buttons.matching(identifier: "tag.suggestion").firstMatch
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "入力しても候補が出ない")
+        attachScreenshot(of: app, named: "49-タグの候補")
+        suggestion.click()
+        let chip = element(app, "tag.attached")
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "候補をクリックしても札にならない")
+        XCTAssertEqual(tags.value as? String, "", "札にしたあとも入力欄に文字が残る")
+
+        // 何も入力せずに ↓ で2つめの候補（設計）を選び、Return でつける
+        tags.typeKey(.downArrow, modifierFlags: [])
+        tags.typeKey(.return, modifierFlags: [])
+        expectation(
+            for: NSPredicate(format: "count == 2"),
+            evaluatedWith: app.descendants(matching: .any).matching(identifier: "tag.attached"))
+        waitForExpectations(timeout: 5)
+    }
 }
