@@ -17,6 +17,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -31,12 +32,13 @@ const TLA_URL = `https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VER
 const SAFETY = ["StaysLoaded", "NoTimeRollback", "NoChangeRollback", "SameTimeSameChange"];
 
 // 既定の手数は、push のたびに走らせても困らない長さ（全部で2分ほど）に抑える。
-// --deep は対象のコードを変えたときに走らせる
+// --deep は対象のコードを変えたときに走らせる（1時間ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約20分）
 const bounds = (deep) =>
   deep
     ? {
         safety: { MaxChanges: 3, MaxLosses: 0, MaxDisconnects: 0 },
-        faults: { MaxChanges: 2, MaxLosses: 1, MaxDisconnects: 1 },
+        // 書き込み 2・喪失 1・切断 1 は 1 時間で終わらなかった
+        faults: { MaxChanges: 1, MaxLosses: 1, MaxDisconnects: 1 },
         liveness: { MaxChanges: 2, MaxLosses: 0, MaxDisconnects: 1 },
       }
     : {
@@ -99,8 +101,9 @@ const checks = (deep) => {
 
     // 活性は実装のままでは成り立たない（通信が失われなくても）
     liveness("liveness", advancing, "EventuallyConverged"),
-    // 読み込み中に届いた同期メッセージを待たせれば成り立つ（WebSocket が切れても）
-    liveness("liveness-hold-sync", held, "pass"),
+    // 読み込み中に届いた同期メッセージを待たせれば、書き込み 1 までは成り立つ（WebSocket が切れても）。
+    // 書き込み 2 では、操作と重なった読み込みを捨てるために成り立たない（#54）
+    liveness("liveness-hold-sync", held, deep ? "EventuallyConverged" : "pass"),
     // HTTP の応答が失われると、待たせても成り立たない
     liveness(
       "liveness-hold-sync-losses",
@@ -187,6 +190,8 @@ const runTlc = (java, jar, workDir, module, cfg) => {
     ],
     { cwd: workDir, encoding: "utf8", maxBuffer: 1 << 28 },
   );
+  // TLC の状態のファイルは数 GB になることがある。結果は出力に出ているので消す
+  rmSync(join(workDir, "states", cfg), { recursive: true, force: true });
   return `${result.stdout}${result.stderr}`;
 };
 
