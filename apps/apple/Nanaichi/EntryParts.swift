@@ -2,18 +2,27 @@ import NanaichiDomain
 import NanaichiPresentation
 import SwiftUI
 
-/// タグの入力欄（GLOSSARY の「タグ」）。つけたタグを札で並べ、入力すると候補を出す（Web の tag-input.tsx）。
+/// タグの入力欄（GLOSSARY の「タグ」）。つけたタグを札で並べ、入力欄にいる間は候補を下に出す（Web の tag-input.tsx）。
 ///
 /// 候補は使っているタグを優先し、一致するものがなければ新しく作れる（`tagOptionsOf`）。
-/// Return で最初のつけられる候補をつけ、札の × で外す
+/// 候補をクリックするか、↑↓ で選んで Return を押すと札になる。札の × で外す。
+///
+/// SwiftUI の入力候補（`textInputSuggestions`）は、選んでも入力欄の文字を置き換えるだけで札にできない
+/// （Return を押すまでついていないのに、ついたように見える、Issue #43）ので、候補の一覧は自前で出す
 struct TagInput: View {
     let known: [TagName]
     let attached: [TagName]
     let onChange: ([TagName]) -> Void
     var identifier = "tags"
     @State private var query = ""
+    @State private var highlighted = 0
+    /// 何も入力せずに ↑↓ で候補を選んだか。選んでいなければ、空の Return で使っているタグを勝手につけない
+    @State private var navigated = false
+    @FocusState private var focused: Bool
 
     private var options: TagOptions { tagOptionsOf(query: query, known: known, attached: attached) }
+    /// 出す候補。つけているタグは出さない
+    private var shown: [TagOption] { options.options.filter { !attached.contains($0.name) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -27,15 +36,32 @@ struct TagInput: View {
                 TextField(attached.isEmpty ? "タグをつける" : "", text: $query)
                     .textFieldStyle(.plain)
                     .frame(minWidth: 90)
-                    .onSubmit(attachFirst)
-                    .textInputSuggestions {
-                        ForEach(options.options.filter { !attached.contains($0.name) }, id: \.self) { option in
-                            Text(tagOptionTextOf(option))
-                                .textInputCompletion(option.attachable ? option.name.rawValue : query)
-                        }
+                    .focused($focused)
+                    .onSubmit(attachHighlighted)
+                    .onKeyPress(.downArrow) { move(by: 1) }
+                    .onKeyPress(.upArrow) { move(by: -1) }
+                    .onKeyPress(.escape) {
+                        guard focused else { return .ignored }
+                        focused = false
+                        return .handled
+                    }
+                    .onChange(of: query) {
+                        highlighted = 0
+                        navigated = false
                     }
                     .accessibilityLabel("タグ")
                     .accessibilityIdentifier("\(identifier).input")
+            }
+            .overlay(alignment: .bottomLeading) {
+                if focused, !shown.isEmpty {
+                    TagSuggestions(
+                        options: shown, highlighted: query.isEmpty && !navigated ? nil : min(highlighted, shown.count - 1),
+                        attach: attach)
+                        .alignmentGuide(.bottom) { $0[.top] - 4 }
+                        // 入れ物にしないと、識別子が中の候補のボタンにも付き、候補ごとの識別子を上書きする
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("\(identifier).suggestions")
+                }
             }
             if let hint {
                 Text(hint)
@@ -44,6 +70,8 @@ struct TagInput: View {
                     .accessibilityIdentifier("\(identifier).hint")
             }
         }
+        // 候補の一覧は下の入力欄に重ねて出すので、隣の部品より手前に描く
+        .zIndex(1)
     }
 
     private var hint: String? {
@@ -55,10 +83,65 @@ struct TagInput: View {
         }
     }
 
-    private func attachFirst() {
-        guard let option = options.options.first(where: \.attachable) else { return }
+    private func move(by step: Int) -> KeyPress.Result {
+        guard focused, !shown.isEmpty else { return .ignored }
+        highlighted = navigated ? (min(highlighted, shown.count - 1) + step + shown.count) % shown.count : (step > 0 ? 0 : shown.count - 1)
+        navigated = true
+        return .handled
+    }
+
+    /// Return で、選んでいる候補をつける。何も入力していなければ何もしない（使っているタグを勝手につけない）
+    private func attachHighlighted() {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || navigated,
+            shown.indices.contains(highlighted)
+        else { return }
+        attach(shown[highlighted])
+    }
+
+    private func attach(_ option: TagOption) {
+        guard option.attachable else { return }
         if !attached.contains(option.name) { onChange(attached + [option.name]) }
         query = ""
+        highlighted = 0
+        navigated = false
+        focused = true
+    }
+}
+
+/// 入力欄の下に出す候補の一覧。クリックでつける。作れないタグは押せない
+private struct TagSuggestions: View {
+    let options: [TagOption]
+    /// 選んでいる候補。何も入力せず ↑↓ も押していなければ nil（Return でつけるものはない）
+    let highlighted: Int?
+    let attach: (TagOption) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.element) { index, option in
+                Button {
+                    attach(option)
+                } label: {
+                    Text(tagOptionTextOf(option))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .foregroundStyle(index == highlighted ? Color.white : Color.primary)
+                        .background(
+                            index == highlighted ? Color.accentColor : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!option.attachable)
+                .accessibilityIdentifier("tag.suggestion")
+            }
+        }
+        .padding(4)
+        .frame(minWidth: 200, maxWidth: 320, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator))
+        .shadow(radius: 6, y: 2)
     }
 }
 
