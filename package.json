@@ -6,6 +6,7 @@
   "scripts": {
     "prepare": "vp hooks enable",
     "knip": "knip",
+    "tla": "node specs/auto-end-alarm/check.mjs",
     "ready": "sh scripts/check-adr-numbers.sh && vp check && knip && vp run -r test && vp run -r build",
     "dev": "vp run web#dev",
     "dev:portless": "pnpm --filter web dev:portless",
