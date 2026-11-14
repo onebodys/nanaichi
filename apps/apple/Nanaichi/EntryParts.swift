@@ -58,6 +58,8 @@ struct TagInput: View {
                         options: shown, highlighted: query.isEmpty && !navigated ? nil : min(highlighted, shown.count - 1),
                         attach: attach)
                         .alignmentGuide(.bottom) { $0[.top] - 4 }
+                        // 入れ物にしないと、識別子が中の候補のボタンにも付き、候補ごとの識別子を上書きする
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("\(identifier).suggestions")
                 }
             }
