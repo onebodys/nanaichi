@@ -258,6 +258,9 @@ final class ReviewAndSettingsTests: XCTestCase {
         tags.typeText("読")
         let suggestion = app.buttons.matching(identifier: "tag.suggestion").firstMatch
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "入力しても候補が出ない")
+        // 候補の一覧は入力欄のすぐ下に出す（Issue #48。XCUITest の座標は下に向かって増える）
+        let list = element(app, "tags.suggestions")
+        XCTAssertGreaterThanOrEqual(list.frame.minY, tags.frame.maxY, "候補の一覧が入力欄の下に出ない")
         attachScreenshot(of: app, named: "49-タグの候補")
         suggestion.click()
         let chip = element(app, "tag.attached")

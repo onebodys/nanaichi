@@ -19,6 +19,8 @@ struct TagInput: View {
     /// 何も入力せずに ↑↓ で候補を選んだか。選んでいなければ、空の Return で使っているタグを勝手につけない
     @State private var navigated = false
     @FocusState private var focused: Bool
+    /// 入力欄の行の高さ。候補の一覧をこの分だけ下にずらして、入力欄のすぐ下に出す
+    @State private var rowHeight: CGFloat = 0
 
     private var options: TagOptions { tagOptionsOf(query: query, known: known, attached: attached) }
     /// 出す候補。つけているタグは出さない
@@ -52,12 +54,15 @@ struct TagInput: View {
                     .accessibilityLabel("タグ")
                     .accessibilityIdentifier("\(identifier).input")
             }
-            .overlay(alignment: .bottomLeading) {
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowHeight = $0 }
+            // 一覧の上端を行の上端にそろえてから、行の高さだけ下にずらす。`alignmentGuide` で行の下端にそろえる書き方は
+            // overlay の中では効かず、一覧が上に伸びた（Issue #48）
+            .overlay(alignment: .topLeading) {
                 if focused, !shown.isEmpty {
                     TagSuggestions(
                         options: shown, highlighted: query.isEmpty && !navigated ? nil : min(highlighted, shown.count - 1),
                         attach: attach)
-                        .alignmentGuide(.bottom) { $0[.top] - 4 }
+                        .offset(y: rowHeight + 4)
                         // 入れ物にしないと、識別子が中の候補のボタンにも付き、候補ごとの識別子を上書きする
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("\(identifier).suggestions")
