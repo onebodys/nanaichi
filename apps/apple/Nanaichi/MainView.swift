@@ -110,7 +110,7 @@ private struct JournalPane: View {
             }
             .padding(24)
             Divider()
-            TimelineList(timeline: app.timeline, tags: app.tags, now: app.timer.serverNow)
+            TimelineList(timeline: app.timeline, tags: app.tags, now: app.timer.countingNow)
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }

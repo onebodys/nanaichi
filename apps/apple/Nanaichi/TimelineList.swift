@@ -9,6 +9,7 @@ import SwiftUI
 struct TimelineList: View {
     let timeline: TimelineModel
     let tags: TagsModel
+    /// 完了セット数を数える時刻（`TimerModel.countingNow`）。刻みのたびに変わる時刻を渡すと、一覧が 0.25 秒ごとに描き直される
     let now: Instant
     @State private var editing: JournalEntry?
     @State private var deleting: JournalEntry?
