@@ -141,7 +141,9 @@ private struct JournalTextEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? ReturnInterceptingTextView else { return }
         context.coordinator.text = $text
         textView.onReturn = onReturn
-        if textView.string != text { textView.string = text }
+        if shouldReplaceEditorText(current: textView.string, incoming: text, isComposing: textView.hasMarkedText()) {
+            textView.string = text
+        }
         textView.isEditable = isEnabled
         textView.isSelectable = isEnabled
         textView.textColor = isEnabled ? .labelColor : .secondaryLabelColor
