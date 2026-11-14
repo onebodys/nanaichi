@@ -15,6 +15,9 @@ import Observation
 final class TimerModel {
     private(set) var loading: TimerLoading = .loading
     private(set) var deviceNow: Instant
+    /// 完了セット数と日付を数える時刻。`statsRefreshKey` が変わったとき（完了セットが増えうるときと日付が変わったとき）
+    /// だけ進める。タイムラインやカレンダーは、刻みのたび（0.25 秒ごと）に描き直さず、これで数える（Issue #44）
+    private(set) var countingNow: Instant
     /// 操作を送っている途中。ボタンを押せなくして、二重に送らないようにする
     private(set) var pending = false
     /// 直前の操作の失敗
@@ -55,7 +58,9 @@ final class TimerModel {
         self.alert = alert
         self.notifications = notifications
         self.alertSettings = alertSettings
-        deviceNow = clock.now()
+        let now = clock.now()
+        deviceNow = now
+        countingNow = now
     }
 
     var view: TimerView { .of(loading, deviceNow: deviceNow) }
@@ -273,6 +278,7 @@ final class TimerModel {
         let key = statsRefreshKey
         if key != todayFocusKey {
             todayFocusKey = key
+            countingNow = serverNow
             Task {
                 switch await backend.getStats(period: .today, timeZone: timeZone) {
                 case .success(let report): todayFocus = .counted(completedSets: report.completedSets)

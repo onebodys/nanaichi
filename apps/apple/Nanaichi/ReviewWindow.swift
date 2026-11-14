@@ -51,7 +51,7 @@ struct ReviewWindow: View {
             switch destination ?? .stats {
             case .stats: StatsView(app: app)
             case .calendar:
-                JournalCalendarView(review: app.review, today: deviceTimeZone().localDate(at: app.timer.serverNow))
+                JournalCalendarView(review: app.review, today: deviceTimeZone().localDate(at: app.timer.countingNow))
             case .tag(let name): TaggedEntriesView(review: app.review, tag: name)
             }
         }
