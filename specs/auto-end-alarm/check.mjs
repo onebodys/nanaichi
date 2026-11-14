@@ -131,7 +131,12 @@ const tlc = (java, { module, config, extra = {} }) => {
     copyFileSync(join(SPEC_DIR, f), join(dir, f));
   for (const [f, text] of Object.entries(extra)) writeFileSync(join(dir, f), text);
   writeFileSync(join(dir, `${module}.cfg`), config);
+  const javaTmp = join(dir, "java-tmp");
+  mkdirSync(javaTmp);
   const args = [
+    // TLC は標準モジュール（Naturals.tla など）を java.io.tmpdir に展開する。並べて走らせると
+    // 書きかけのファイルを別の TLC が読んで構文解析に失敗するので、TLC ごとに分ける
+    `-Djava.io.tmpdir=${javaTmp}`,
     "-XX:+UseParallelGC",
     "-cp",
     JAR,
