@@ -1,0 +1,54 @@
+{
+  "name": "end-and-restart",
+  "steps": [
+    {
+      "kind": "Request",
+      "op": "Start",
+      "now": 0,
+      "after": {
+        "open": true,
+        "alarm": 3480000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "Start",
+      "now": 180000,
+      "after": {
+        "open": true,
+        "alarm": 3480000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "End",
+      "now": 300000,
+      "after": {
+        "open": false,
+        "alarm": null,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "Start",
+      "now": 360000,
+      "after": {
+        "open": true,
+        "alarm": 3840000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Alarm",
+      "now": 3840000,
+      "after": {
+        "open": false,
+        "alarm": null,
+        "autoEnded": 1
+      }
+    }
+  ]
+}

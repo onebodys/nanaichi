@@ -91,6 +91,10 @@ jobs:
       - run: vp check
       - if: needs.changes.outputs.code == 'true'
         run: vp test
+      # 自動終了の alarm の TLA+ モデルと、vp test が書き出した実装のトレース（.agents/skills/auto-end-alarm）。
+      # ubuntu のランナーには Java が入っている。TLC は check.mjs が版と SHA-256 を固定して取ってくる
+      - if: needs.changes.outputs.code == 'true'
+        run: node specs/auto-end-alarm/check.mjs
       # 未使用のファイル・export・依存（AGENTS.md「7. ツールと作業の進め方」）。push 時のフックと同じ検査
       - if: needs.changes.outputs.code == 'true'
         run: vp exec knip

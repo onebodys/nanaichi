@@ -1,0 +1,54 @@
+{
+  "name": "activity-rearms",
+  "steps": [
+    {
+      "kind": "Request",
+      "op": "Start",
+      "now": 0,
+      "after": {
+        "open": true,
+        "alarm": 3480000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "Activity",
+      "now": 600000,
+      "after": {
+        "open": true,
+        "alarm": 4080000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "Activity",
+      "now": 1200000,
+      "after": {
+        "open": true,
+        "alarm": 4680000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Request",
+      "op": "Read",
+      "now": 1800000,
+      "after": {
+        "open": true,
+        "alarm": 4680000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Alarm",
+      "now": 4680000,
+      "after": {
+        "open": false,
+        "alarm": null,
+        "autoEnded": 1
+      }
+    }
+  ]
+}

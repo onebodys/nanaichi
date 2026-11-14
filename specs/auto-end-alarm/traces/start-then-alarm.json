@@ -1,0 +1,24 @@
+{
+  "name": "start-then-alarm",
+  "steps": [
+    {
+      "kind": "Request",
+      "op": "Start",
+      "now": 0,
+      "after": {
+        "open": true,
+        "alarm": 3480000,
+        "autoEnded": 0
+      }
+    },
+    {
+      "kind": "Alarm",
+      "now": 3480000,
+      "after": {
+        "open": false,
+        "alarm": null,
+        "autoEnded": 1
+      }
+    }
+  ]
+}
