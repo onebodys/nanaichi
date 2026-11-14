@@ -39,3 +39,15 @@ func submitKeyTexts() {
     #expect(SubmitKey.modifierEnter.hint == "⌘Return で送信、Return で改行")
     #expect(SubmitKey.allCases.map(\.rawValue) == ["ModifierEnter", "Enter"])
 }
+
+@Test("日本語入力で変換している間は、画面が描き直されても入力欄の本文を書き換えない")
+func keepsComposingText() {
+    // 「あいう」と書いたあとに「え」を変換している。画面が持っている本文には、まだ「え」が入っていない
+    #expect(!shouldReplaceEditorText(current: "あいうえ", incoming: "あいう", isComposing: true))
+}
+
+@Test("変換していなければ、送ったあとに空にするなど、画面の本文で入力欄を書き換える")
+func replacesWhenNotComposing() {
+    #expect(shouldReplaceEditorText(current: "送った記入", incoming: "", isComposing: false))
+    #expect(!shouldReplaceEditorText(current: "同じ", incoming: "同じ", isComposing: false))
+}

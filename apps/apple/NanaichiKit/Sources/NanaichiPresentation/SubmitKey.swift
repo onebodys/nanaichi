@@ -50,3 +50,12 @@ public struct ReturnKeyPress: Hashable, Sendable {
         self.isComposing = isComposing
     }
 }
+
+/// 画面が持っている本文 `incoming` で、入力欄の本文 `current` を書き換えるか（ジャーナル記入の入力欄）。
+///
+/// 日本語入力で変換している間（確定していない文字があるとき）は書き換えない。変換中の文字は入力欄にだけあり、
+/// 入力欄は本文が変わったと知らせない（NSTextView は確定するまで `textDidChange` を呼ばない）。
+/// そのあいだに画面が描き直されると、`current` と `incoming` が食い違い、書き換えると変換中の文字が消える
+public func shouldReplaceEditorText(current: String, incoming: String, isComposing: Bool) -> Bool {
+    !isComposing && current != incoming
+}
