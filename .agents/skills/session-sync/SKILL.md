@@ -59,7 +59,7 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 
 ```sh
 node formal/session-sync/check.mjs            # 既定（全部で2分ほど）
-node formal/session-sync/check.mjs --deep     # 対象のコードを変えたら（1時間ほど。状態の数は億を超える）
+node formal/session-sync/check.mjs --deep     # 対象のコードを変えたら（45分ほど。状態の数は億を超える）
 node formal/session-sync/check.mjs --only stall-rollback
 node formal/session-sync/check.mjs --trace    # 実装のトレースをモデルに通す（10秒ほど）
 ```

@@ -32,7 +32,7 @@ const TLA_URL = `https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VER
 const SAFETY = ["StaysLoaded", "NoTimeRollback", "NoChangeRollback", "SameTimeSameChange"];
 
 // 既定の手数は、push のたびに走らせても困らない長さ（全部で2分ほど）に抑える。
-// --deep は対象のコードを変えたときに走らせる（1時間ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約20分）
+// --deep は対象のコードを変えたときに走らせる（45分ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約10分）
 const bounds = (deep) =>
   deep
     ? {
