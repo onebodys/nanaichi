@@ -5,6 +5,7 @@ import {
   applyLoaded,
   applyReceived,
   applySynced,
+  initialLoading,
   type Loading,
 } from "../client/snapshot-arrival.ts";
 import { schemaResult } from "../domain/schema-result.ts";
@@ -124,7 +125,7 @@ const recorder = () => {
     const tracker = createOperationTracker();
     const screen: Screen = {
       name,
-      loading: { kind: "Loading" },
+      loading: initialLoading,
       tracker,
       inbox: [],
       socket: undefined,
@@ -351,7 +352,7 @@ describe("同期のトレース（formal/session-sync で TLC に通す）", () 
     Object.assign(task.meta, { sessionSyncTrace: r.steps });
   });
 
-  test("読み込み中に届いた開始の同期メッセージは捨てられ、変更より前の読み込みだけが届いた画面は開始の前のまま", async ({
+  test("読み込み中に届いた開始の同期メッセージは読み込めるまで待たされ、変更より前の読み込みが届いても画面は開始を見せる", async ({
     task,
   }) => {
     const r = recorder();
@@ -374,9 +375,9 @@ describe("同期のトレース（formal/session-sync で TLC に通す）", () 
     r.receiveLoad(s2, s2MountRes);
     r.receiveLoad(s2, s2RefreshRes);
 
-    // UserDO はもう開始しているが、s2 は次の変更か繋ぎ直しまで知らない（formal/session-sync の liveness と同じ並び）
+    // 待たせた開始の同期メッセージのほうが、変更より前の読み込みより新しい（Issue #52）
     expect(shownVersion(s1)).toBe(1);
-    expect(shownVersion(s2)).toBe(0);
+    expect(shownVersion(s2)).toBe(1);
     Object.assign(task.meta, { sessionSyncTrace: r.steps });
   });
 });
