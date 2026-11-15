@@ -1,13 +1,13 @@
 #!/bin/sh
 # Swift のコード（apps/apple/）かゴールデンケース（fixtures/golden/）が main から変わっていれば swift test を走らせる。
-# push 時のフックとエージェントの Stop フックから呼ぶ（Issue #22）。CI の apple ジョブと同じ条件にしている。
+# push 時のフックから呼ぶ（Issue #22）。CI の apple ジョブと同じ条件にしている。
 # Swift の入っていない環境（Linux など）では飛ばす。Mac アプリを触らない人の push を止めないため
 set -eu
 cd "$(dirname "$0")/.."
 
 # main と比べられないとき（origin/main がない clone など）は、変わったかを判定せず走らせる
 if base=$(git merge-base HEAD origin/main 2>/dev/null); then
-  # コミットしたものと、まだコミットしていないもの（Stop フックのとき）の両方を見る
+  # コミットしたものと、まだコミットしていないもの（手で走らせたとき）の両方を見る
   changed=$({
     git diff --name-only "$base"
     git ls-files --others --exclude-standard

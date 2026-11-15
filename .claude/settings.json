@@ -1,18 +1,4 @@
 {
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/verify-before-stop.sh",
-            "timeout": 600,
-            "statusMessage": "vp check と vp test と knip（Swift が変わっていれば swift test）を実行しています…"
-          }
-        ]
-      }
-    ]
-  },
   "enabledPlugins": {
     "pstack@pstack-claude": true
   }

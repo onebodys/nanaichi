@@ -55,7 +55,7 @@ pnpm tla --deep     # 実装どおりのモデルを広い範囲で。対象の�
 ```
 
 Java 11 以上が要る（macOS なら `brew install openjdk`）。TLC は `check.mjs` が版（1.7.4）と SHA-256 を固定して `node_modules/.cache/tla2tools/` に取ってくる。
-push 時のフックと Stop フックは、対象のコードかモデルが main から変わったときだけ走らせる（`scripts/tla-check-if-changed.sh`。Java がなければ飛ばす）。CI の check ジョブは毎回走らせる。
+push 時のフックは、対象のコードかモデルが main から変わったときだけ走らせる（`scripts/tla-check-if-changed.sh`。Java がなければ飛ばす）。CI の check ジョブは毎回走らせる。
 
 出力は1行に1つの検査で、`ok` か `FAIL`。
 
