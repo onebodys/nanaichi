@@ -28,5 +28,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true
   },
-  "include": ["src/client", "src/device", "src/domain", "src/testing", "src/workflows"]
+  "include": ["src/client", "src/device", "src/domain", "src/testing", "src/workflows"],
+  // Workers ランタイムで動くテスト（UserDO を呼ぶ）は tsconfig.worker.json で型を確かめる
+  "exclude": ["src/testing/*.workers.test.ts"]
 }

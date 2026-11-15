@@ -4,25 +4,25 @@ import * as v from "valibot";
 import { ClockOffset } from "../domain/clock-offset.ts";
 import { phaseChangeBetween } from "../domain/phase-change.ts";
 import { SessionEventId, type SessionOperation } from "../domain/session-event.ts";
-import { Session, SessionSnapshot } from "../domain/session.ts";
+import { Session, type SessionSnapshot } from "../domain/session.ts";
 import type { Ended, TimerState } from "../domain/timer-state.ts";
 import type { BackendError } from "../domain/backend.ts";
 import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
 import { createOperationTracker } from "./operation-overlap.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
+import {
+  applyLoaded,
+  applyLoadFailed,
+  applyReceived,
+  applySynced,
+  type Loading,
+  type Received,
+} from "./snapshot-arrival.ts";
 import { startTicker } from "./ticker.ts";
 
 /** カウントダウンを描き直す間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで */
 const TICK_MS = 250;
-
-/** 受け取ったスナップショットと、そのときに測った時計のずれ */
-type Received = Readonly<{ snapshot: SessionSnapshot; offset: ClockOffset }>;
-
-type Loading =
-  | Readonly<{ kind: "Loading" }>
-  | Readonly<{ kind: "LoadFailed" }>
-  | Readonly<{ kind: "Loaded"; received: Received }>;
 
 /** 画面に出すタイマーの様子 */
 export type TimerView =
@@ -103,15 +103,6 @@ const receive = async (
 };
 
 /**
- * 手元の読み込みの状態に、届いたスナップショットを反映する。手元より古いものは捨てる（ADR 0012）。
- * HTTP の応答と同期メッセージは、同じ変更について順序が入れ替わって届くことがあるため。
- */
-const applyReceived = (current: Loading, received: Received): Loading =>
-  current.kind === "Loaded" && SessionSnapshot.isOlder(received.snapshot, current.received.snapshot)
-    ? current
-    : { kind: "Loaded", received };
-
-/**
  * タイマー画面の状態と操作。
  *
  * - 現在のセッションを読み込み、`TICK_MS` ごとに端末の時刻で状態を計算し直す
@@ -156,12 +147,10 @@ export const useSessionTimer = (
         const received = result.value;
         // 操作と重なった読み込みは、操作の応答より古いかもしれないので、読み込めているなら捨てる（operation-overlap.ts）
         const overlapped = operations.overlapped(token);
-        setLoading((current) =>
-          overlapped && current.kind === "Loaded" ? current : applyReceived(current, received),
-        );
+        setLoading((current) => applyLoaded(current, received, overlapped));
         return;
       }
-      setLoading((current) => (current.kind === "Loaded" ? current : { kind: "LoadFailed" }));
+      setLoading(applyLoadFailed);
     });
   }, [backend, operations]);
 
@@ -254,11 +243,7 @@ export const useSessionTimer = (
       void load();
     },
     receive: (snapshot) => {
-      setLoading((current) =>
-        current.kind === "Loaded"
-          ? applyReceived(current, { snapshot, offset: current.received.offset })
-          : current,
-      );
+      setLoading((current) => applySynced(current, snapshot));
     },
   };
 };

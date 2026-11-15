@@ -9,6 +9,10 @@ export default {
   ignore: [".agents/**", "apps/apple/**"],
   workspaces: {
     ".": {
+      // TLA+ の検査を走らせるスクリプト（スキル session-sync）。どこからも import されず、node で直接走らせる
+      entry: ["formal/*/check.mjs"],
+      // TLC は Java で動く。Java は npm の依存ではなく、PATH にあるものか mise で入れたものを使う
+      ignoreBinaries: ["java"],
       // `vite` は vite-plus-core の別名（pnpm-workspace.yaml の catalog / overrides）。
       // コードからは import しないが、Vite+ が `vite` として解決できるようにルートにも置く
       ignoreDependencies: ["vite"],

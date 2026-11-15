@@ -23,5 +23,11 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/server", "src/workflows", "src/domain", "worker-configuration.d.ts"]
+  "include": [
+    "src/server",
+    "src/workflows",
+    "src/domain",
+    "src/testing/*.workers.test.ts",
+    "worker-configuration.d.ts"
+  ]
 }
