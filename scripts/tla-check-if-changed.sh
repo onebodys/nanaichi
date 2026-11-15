@@ -1,13 +1,13 @@
 #!/bin/sh
 # 自動終了の alarm の TLA+ モデル（specs/auto-end-alarm/）か、それが写しているコードが main から変わっていれば TLC で検査する。
-# push 時のフックとエージェントの Stop フックから呼ぶ（Issue #35、.agents/skills/auto-end-alarm）。CI の check ジョブは毎回走らせる。
+# push 時のフックから呼ぶ（Issue #35、.agents/skills/auto-end-alarm）。CI の check ジョブは毎回走らせる。
 # Java の入っていない環境では飛ばす。モデルを触らない人の push を止めないため
 set -eu
 cd "$(dirname "$0")/.."
 
 # main と比べられないとき（origin/main がない clone など）は、変わったかを判定せず走らせる
 if base=$(git merge-base HEAD origin/main 2>/dev/null); then
-  # コミットしたものと、まだコミットしていないもの（Stop フックのとき）の両方を見る
+  # コミットしたものと、まだコミットしていないもの（手で走らせたとき）の両方を見る
   changed=$({
     git diff --name-only "$base"
     git ls-files --others --exclude-standard
