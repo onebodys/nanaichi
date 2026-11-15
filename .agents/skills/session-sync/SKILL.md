@@ -22,17 +22,16 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 ## いま分かっていること
 
 実装のままで成り立たないものがある。モデルと、本物の UserDO を動かしたトレースの両方で確かめてある。
+画面は、読み込めていない間に届いた同期メッセージのいちばん新しいものを待たせ、読み込めたときに読み込みの結果と比べる（#52 の直し。`snapshot-arrival.ts` の `HeldSync`、モデルの `held`）。
 
 - **#51**: 同じミリ秒に処理された読み込みと別の変更で、画面が巻き戻る（`stall-rollback`、`stall-one-screen`）。Workers の時計は I/O まで進まないので、同時に届いた要求は同じミリ秒になりうる。`SameTimeSameChange` が破れ、`NoChangeRollback` も破れる
-- **#52**: 読み込み中に届いた同期メッセージを捨てるので、変更より前の読み込みだけが届いた画面は古いまま（`liveness`）。通信が失われなくても起きる
-- **#53**: HTTP の応答が失われると、次の変更か繋ぎ直しまで古いまま（`liveness-hold-sync-losses`）
-- **#54**: 操作と重なった読み込みを捨てるので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いまま（`--deep` の `liveness-hold-sync`。書き込み 2 の手数で出る）。通信が失われなくても起きる
+- **#53**: HTTP の応答が失われると、次の変更か繋ぎ直しまで古いまま（`liveness-losses`）
+- **#54**: 操作と重なった読み込みを捨てるので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いまま（`--deep` の `liveness`。書き込み 2 の手数で出る。既定の手数 1 では成り立つ）。通信が失われなくても起きる
 
 時計が要求ごとに進む（同じミリ秒に2つの要求がない）なら、安全性は通信が失われても成り立つ（`safety`、`safety-faults`）。
 画面が1つで操作だけなら、時計が止まっても巻き戻らない。`operation-overlap.ts` が効いている（`stall-one-screen-ops`）。
 
-これらを直したら、`check.mjs` の期待（`expect`）を pass に変え、直し方をモデルに写す。直し方の候補 `HoldSyncWhileLoading`（#52）はモデルの `Fixes` にあり、実装に入ったら `Fixes` から外して `ReceiveSync` をその動きにする。
-`HoldSyncWhileLoading` だけでは、既定の手数（書き込み 1）で活性が成り立つが、`--deep`（書き込み 2）では #54 のために成り立たない。
+これらを直したら、直し方をモデルに写し、`check.mjs` の期待（`expect`）を pass に変える。
 
 ## 範囲と前提
 
@@ -40,7 +39,7 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 - **手数**（既定 / `--deep`）:
   - 安全性: 書き込み 2 / 3、通信の失敗なし
   - 安全性（通信の失敗あり、`safety-faults`）: 書き込み 1、HTTP の喪失 1、WebSocket の切断 1（`--deep` でも同じ。書き込み 2 は 1 時間で終わらなかった）
-  - 活性: 書き込み 1 / 2、WebSocket の切断 1（`liveness-hold-sync-losses` は HTTP の喪失 1、切断 0）
+  - 活性: 書き込み 1 / 2、WebSocket の切断 1（`liveness-losses` は HTTP の喪失 1、切断 0）
   - 時計が止まる場合: 時刻の上限 6 / 8
 - **時計**: 2つの見方で調べる。`ClockStalls = FALSE` は「UserDO が要求を処理するたびに時計が進む」。`ClockStalls = TRUE` は「時計は実時間で進み、同時に届いた要求は同じミリ秒に処理されうる。要求は送ってから 1ms 以上あとに届く」
 - **書き込み**: 開始・操作（`Operate`。断られることがある）と、記入・進め方の変更（`Write`。応答はスナップショットではなく、成功したら読み込み直す）
@@ -102,9 +101,9 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 | `IsOlderReversed`: `isOlder` の比較を逆にする | `domain/session.ts` の `SessionSnapshot.isOlder` | `NoTimeRollback` |
 | `ChangeKeepsClock`: 記録を変えても時計を進めない | `server/user-do.ts` の `#run`（`new Date()`） | `SameTimeSameChange` |
 | `NoOverlapCheck`: 操作と重なった読み込みも反映する | `client/snapshot-arrival.ts` の `applyLoaded`、`operation-overlap.ts` | `NoChangeRollback`（画面1つ、時計が止まる） |
-| `NoRefreshOnConnect`: 繋がっても読み込み直さない | `client/use-sync.ts` の `onConnected` | `EventuallyConverged`（`HoldSyncWhileLoading` つき） |
+| `NoRefreshOnConnect`: 繋がっても読み込み直さない | `client/use-sync.ts` の `onConnected` | `EventuallyConverged` |
 
-トレースの照合も、壊した実装で落ちることを確かめてある。`applySynced` が読み込み中のメッセージも反映するように変えると、`--trace` が3つ目のトレースの 10 手目（読み込み中の `ReceiveSync`）で `NG` になる。
+トレースの照合も、壊した実装で落ちることを確かめてある。`applySynced` が読み込み中のメッセージを待たせずに捨てるように戻すと（トレースのテストの最後の `expect` を外して）、`--trace` が3つ目のトレースの 11 手目（待たせたメッセージと比べるはずの `ReceiveLoad`）で `NG` になる。
 性質や壊し方を足したら、同じように落ちることを確かめる。落ちるのを見ていない検査は何も証明しない。
 
 ## 実装のトレース
@@ -122,7 +121,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 対象:
 
 - `apps/web/src/domain/session.ts`: `SessionSnapshot.isOlder`、`Session.snapshot`
-- `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoaded`・`applyLoadFailed`・`applySynced`
+- `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoaded`・`applyLoadFailed`・`applySynced`・`startReload`
 - `apps/web/src/client/use-session-timer.ts`: `load`・`send`・`reload`・`refresh`・`receive`（どれをいつ呼ぶか）
 - `apps/web/src/client/operation-overlap.ts`: `createOperationTracker`
 - `apps/web/src/client/sync-connection.ts`: `connectSync`（繋ぎ直し、`isCurrent`）

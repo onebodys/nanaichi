@@ -16,8 +16,10 @@ import {
   applyLoadFailed,
   applyReceived,
   applySynced,
+  initialLoading,
   type Loading,
   type Received,
+  startReload,
 } from "./snapshot-arrival.ts";
 import { startTicker } from "./ticker.ts";
 
@@ -45,10 +47,16 @@ export type TimerView =
  * （ADR 0003）。状態とできる操作の判断はドメインの関数に任せる。
  */
 const timerViewOf = (loading: Loading, deviceNow: Date): TimerView => {
-  if (loading.kind !== "Loaded") {
-    return loading;
+  switch (loading.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: loading.kind };
+    case "Loaded":
+      return timerViewOfReceived(loading.received, deviceNow);
   }
-  const { snapshot, offset } = loading.received;
+};
+
+const timerViewOfReceived = ({ snapshot, offset }: Received, deviceNow: Date): TimerView => {
   if (snapshot.kind === "NoSession") {
     return { kind: "NoSession" };
   }
@@ -129,12 +137,12 @@ export const useSessionTimer = (
   refresh: () => void;
   /**
    * 同期メッセージで届いたスナップショットに置き換える（ADR 0012）。送った時刻がわからないので
-   * 時計のずれは測り直さず、直前に測ったものを使う。まだ読み込めていなければ、読み込みの結果を待つ
+   * 時計のずれは測り直さず、直前に測ったものを使う。まだ読み込めていなければ、読み込めるまで待たせる
    */
   receive: (snapshot: SessionSnapshot) => void;
 }> => {
   const backend = useBackend();
-  const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
+  const [loading, setLoading] = useState<Loading>(initialLoading);
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
@@ -236,7 +244,7 @@ export const useSessionTimer = (
       void send(() => backend.operateSession(id, kind));
     },
     reload: () => {
-      setLoading({ kind: "Loading" });
+      setLoading(startReload);
       void load();
     },
     refresh: () => {
