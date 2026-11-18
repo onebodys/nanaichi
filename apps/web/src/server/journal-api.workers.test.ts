@@ -13,6 +13,8 @@ const STARTED_AT = Date.UTC(2100, 0, 1, 0, 0, 0);
 /** 最初のセッションを始めた時刻からの経過 */
 const minutes = (m: number, s = 0) => STARTED_AT + m * 60_000 + s * 1000;
 const iso = (ms: number) => new Date(ms).toISOString();
+/** 時刻を止めたまま続けて記録すると、記録済みの時刻の 1ms 後ずつに記録する（Issue #37） */
+const after = (ms: number, records: number) => ms + records;
 const ROUND_MINUTES = 3 * 8 + 5;
 
 const passTo = (ms: number) => vi.setSystemTime(ms);
@@ -158,7 +160,7 @@ describe("ジャーナル記入を書く", () => {
     const retried = await write("1回目", id);
 
     expect(retried.status).toBe(200);
-    expect(await retried.json()).toMatchObject({ id, writtenAt: iso(minutes(0)) });
+    expect(await retried.json()).toMatchObject({ id, writtenAt: iso(after(minutes(0), 1)) });
     expect((await timelineJson()).sessions[0]?.entries).toHaveLength(1);
   });
 
@@ -252,7 +254,7 @@ describe("ジャーナル記入の編集", () => {
 
     await edit(id, "直した");
 
-    expect(await alarmOf()).toBe(minutes(2 * ROUND_MINUTES));
+    expect(await alarmOf()).toBe(after(minutes(2 * ROUND_MINUTES), 1));
   });
 
   test("空の本文には書き直せない", async () => {
@@ -314,7 +316,7 @@ describe("ジャーナル記入の削除", () => {
     const rows = await runInDurableObject(env.USER_DO.getByName(userId), (_, state) =>
       state.storage.sql.exec("SELECT id, deleted_at FROM journal_entries").toArray(),
     );
-    expect(rows).toEqual([{ id, deleted_at: minutes(20) }]);
+    expect(rows).toEqual([{ id, deleted_at: after(minutes(20), 1) }]);
     expect(await alarmOf()).toBe(minutes(20 + 2 * ROUND_MINUTES));
   });
 
@@ -328,7 +330,7 @@ describe("ジャーナル記入の削除", () => {
     const retried = await remove(id);
 
     expect(retried.status).toBe(200);
-    expect(await retried.json()).toEqual({ id, deletedAt: iso(minutes(0)) });
+    expect(await retried.json()).toEqual({ id, deletedAt: iso(after(minutes(0), 2)) });
   });
 
   test("削除した記入は編集できず、同じ ID で書き直すこともできない", async () => {
@@ -541,7 +543,7 @@ describe("タイムライン", () => {
     await write("振り返り");
 
     expect(await timelineJson()).toMatchObject({
-      serverTime: iso(minutes(7, 30)),
+      serverTime: iso(after(minutes(7, 30), 1)),
       sessions: [
         {
           session: { events: [{ kind: "Start" }], journalEntryTimes: [iso(minutes(7, 30))] },
@@ -652,7 +654,7 @@ describe("タグの削除", () => {
 
     expect(res.status).toBe(200);
     expect(await entriesJson()).toMatchObject([
-      { tags: [], writtenAt: iso(minutes(0)), updatedAt: iso(minutes(0)) },
+      { tags: [], writtenAt: iso(after(minutes(0), 1)), updatedAt: iso(after(minutes(0), 1)) },
     ]);
   });
 
@@ -785,7 +787,7 @@ describe("応答はクライアントが検証するスキーマ（domain/）に
 
     const parsed = schemaResult(DeletedJournalEntryJsonSchema)(await (await remove(id)).json());
 
-    expect(parsed).toEqual(Result.succeed({ id, deletedAt: new Date(minutes(0)) }));
+    expect(parsed).toEqual(Result.succeed({ id, deletedAt: new Date(after(minutes(0), 2)) }));
   });
 
   test("休憩・待機・終了を含むタイムラインの応答は、タイムラインのスキーマに合う", async () => {

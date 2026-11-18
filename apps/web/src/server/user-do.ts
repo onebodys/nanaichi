@@ -14,6 +14,7 @@ import {
   type EntriesOnDateJson,
   type JournalCalendar as JournalCalendarReport,
 } from "../domain/journal-calendar.ts";
+import { recordTimeAfter } from "../domain/record-time.ts";
 import { SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import type { TaskSetting } from "../domain/task-setting.ts";
@@ -77,7 +78,7 @@ import {
 import type { WriteJournalEntryError } from "../workflows/write-journal-entry.ts";
 import { importSqlite } from "./import-sqlite.ts";
 import { journalSqlite, type JournalSqlite } from "./journal-sqlite.ts";
-import { sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
+import { latestRecordedAtOf, sessionSqlite, type SessionSqlite } from "./session-sqlite.ts";
 import { statsSqlite } from "./stats-sqlite.ts";
 import { clefTaskJudge } from "./clef-task-judge.ts";
 import { taskSqlite, type TaskSqlite } from "./task-sqlite.ts";
@@ -346,7 +347,8 @@ export class UserDO extends DurableObject<Env> {
    * 途中で例外が出れば書き込みはすべて取り消される。
    */
   async #run<T>(workflow: (now: Date) => T): Promise<T> {
-    const now = new Date();
+    // Workers の時刻は要求の間は進まないので、続けて届いた要求が同じミリ秒になりうる。記録済みの時刻より後にする（Issue #37）
+    const now = recordTimeAfter(new Date(), latestRecordedAtOf(this.ctx.storage.sql));
     const { result, schedule } = this.ctx.storage.transactionSync(() => ({
       result: workflow(now),
       schedule: settleAutoEnd(this.#sessions)(now),

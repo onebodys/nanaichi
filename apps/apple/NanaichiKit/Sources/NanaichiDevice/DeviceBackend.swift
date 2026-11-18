@@ -79,10 +79,12 @@ public actor DeviceBackend: Backend {
 
     // MARK: - ワークフローを動かす
 
-    /// この端末の記録先が記録に使う時刻。端末の時計が記録済みの時刻より前に戻っていれば、記録済みの時刻を使う（ADR 0019）
+    /// この端末の記録先が記録に使う時刻（ADR 0019）。端末の時計が記録済みの時刻と同じか前に戻っていれば、
+    /// 記録済みの時刻の 1ms 後を使い、同じミリ秒の記録を作らない（TS の `recordTimeAfter`、Issue #37）
     private func deviceNow(_ records: SQLiteRecords) throws -> Instant {
         let now = clock()
-        return try records.latestRecordedAt().map { max($0, now) } ?? now
+        guard let latest = try records.latestRecordedAt(), latest >= now else { return now }
+        return latest.adding(milliseconds: 1)
     }
 
     /// 1つのワークフローを1つの書き込みのトランザクションで動かす。

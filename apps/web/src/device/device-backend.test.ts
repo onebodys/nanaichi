@@ -239,7 +239,8 @@ describe("この端末の記録先", () => {
 
     const paused = await unwrap(tab.operateSession(eventId(), "Pause"));
     expect(paused.kind === "Session" && paused.state.kind).toBe("Focus");
-    expect(paused.serverTime).toEqual(new Date(T0 + 10 * MINUTE));
+    // 記録済みの開始の 1ms 後に記録する
+    expect(paused.serverTime).toEqual(new Date(T0 + 10 * MINUTE + 1));
   });
 
   test("最初に書いたときだけ、保存した記録を消さないようブラウザに求める", async () => {

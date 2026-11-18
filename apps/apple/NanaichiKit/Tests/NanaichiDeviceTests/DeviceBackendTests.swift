@@ -166,7 +166,7 @@ struct DeviceBackendTests {
         #expect(try database.bytes() == before)
     }
 
-    @Test("時計が戻っても操作でき、記録済みのいちばん新しい時刻で記録する")
+    @Test("時計が戻っても操作でき、記録済みのいちばん新しい時刻の 1ms 後で記録する")
     func clockGoesBack() async throws {
         let clock = TestClock()
         let backend = DeviceBackend(location: .inMemory, clock: { clock.now })
@@ -180,6 +180,21 @@ struct DeviceBackendTests {
             return
         }
         #expect(state.kind == .focus)
-        #expect(serverTime == at(10))
+        #expect(serverTime == at(10).adding(milliseconds: 1))
+    }
+
+    @Test("時計が止まっていても、続けて記録した時刻は前の記録より後になる")
+    func clockStandsStill() async throws {
+        let clock = TestClock()
+        let backend = DeviceBackend(location: .inMemory, clock: { clock.now })
+        _ = try await backend.startSession(id: eventId()).get()
+        _ = try await backend.operateSession(id: eventId(), kind: .pause).get()
+
+        let resumed = try await backend.operateSession(id: eventId(), kind: .resume).get()
+        guard case .session(let serverTime, _, _) = resumed else {
+            Issue.record("再開したのにセッションがない")
+            return
+        }
+        #expect(serverTime == at(0).adding(milliseconds: 2))
     }
 }

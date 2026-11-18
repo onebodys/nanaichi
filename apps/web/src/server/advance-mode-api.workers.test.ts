@@ -138,7 +138,8 @@ describe("手動の切り替わりのあるセッション", () => {
         kind: "AwaitingAdvance",
         finished: { kind: "Focus", round: 1, setNumber: 1 },
         completedSets: 1,
-        since: new Date(minutes(7)),
+        // 進め方の変更と同じミリ秒に開始したので、開始はその 1ms 後に記録する（Issue #37）
+        since: new Date(minutes(7) + 1),
       },
     });
 

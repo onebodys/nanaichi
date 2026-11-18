@@ -114,6 +114,39 @@ export const advanceModeChangesOf = (sql: SqlStorage): ReadonlyArray<AdvanceMode
       .toArray(),
   );
 
+const LatestRecordedAtRowSchema = v.pipe(
+  v.object({ latest: v.nullable(epochMs) }),
+  v.transform(({ latest }) => (latest === null ? undefined : new Date(latest))),
+);
+const parseLatestRecordedAtRow = parseRow(LatestRecordedAtRowSchema, "latest_recorded_at");
+
+/**
+ * このアカウントで記録した、タイマーの状態の計算に使う時刻（操作イベント・記入を書いた時刻・閉じた時刻・
+ * 進め方の変更）のいちばん遅いもの。記録に使う時刻をこれより後にする（`recordTimeAfter`、Issue #37）。
+ * 記入の編集・削除の時刻は計算に使わないので含めない。
+ *
+ * 取り込んだ行（origin が Import、ADR 0020）は除く。端末の時計が進んでいれば未来の時刻を持ちうるので、
+ * 含めるとこのアカウントの記録の時刻がそこまで先へ飛んでしまう
+ */
+export const latestRecordedAtOf = (sql: SqlStorage): Date | undefined =>
+  parseLatestRecordedAtRow(
+    sql
+      .exec(
+        `SELECT MAX(latest) AS latest FROM (
+           SELECT MAX(s.ended_at) AS latest FROM sessions s WHERE s.origin = 'Account'
+           UNION ALL
+           SELECT MAX(e.at) FROM session_events e
+             JOIN sessions s ON s.id = e.session_id WHERE s.origin = 'Account'
+           UNION ALL
+           SELECT MAX(j.written_at) FROM journal_entries j
+             JOIN sessions s ON s.id = j.session_id WHERE s.origin = 'Account'
+           UNION ALL
+           SELECT MAX(changed_at) FROM advance_mode_changes WHERE origin = 'Account'
+         )`,
+      )
+      .one(),
+  );
+
 // ---------------------------------------------------------------------------
 // 読み書きの契約（domain/session.ts）を DO の SQLite で実装する
 // ---------------------------------------------------------------------------
