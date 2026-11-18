@@ -9,6 +9,7 @@ import type { Ended, TimerState } from "../domain/timer-state.ts";
 import type { BackendError } from "../domain/backend.ts";
 import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
+import { createLoadRetry } from "./load-retry.ts";
 import { createOperationTracker } from "./operation-overlap.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import {
@@ -75,8 +76,9 @@ const timerViewOfReceived = ({ snapshot, offset }: Received, deviceNow: Date): T
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
 const messageOf = (error: BackendError): string => {
   switch (error.kind) {
+    // 届かなかっただけで、UserDO は処理を終えているかもしれない。読み込み直した画面を見てから操作してもらう
     case "Unreachable":
-      return "通信できませんでした。もう一度お試しください。";
+      return "通信できませんでした。最新の状態を読み込み直します。";
     case "StorageFailed":
       return storageFailedMessageOf(error);
     case "Rejected":
@@ -147,20 +149,30 @@ export const useSessionTimer = (
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
   const [operations] = useState(createOperationTracker);
+  const [retry] = useState(createLoadRetry);
 
-  const load = useCallback(() => {
-    const token = operations.readStarted();
-    return receive(backend.getCurrentSession).then((result) => {
-      if (Result.isSuccess(result)) {
-        const received = result.value;
-        // 操作と重なった読み込みは、操作の応答より古いかもしれないので、読み込めているなら捨てる（operation-overlap.ts）
-        const overlapped = operations.overlapped(token);
-        setLoading((current) => applyLoaded(current, received, overlapped));
-        return;
-      }
-      setLoading(applyLoadFailed);
-    });
-  }, [backend, operations]);
+  const load = useCallback((): Promise<void> => {
+    const loadOnce = (): Promise<void> => {
+      const token = operations.readStarted();
+      return receive(backend.getCurrentSession).then((result) => {
+        if (Result.isSuccess(result)) {
+          retry.succeeded();
+          const received = result.value;
+          // 操作と重なった読み込みは、操作の応答より古いかもしれないので、読み込めているなら捨てる（operation-overlap.ts）
+          const overlapped = operations.overlapped(token);
+          setLoading((current) => applyLoaded(current, received, overlapped));
+          return;
+        }
+        setLoading(applyLoadFailed);
+        // 読み込めている画面は手元のまま見せるので、失敗に気づけない。読み込めていない画面も、古い読み込みが
+        // 後から届くと「読み込み直す」が出ない。どちらも間隔を空けて読み込み直す（load-retry.ts、Issue #53）
+        retry.failed(() => void loadOnce());
+      });
+    };
+    return loadOnce();
+  }, [backend, operations, retry]);
+
+  useEffect(() => () => retry.stop(), [retry]);
 
   useEffect(() => {
     void load();
@@ -217,10 +229,9 @@ export const useSessionTimer = (
       setLoading((current) => applyReceived(current, received));
     } else {
       setErrorMessage(messageOf(result.error));
-      // 別のタブで操作したなどで食い違っているかもしれないので、今の状態を読み込み直す
-      if (result.error.kind !== "Unreachable") {
-        await load();
-      }
+      // 別のタブで操作したなどで食い違っているかもしれないので、今の状態を読み込み直す。
+      // 届かなかった（Unreachable）ときも、UserDO は処理を終えているかもしれない（Issue #53）
+      await load();
     }
     setPending(false);
   };

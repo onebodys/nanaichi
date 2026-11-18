@@ -99,12 +99,9 @@ const checks = (deep) => {
     // 読み込み中に届いた同期メッセージを待たせるので、書き込み 1 までは成り立つ（WebSocket が切れても、#52）。
     // 書き込み 2 では、操作と重なった読み込みを捨てるために成り立たない（#54）
     liveness("liveness", advancing, deep ? "EventuallyConverged" : "pass"),
-    // HTTP の応答が失われると成り立たない（#53）
-    liveness(
-      "liveness-losses",
-      { ...advancing, MaxLosses: 1, MaxDisconnects: 0 },
-      "EventuallyConverged",
-    ),
+    // HTTP の応答が失われても成り立つ。届かなかった操作のあとに読み込み直し、失敗した読み込みは
+    // 間隔を空けてやり直すため（#53）
+    liveness("liveness-losses", { ...advancing, MaxLosses: 1, MaxDisconnects: 0 }, "pass"),
 
     // 壊した実装で落ちる
     safety(
