@@ -1,4 +1,5 @@
 import { AdvanceModeChange } from "../domain/advance-mode.ts";
+import { recordTimeAfter } from "../domain/record-time.ts";
 import type { JournalEntry, JournalEntryId, StoredJournalEntry } from "../domain/journal-entry.ts";
 import type {
   ClosedSession,
@@ -99,12 +100,12 @@ const latestRecordedAt = (records: DeviceRecords): Date | undefined => {
   return Number.isFinite(latest) ? new Date(latest) : undefined;
 };
 
-/** この端末の記録先が記録に使う時刻。端末の時計 `clock` が記録済みの時刻より前に戻っていれば、記録済みの時刻を使う */
-export const deviceNow = (clock: () => Date, records: DeviceRecords): Date => {
-  const now = clock();
-  const latest = latestRecordedAt(records);
-  return latest !== undefined && latest.getTime() > now.getTime() ? latest : now;
-};
+/**
+ * この端末の記録先が記録に使う時刻。端末の時計 `clock` が記録済みの時刻と同じか前に戻っていれば、
+ * 記録済みの時刻の 1ms 後を使う（`recordTimeAfter`）
+ */
+export const deviceNow = (clock: () => Date, records: DeviceRecords): Date =>
+  recordTimeAfter(clock(), latestRecordedAt(records));
 
 export type RecordsDeps = StartSessionDeps &
   OperateSessionDeps &

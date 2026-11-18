@@ -660,3 +660,65 @@ describe("マイグレーション", () => {
     expect(origins).toEqual([{ origin: "Account" }, { origin: "Account" }]);
   });
 });
+
+describe("記録の時刻", () => {
+  const recordedTimes = () =>
+    runInDurableObject(env.USER_DO.getByName(userId), (_, state) => ({
+      events: state.storage.sql
+        .exec<{ kind: string; at: number }>(
+          `SELECT e.kind, e.at FROM session_events e JOIN sessions s ON s.id = e.session_id
+           WHERE s.origin = 'Account' ORDER BY e.at, e.rowid`,
+        )
+        .toArray(),
+      changes: state.storage.sql
+        .exec<{ changed_at: number }>(
+          "SELECT changed_at FROM advance_mode_changes WHERE origin = 'Account' ORDER BY changed_at, rowid",
+        )
+        .toArray()
+        .map(({ changed_at }) => changed_at),
+    }));
+
+  test("同じミリ秒に届いた操作と進め方の変更は、届いた順に前の記録の 1ms 後で記録し、時刻が重ならない", async () => {
+    passTo(accountAt(10));
+    expect((await startAccountSession()).status).toBe(200);
+    expect((await operate("Pause")).status).toBe(200);
+    expect((await putMode(MANUAL)).status).toBe(200);
+    expect((await operate("Resume")).status).toBe(200);
+    expect((await write("同じミリ秒の記入")).status).toBe(200);
+    expect((await operate("End")).status).toBe(200);
+
+    expect(await recordedTimes()).toEqual({
+      events: [
+        { kind: "Start", at: accountAt(10) },
+        { kind: "Pause", at: accountAt(10) + 1 },
+        { kind: "Resume", at: accountAt(10) + 3 },
+        { kind: "End", at: accountAt(10) + 5 },
+      ],
+      changes: [accountAt(10) + 2],
+    });
+  });
+
+  test("時計が記録済みの時刻より後なら、時計の時刻をそのまま使う", async () => {
+    passTo(accountAt(10));
+    await startAccountSession();
+    passTo(accountAt(11));
+    await operate("Pause");
+
+    expect((await recordedTimes()).events.map(({ at }) => at)).toEqual([
+      accountAt(10),
+      accountAt(11),
+    ]);
+  });
+
+  test("取り込んだ記録が未来の時刻を持っていても、アカウントの記録の時刻はそこまで飛ばない", async () => {
+    const future = sessionBetween(accountAt(60), accountAt(70));
+    expect(
+      kindsOf(await importBatch([future], [{ at: new Date(accountAt(80)), mode: MANUAL }])),
+    ).toEqual(["Imported"]);
+
+    passTo(accountAt(0));
+    await startAccountSession();
+
+    expect((await recordedTimes()).events).toEqual([{ kind: "Start", at: accountAt(0) }]);
+  });
+});
