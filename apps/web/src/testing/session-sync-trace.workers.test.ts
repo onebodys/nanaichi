@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import { Result } from "@praha/byethrow";
-import { createOperationTracker, type OperationTracker } from "../client/operation-overlap.ts";
-import {
-  applyLoaded,
-  applyReceived,
-  applySynced,
-  type Loading,
-} from "../client/snapshot-arrival.ts";
+import { applyReceived, applySynced, type Loading } from "../client/snapshot-arrival.ts";
 import { schemaResult } from "../domain/schema-result.ts";
 import { type SessionSnapshot, SessionSnapshotJsonSchema } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
@@ -22,8 +16,7 @@ import {
  * 同期のモデル（formal/session-sync/SessionSync.tla）と実装が一致しているかを確かめるためのトレースを取る。
  *
  * 本物の UserDO（HTTP と同期の WebSocket）に、2つの画面として要求を送る。画面の側は、届いた
- * スナップショットの反映（client/snapshot-arrival.ts）と操作との重なり（client/operation-overlap.ts）
- * を本物で動かす。React の配線（`use-session-timer.ts` が、いつ何を呼ぶか）はここで写している。
+ * スナップショットの反映（client/snapshot-arrival.ts）を本物で動かす。React の配線（`use-session-timer.ts` が、いつ何を呼ぶか）はここで写している。
  *
  * どの応答・メッセージをいつ画面に渡すかはテストが決める。1手ごとにモデルのアクションの名前と、
  * そのときの値（UserDO が出したスナップショット、画面が見せているもの）を記録し、`task.meta` に残す。
@@ -89,10 +82,7 @@ const versionOf = (snapshot: SessionSnapshot): number => {
 const parseSnapshot = (body: unknown): SessionSnapshot =>
   Result.unwrap(schemaResult(SessionSnapshotJsonSchema)(body));
 
-type LoadRequest = Readonly<{
-  token: ReturnType<OperationTracker["readStarted"]>;
-  cause: "Refresh";
-}>;
+type LoadRequest = Readonly<{ cause: "Refresh" }>;
 type LoadResponse = Readonly<{ request: LoadRequest; snapshot: SessionSnapshot }>;
 type OpResponse =
   | Readonly<{ kind: "Ok"; snapshot: SessionSnapshot }>
@@ -101,7 +91,6 @@ type OpResponse =
 type Screen = {
   readonly name: ScreenName;
   loading: Loading;
-  readonly tracker: OperationTracker;
   /** WebSocket に届いて、まだ画面に渡していないメッセージ */
   readonly inbox: Array<string>;
   socket: WebSocket | undefined;
@@ -128,15 +117,8 @@ const recorder = () => {
 
   /** 画面を開く。モデルの初期状態と同じく、読み込みを1つ送り、同期の WebSocket を開き始める */
   const mount = (name: ScreenName): [Screen, LoadRequest] => {
-    const tracker = createOperationTracker();
-    const screen: Screen = {
-      name,
-      loading: { kind: "Loading" },
-      tracker,
-      inbox: [],
-      socket: undefined,
-    };
-    return [screen, { token: tracker.readStarted(), cause: "Refresh" }];
+    const screen: Screen = { name, loading: { kind: "Loading" }, inbox: [], socket: undefined };
+    return [screen, { cause: "Refresh" }];
   };
 
   const serveLoad = async (screen: Screen, req: LoadRequest): Promise<LoadResponse> => {
@@ -156,18 +138,15 @@ const recorder = () => {
 
   /** use-session-timer.ts の load の後半 */
   const receiveLoad = (screen: Screen, res: LoadResponse) => {
-    const overlapped = screen.tracker.overlapped(res.request.token);
-    screen.loading = applyLoaded(
-      screen.loading,
-      { snapshot: res.snapshot, offset: { serverAheadMs: 0 } },
-      overlapped,
-    );
+    screen.loading = applyReceived(screen.loading, {
+      snapshot: res.snapshot,
+      offset: { serverAheadMs: 0 },
+    });
     record({ action: "ReceiveLoad", screen: screen.name, cause: res.request.cause }, screen);
   };
 
-  /** use-session-timer.ts の send の前半（operations.begin） */
+  /** use-session-timer.ts の send の前半（pending にする） */
   const operate = (screen: Screen) => {
-    screen.tracker.begin();
     record({ action: "Operate", screen: screen.name }, screen);
   };
 
@@ -194,9 +173,8 @@ const recorder = () => {
     return { kind: "Ok", snapshot };
   };
 
-  /** use-session-timer.ts の send の後半（operations.end のあと反映） */
+  /** use-session-timer.ts の send の後半（成功なら反映） */
   const receiveOp = (screen: Screen, res: OpResponse) => {
-    screen.tracker.end();
     if (res.kind === "Ok") {
       screen.loading = applyReceived(screen.loading, {
         snapshot: res.snapshot,
@@ -228,7 +206,7 @@ const recorder = () => {
 
   /** sync-connection.ts の onOpen → use-sync.ts の onConnected → timer.refresh() */
   const opened = (screen: Screen): LoadRequest => {
-    const req: LoadRequest = { token: screen.tracker.readStarted(), cause: "Refresh" };
+    const req: LoadRequest = { cause: "Refresh" };
     record({ action: "Opened", screen: screen.name });
     return req;
   };
@@ -392,6 +370,41 @@ describe("同期のトレース（formal/session-sync で TLC に通す）", () 
     // UserDO はもう開始しているが、s2 は次の変更か繋ぎ直しまで知らない（formal/session-sync の liveness と同じ並び）
     expect(shownVersion(s1)).toBe(1);
     expect(shownVersion(s2)).toBe(0);
+    Object.assign(task.meta, { sessionSyncTrace: r.steps });
+  });
+
+  test("自分の開始の応答を待つ間に繋がって読み込み直すと、その間の別の画面の一時停止を同期メッセージで受け取れていなくても、読み込みで一時停止まで追いつく", async ({
+    task,
+  }) => {
+    const r = recorder();
+    const [s1, s1Mount] = r.mount("s1");
+    const [s2, s2Mount] = r.mount("s2");
+    at(1);
+    r.receiveLoad(s1, await r.serveLoad(s1, s1Mount));
+    at(2);
+    r.receiveLoad(s2, await r.serveLoad(s2, s2Mount));
+
+    // どちらの同期の WebSocket もまだ受け入れられていないので、同期メッセージは誰にも届かない
+    r.operate(s1);
+    at(10);
+    const started = await r.serveOp(s1, {});
+    r.operate(s2);
+    at(20);
+    const paused = await r.serveOp(s2, { kind: "Pause" });
+
+    // s1 の開始はまだ応答待ち。繋がって読み込み直した応答（一時停止まで）が、開始の応答より先に届く
+    await r.accept(s1);
+    const s1Refresh = r.opened(s1);
+    at(30);
+    r.receiveLoad(s1, await r.serveLoad(s1, s1Refresh));
+    const afterLoad = shownVersion(s1);
+    r.receiveOp(s1, started);
+    r.receiveOp(s2, paused);
+
+    // 操作と重なった読み込みも変更の番号で比べるので、捨てずに使い、あとから届いた開始の応答のほうを捨てる（#54）
+    expect(afterLoad).toBe(2);
+    expect(shownVersion(s1)).toBe(2);
+    expect(shownVersion(s2)).toBe(2);
     Object.assign(task.meta, { sessionSyncTrace: r.steps });
   });
 });

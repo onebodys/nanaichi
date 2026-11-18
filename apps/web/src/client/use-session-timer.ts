@@ -9,10 +9,8 @@ import type { Ended, TimerState } from "../domain/timer-state.ts";
 import type { BackendError } from "../domain/backend.ts";
 import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
-import { createOperationTracker } from "./operation-overlap.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import {
-  applyLoaded,
   applyLoadFailed,
   applyReceived,
   applySynced,
@@ -138,21 +136,17 @@ export const useSessionTimer = (
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const [operations] = useState(createOperationTracker);
 
   const load = useCallback(() => {
-    const token = operations.readStarted();
     return receive(backend.getCurrentSession).then((result) => {
       if (Result.isSuccess(result)) {
         const received = result.value;
-        // 操作と重なった読み込みは、操作の応答より古いかもしれないので、読み込めているなら捨てる（operation-overlap.ts）
-        const overlapped = operations.overlapped(token);
-        setLoading((current) => applyLoaded(current, received, overlapped));
+        setLoading((current) => applyReceived(current, received));
         return;
       }
       setLoading(applyLoadFailed);
     });
-  }, [backend, operations]);
+  }, [backend]);
 
   useEffect(() => {
     void load();
@@ -201,9 +195,7 @@ export const useSessionTimer = (
   const send = async (call: () => Result.ResultAsync<SessionSnapshot, BackendError>) => {
     setPending(true);
     setErrorMessage(undefined);
-    operations.begin();
     const result = await receive(call);
-    operations.end();
     if (Result.isSuccess(result)) {
       const received = result.value;
       setLoading((current) => applyReceived(current, received));

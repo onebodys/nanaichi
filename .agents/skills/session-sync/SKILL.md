@@ -1,6 +1,6 @@
 ---
 name: session-sync
-description: 画面のセッションの同期（HTTP の応答と WebSocket の同期メッセージが入れ替わって届く、ADR 0012）を TLA+ のモデルで網羅検査する。apps/web/src/client/snapshot-arrival.ts、use-session-timer.ts、operation-overlap.ts、sync-connection.ts、use-sync.ts、domain/session.ts の SessionSnapshot.isOlder、server/user-do.ts の #run・#execute・#broadcast・fetch を変えるとき、同期メッセージや読み込み直しの順序に触れるとき、画面のタイマーが古い状態に戻る・追いつかない不具合を調べるときに使う。
+description: 画面のセッションの同期（HTTP の応答と WebSocket の同期メッセージが入れ替わって届く、ADR 0012）を TLA+ のモデルで網羅検査する。apps/web/src/client/snapshot-arrival.ts、use-session-timer.ts、sync-connection.ts、use-sync.ts、domain/session.ts の SessionSnapshot.isOlder、server/user-do.ts の #run・#execute・#broadcast・fetch を変えるとき、同期メッセージや読み込み直しの順序に触れるとき、画面のタイマーが古い状態に戻る・追いつかない不具合を調べるときに使う。
 ---
 
 # 画面のセッションの同期のモデル検査
@@ -26,13 +26,12 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 - **#51（直した）**: 同じミリ秒に処理された読み込みと別の変更で、画面が巻き戻っていた。Workers の時計は I/O まで進まないので、同時に届いた要求は同じミリ秒になりうる。サーバーの時刻では新旧を決められない（`stall-same-time` で `SameTimeSameChange` が破れる）ので、記録先が変更のたびに進める変更の番号で決めるようにした（ADR 0030）。時計が止まっても安全性は成り立つ（画面2つ・操作だけの `stall-rollback` と、画面1つ・記入ありの `stall-one-screen`。画面2つで記入もある組み合わせは状態が数億を超えて終わらないので調べていない）。直す前の実装（`IsOlderByTime`）では巻き戻る（`mutant-isolder-by-time*`）
 - **#52**: 読み込み中に届いた同期メッセージを捨てるので、変更より前の読み込みだけが届いた画面は古いまま（`liveness`）。通信が失われなくても起きる
 - **#53**: HTTP の応答が失われると、次の変更か繋ぎ直しまで古いまま（`liveness-hold-sync-losses`）
-- **#54**: 操作と重なった読み込みを捨てるので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いまま（`--deep` の `liveness-hold-sync`。書き込み 2 の手数で出る）。通信が失われなくても起きる
+- **#54（直した）**: 操作と重なった読み込みを捨てていたので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いままだった（`--deep` の `liveness-hold-sync`。書き込み 2 の手数で出た）。重なりを数える `operation-overlap.ts` を消し、読み込みの応答も変更の番号で比べるようにした。`HoldSyncWhileLoading` つきなら `--deep` でも活性が成り立つ
 
 安全性は通信が失われても成り立つ（`safety-faults`。時計は要求ごとに進む前提）。
-画面が1つで操作だけなら、時刻で比べても巻き戻らない。`operation-overlap.ts` が効いている（`stall-one-screen-ops`。直す前の比べ方で確かめる）。変更の番号で比べるいまは、巻き戻りを防ぐのに `operation-overlap.ts` は要らない（#54 で捨てるのをやめる）。
 
 これらを直したら、`check.mjs` の期待（`expect`）を pass に変え、直し方をモデルに写す。直し方の候補 `HoldSyncWhileLoading`（#52）はモデルの `Fixes` にあり、実装に入ったら `Fixes` から外して `ReceiveSync` をその動きにする。
-`HoldSyncWhileLoading` だけでは、既定の手数（書き込み 1）で活性が成り立つが、`--deep`（書き込み 2）では #54 のために成り立たない。
+`HoldSyncWhileLoading` を足せば、通信が失われない限り、既定の手数でも `--deep` でも活性が成り立つ（#54 を直したあと）。
 
 ## 範囲と前提
 
@@ -102,7 +101,6 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 | `IsOlderReversed`: `isOlder` の比較を逆にする | `domain/session.ts` の `SessionSnapshot.isOlder` | `NoTimeRollback` |
 | `IsOlderByTime`: `isOlder` をサーバーの時刻だけで比べる（#51 を直す前） | `domain/session.ts` の `SessionSnapshot.isOlder` | `NoChangeRollback`（時計が止まる。画面2つ・操作だけでも、画面1つ・記入ありでも） |
 | `WriteKeepsRevision`: 記入などで変更の番号を進めない | `server/user-do-schema.ts` の `record_revision` のトリガー | `SameRevisionSameChange`、時計が止まると `NoChangeRollback` |
-| `NoOverlapCheck` と `IsOlderByTime`: 時刻で比べ、操作と重なった読み込みも反映する | `client/snapshot-arrival.ts` の `applyLoaded`、`operation-overlap.ts` | `NoChangeRollback`（画面1つ、時計が止まる） |
 | `NoRefreshOnConnect`: 繋がっても読み込み直さない | `client/use-sync.ts` の `onConnected` | `EventuallyConverged`（`HoldSyncWhileLoading` つき） |
 
 トレースの照合も、壊した実装で落ちることを確かめてある。`applySynced` が読み込み中のメッセージも反映するように変えると、`--trace` が3つ目のトレースの 10 手目（読み込み中の `ReceiveSync`）で `NG` になる。
@@ -110,7 +108,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 
 ## 実装のトレース
 
-`session-sync-trace.workers.test.ts` は Workers ランタイムで本物の UserDO（HTTP と WebSocket）を動かし、画面の側は `client/snapshot-arrival.ts` と `client/operation-overlap.ts` を本物で動かす。どの応答・メッセージをいつ画面に渡すかはテストが決め、時刻は `vi.setSystemTime` で決める。
+`session-sync-trace.workers.test.ts` は Workers ランタイムで本物の UserDO（HTTP と WebSocket）を動かし、画面の側は `client/snapshot-arrival.ts` を本物で動かす。どの応答・メッセージをいつ画面に渡すかはテストが決め、時刻は `vi.setSystemTime` で決める。
 1手ごとにモデルのアクションの名前と値を `task.meta.sessionSyncTrace` に残し、`check.mjs --trace` が Vitest の JSON の報告から取り出して `SessionSyncTrace.tla` に通す。
 `v` はセッションの操作イベントの数で数えるので、トレースのシナリオでは開始と操作だけを送り、終了しない。
 
@@ -124,9 +122,8 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 
 - `apps/web/src/domain/session.ts`: `SessionSnapshot.isOlder`、`Session.snapshot`
 - `apps/web/src/server/user-do-schema.ts`・`session-sqlite.ts`: `record_revision` とトリガー、`currentRevision`
-- `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoaded`・`applyLoadFailed`・`applySynced`
+- `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoadFailed`・`applySynced`
 - `apps/web/src/client/use-session-timer.ts`: `load`・`send`・`reload`・`refresh`・`receive`（どれをいつ呼ぶか）
-- `apps/web/src/client/operation-overlap.ts`: `createOperationTracker`
 - `apps/web/src/client/sync-connection.ts`: `connectSync`（繋ぎ直し、`isCurrent`）
 - `apps/web/src/client/use-sync.ts`: `onConnected` と `deliver` の `SessionChanged`
 - `apps/web/src/client/home-page.tsx`: 記入・進め方の変更のあとの `timer.refresh()`
@@ -136,7 +133,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 対象が変わったか見るには次を走らせる。
 
 ```sh
-git log --oneline 06207fb..HEAD -- apps/web/src/domain/session.ts apps/web/src/client/snapshot-arrival.ts apps/web/src/client/use-session-timer.ts apps/web/src/client/operation-overlap.ts apps/web/src/client/sync-connection.ts apps/web/src/client/use-sync.ts apps/web/src/client/home-page.tsx apps/web/src/server/user-do.ts apps/web/src/workflows/user-commands.ts
+git log --oneline 06207fb..HEAD -- apps/web/src/domain/session.ts apps/web/src/client/snapshot-arrival.ts apps/web/src/client/use-session-timer.ts apps/web/src/client/sync-connection.ts apps/web/src/client/use-sync.ts apps/web/src/client/home-page.tsx apps/web/src/server/user-do.ts apps/web/src/workflows/user-commands.ts
 ```
 
 何か出たら、変更を読んで次を確かめる。届いたスナップショットの扱い、読み込み直すきっかけ、同期メッセージを送る相手と順序、時刻の読み方が、`SessionSync.tla` のアクションと合っているか。

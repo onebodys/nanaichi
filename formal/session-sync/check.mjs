@@ -90,19 +90,12 @@ const checks = (deep) => {
     safety("stall-rollback", { ...stalling, WithWrites: "FALSE" }, "pass"),
     // 画面が1つで、記入と重なった読み込みでも巻き戻らない（#51 の画面1つの並び）
     safety("stall-one-screen", { ...stalling, Screens: "{s1}" }, "pass"),
-    // 画面が1つで操作だけなら、時刻で比べても巻き戻らない（operation-overlap.ts が重なった読み込みを捨てる）
-    safety(
-      "stall-one-screen-ops",
-      { ...stalling, Screens: "{s1}", WithWrites: "FALSE", Mutations: '{"IsOlderByTime"}' },
-      "pass",
-      ["NoTimeRollback", "NoChangeRollback"],
-    ),
 
     // 活性は実装のままでは成り立たない（通信が失われなくても）
     liveness("liveness", advancing, "EventuallyConverged"),
-    // 読み込み中に届いた同期メッセージを待たせれば、書き込み 1 までは成り立つ（WebSocket が切れても）。
-    // 書き込み 2 では、操作と重なった読み込みを捨てるために成り立たない（#54）
-    liveness("liveness-hold-sync", held, deep ? "EventuallyConverged" : "pass"),
+    // 読み込み中に届いた同期メッセージを待たせれば成り立つ（WebSocket が切れても）。
+    // 操作と重なった読み込みも変更の番号で比べるので、書き込み 2（--deep）でも成り立つ（#54）
+    liveness("liveness-hold-sync", held, "pass"),
     // HTTP の応答が失われると、待たせても成り立たない
     liveness(
       "liveness-hold-sync-losses",
@@ -123,7 +116,7 @@ const checks = (deep) => {
       "NoChangeRollback",
       ["NoTimeRollback", "NoChangeRollback"],
     ),
-    // 画面が1つでも、記入と重なった読み込みで巻き戻る（operation-overlap.ts は操作しか数えない）
+    // 画面が1つでも、自分の操作や記入と同じミリ秒に処理された読み込みで巻き戻る
     safety(
       "mutant-isolder-by-time-one-screen",
       { ...stalling, Screens: "{s1}", Mutations: '{"IsOlderByTime"}' },
@@ -140,17 +133,6 @@ const checks = (deep) => {
     safety(
       "mutant-write-keeps-revision-stall",
       { ...stalling, Screens: "{s1}", Mutations: '{"WriteKeepsRevision"}' },
-      "NoChangeRollback",
-      ["NoTimeRollback", "NoChangeRollback"],
-    ),
-    safety(
-      "mutant-no-overlap-check",
-      {
-        ...stalling,
-        Screens: "{s1}",
-        WithWrites: "FALSE",
-        Mutations: '{"IsOlderByTime", "NoOverlapCheck"}',
-      },
       "NoChangeRollback",
       ["NoTimeRollback", "NoChangeRollback"],
     ),
