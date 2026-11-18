@@ -26,13 +26,10 @@ CONSTANTS
     ClockStalls,   \* TRUE: 時計は実時間で進み（Tick）、同時に届いた要求は同じミリ秒に処理されうる
                    \*       （Workers の時計は I/O まで止まる）
                    \* FALSE: UserDO が要求を処理するたびに時計が進む（同じミリ秒に2つの要求はない）
-    Mutations,     \* 検査が落ちることを確かめるための、わざと壊した実装の集合（{} なら壊さない）
-    Fixes          \* 見つかった問題の直し方の候補の集合。実装にはまだない（{} なら実装のとおり）
+    Mutations      \* 検査が落ちることを確かめるための、わざと壊した実装の集合（{} なら壊さない）
 
 ASSUME Mutations \subseteq {"IsOlderReversed", "IsOlderByTime", "NoOverlapCheck",
                             "NoRefreshOnConnect", "WriteKeepsRevision"}
-\* HoldSyncWhileLoading: 読み込めていない間に届いた同期メッセージを捨てず、読み込めてから反映する
-ASSUME Fixes \subseteq {"HoldSyncWhileLoading"}
 
 NoSnap == [t |-> 0, v |-> 0, r |-> 0]   \* まだ何も受け取っていない画面の shown（Loaded でなければ読まない）
 
@@ -61,6 +58,9 @@ VARIABLES
     httpRes,    \* 画面ごとの、画面にまだ届いていない HTTP の応答（Bag。どの順でも届く）
     loading,    \* use-session-timer.ts の Loading の kind
     shown,      \* Loaded のときの received.snapshot
+    held,       \* Loaded でないときに待たせている同期メッセージ（snapshot-arrival.ts の HeldSync）。
+                \* NoSnap なら NothingHeld
+    retry,      \* 読み込みが失敗し、やり直しを待っている（load-retry.ts の Waiting）
     inFlight,   \* operation-overlap.ts の inFlight
     gen,        \* operation-overlap.ts の generation
     sending,    \* use-session-timer.ts の send の途中か（pending）。"Idle" / "Sending"
@@ -69,8 +69,8 @@ VARIABLES
     disconnects,\* これまでに WebSocket が切れた数（上限のため）
     lastIssued  \* 検査用: UserDO が最後に出したスナップショット
 
-vars == <<clock, ver, rev, phase, wsq, httpReq, httpRes, loading, shown, inFlight,
-          gen, sending, changes, losses, disconnects, lastIssued>>
+vars == <<clock, ver, rev, phase, wsq, httpReq, httpRes, loading, shown, held, retry,
+          inFlight, gen, sending, changes, losses, disconnects, lastIssued>>
 
 Bag1(x) == SetToBag({x})
 Add(b, x) == b (+) Bag1(x)
@@ -99,6 +99,8 @@ Init ==
     /\ httpRes = [s \in Screens |-> EmptyBag]
     /\ loading = [s \in Screens |-> "Loading"]
     /\ shown = [s \in Screens |-> NoSnap]
+    /\ held = [s \in Screens |-> NoSnap]
+    /\ retry = [s \in Screens |-> FALSE]
     /\ inFlight = [s \in Screens |-> 0]
     /\ gen = [s \in Screens |-> 0]
     /\ sending = [s \in Screens |-> "Idle"]
@@ -107,12 +109,20 @@ Init ==
     /\ disconnects = 0
     /\ lastIssued = NoSnap
 
-\* use-session-timer.ts の applyReceived（snapshot-arrival.ts）
+\* 待たせている同期メッセージ h より snap が古くなければ snap（snapshot-arrival.ts の holdSynced）
+NewerOf(h, snap) == IF h /= NoSnap /\ IsOlder(snap, h) THEN h ELSE snap
+
+\* snapshot-arrival.ts の applyReceived。読み込めていなければ、待たせていた同期メッセージと比べて新しいほうを見せる
 ApplyReceived(s, snap) ==
-    IF loading[s] = "Loaded" /\ IsOlder(snap, shown[s])
-    THEN UNCHANGED <<loading, shown>>
+    IF loading[s] = "Loaded"
+    THEN IF IsOlder(snap, shown[s])
+         THEN UNCHANGED <<loading, shown, held>>
+         ELSE /\ shown' = [shown EXCEPT ![s] = snap]
+              /\ UNCHANGED <<loading, held>>
     ELSE /\ loading' = [loading EXCEPT ![s] = "Loaded"]
-         /\ shown' = [shown EXCEPT ![s] = snap]
+         /\ shown' = [shown EXCEPT ![s] =
+                         IF held[s] /= NoSnap /\ ~IsOlder(held[s], snap) THEN held[s] ELSE snap]
+         /\ held' = [held EXCEPT ![s] = NoSnap]
 
 -----------------------------------------------------------------------------
 (* 画面の操作                                                              *)
@@ -128,7 +138,7 @@ Operate(s) ==
     /\ gen' = [gen EXCEPT ![s] = @ + 1]
     /\ httpReq' = [httpReq EXCEPT ![s] = Add(@, OpReq)]
     /\ changes' = changes + 1
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpRes, loading, shown, losses, disconnects, lastIssued>>
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, httpRes, loading, shown, held, losses, disconnects, lastIssued>>
 
 \* ジャーナル記入や進め方の変更（timeline / advance-mode の API）。応答はスナップショットではなく、
 \* 成功したら timer.refresh() で読み込み直す（home-page.tsx）。operations は数えない
@@ -138,7 +148,7 @@ Write(s) ==
     /\ changes < MaxChanges
     /\ httpReq' = [httpReq EXCEPT ![s] = Add(@, WriteReq)]
     /\ changes' = changes + 1
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpRes, loading, shown, inFlight, gen,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, httpRes, loading, shown, held, inFlight, gen,
                    sending, losses, disconnects, lastIssued>>
 
 \* 「読み込み直す」ボタン（timer-panel.tsx。LoadFailed のときだけ出る）
@@ -146,7 +156,7 @@ Reload(s) ==
     /\ loading[s] = "LoadFailed"
     /\ loading' = [loading EXCEPT ![s] = "Loading"]
     /\ httpReq' = [httpReq EXCEPT ![s] = Add(@, LoadReq(TokenOf(inFlight[s], gen[s]), "Refresh"))]
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpRes, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, httpRes, shown, held, inFlight, gen, sending,
                    changes, losses, disconnects, lastIssued>>
 
 -----------------------------------------------------------------------------
@@ -157,7 +167,7 @@ Tick ==
     /\ ClockStalls
     /\ clock < MaxClock
     /\ clock' = clock + 1
-    /\ UNCHANGED <<ver, rev, phase, wsq, httpReq, httpRes, loading, shown, inFlight, gen,
+    /\ UNCHANGED <<retry, ver, rev, phase, wsq, httpReq, httpRes, loading, shown, held, inFlight, gen,
                    sending, changes, losses, disconnects, lastIssued>>
 
 \* 今の時刻で req を処理してよいか。送ってから UserDO に届くまでに 1ms 以上かかる
@@ -194,7 +204,7 @@ ServeOp(s, req, ok) ==
        ELSE /\ httpRes' = [httpRes EXCEPT ![s] = Add(@, [kind |-> "Op", result |-> "Rejected"])]
             /\ ClockAfterServe
             /\ UNCHANGED <<ver, rev, wsq, lastIssued>>
-    /\ UNCHANGED <<phase, loading, shown, inFlight, gen, sending, changes, losses, disconnects>>
+    /\ UNCHANGED <<retry, phase, loading, shown, held, inFlight, gen, sending, changes, losses, disconnects>>
 
 \* POST /api/journal-entries など。記録を変え、SessionChanged を送る（workflows/user-commands.ts）。
 \* WriteKeepsRevision は、記入などの書き込みで変更の番号を進め忘れた実装（トリガーのない表に書く）
@@ -212,7 +222,7 @@ ServeWrite(s, req) ==
     /\ lastIssued' = snap
     /\ httpRes' = [httpRes EXCEPT ![s] = Add(@, [kind |-> "Write", result |-> "Ok"])]
     /\ ClockAfterServe
-    /\ UNCHANGED <<phase, loading, shown, inFlight, gen, sending, changes, losses, disconnects>>
+    /\ UNCHANGED <<retry, phase, loading, shown, held, inFlight, gen, sending, changes, losses, disconnects>>
 
 \* GET /api/session/current（getCurrentSession → #run）
 ServeLoad(s, req) ==
@@ -227,14 +237,14 @@ ServeLoad(s, req) ==
                      Add(@, [kind |-> "Load", result |-> "Ok", snap |-> snap,
                              token |-> req.token, cause |-> req.cause])]
     /\ ClockAfterServe
-    /\ UNCHANGED <<ver, rev, phase, wsq, loading, shown, inFlight, gen, sending, changes, losses, disconnects>>
+    /\ UNCHANGED <<retry, ver, rev, phase, wsq, loading, shown, held, inFlight, gen, sending, changes, losses, disconnects>>
 
 \* GET /api/ws（user-do.ts の fetch → acceptWebSocket）。これより後の同期メッセージがこの接続に届く
 Accept(s) ==
     /\ phase[s] = "Connecting"
     /\ phase' = [phase EXCEPT ![s] = "Accepted"]
     /\ wsq' = [wsq EXCEPT ![s] = <<>>]
-    /\ UNCHANGED <<clock, ver, rev, httpReq, httpRes, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, httpReq, httpRes, loading, shown, held, inFlight, gen, sending,
                    changes, losses, disconnects, lastIssued>>
 
 -----------------------------------------------------------------------------
@@ -247,25 +257,26 @@ Opened(s) ==
     /\ httpReq' = IF "NoRefreshOnConnect" \in Mutations
                   THEN httpReq
                   ELSE [httpReq EXCEPT ![s] = Add(@, LoadReq(TokenOf(inFlight[s], gen[s]), "Refresh"))]
-    /\ UNCHANGED <<clock, ver, rev, wsq, httpRes, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, wsq, httpRes, loading, shown, held, inFlight, gen, sending,
                    changes, losses, disconnects, lastIssued>>
 
-\* SessionChanged が届く（use-sync.ts の deliver → timer.receive）。読み込めていなければ捨てる。
-\* Fixes に HoldSyncWhileLoading があれば、読み込めるまで受け取らずに待たせる
+\* SessionChanged が届く（use-sync.ts の deliver → timer.receive → applySynced）。
+\* 読み込めていなければ、いちばん新しいものを待たせ、読み込めたときに比べる（Issue #52）
 ReceiveSync(s) ==
     /\ phase[s] = "Open"
     /\ wsq[s] /= <<>>
-    /\ "HoldSyncWhileLoading" \in Fixes => loading[s] = "Loaded"
     /\ LET snap == Head(wsq[s]) IN
          IF loading[s] = "Loaded"
          THEN ApplyReceived(s, snap)
-         ELSE UNCHANGED <<loading, shown>>
+         ELSE /\ held' = [held EXCEPT ![s] = NewerOf(@, snap)]
+              /\ UNCHANGED <<loading, shown>>
     /\ wsq' = [wsq EXCEPT ![s] = Tail(@)]
-    /\ UNCHANGED <<clock, ver, rev, phase, httpReq, httpRes, inFlight, gen, sending, changes,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, httpReq, httpRes, inFlight, gen, sending, changes,
                    losses, disconnects, lastIssued>>
 
 \* 開始・操作の応答（use-session-timer.ts の send）。operations.end() のあと、
-\* 成功なら反映し、断られたら読み込み直し（load）、届かなければ（Unreachable）何もしない
+\* 成功なら反映し、失敗したら読み込み直す（load）。届かなかった（Unreachable）ときも、
+\* UserDO は処理を終えているかもしれないので読み込み直す（Issue #53）
 ReceiveOp(s, res) ==
     /\ BagIn(res, httpRes[s])
     /\ res.kind = "Op"
@@ -276,15 +287,12 @@ ReceiveOp(s, res) ==
               /\ ApplyReceived(s, res.snap)
               /\ sending' = [sending EXCEPT ![s] = "Idle"]
               /\ UNCHANGED httpReq
-         [] res.result = "Rejected" ->
+         [] res.result \in {"Rejected", "Unreachable"} ->
               \* pending は読み込みが終わるまで続く（await load()）
               /\ httpReq' = [httpReq EXCEPT ![s] =
                                Add(@, LoadReq(TokenOf(inFlight'[s], gen'[s]), "AfterSend"))]
-              /\ UNCHANGED <<loading, shown, sending>>
-         [] res.result = "Unreachable" ->
-              /\ sending' = [sending EXCEPT ![s] = "Idle"]
-              /\ UNCHANGED <<httpReq, loading, shown>>
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, changes, losses, disconnects, lastIssued>>
+              /\ UNCHANGED <<loading, shown, held, sending>>
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, changes, losses, disconnects, lastIssued>>
 
 \* 記入などの応答。成功したら timer.refresh()
 ReceiveWrite(s, res) ==
@@ -294,11 +302,13 @@ ReceiveWrite(s, res) ==
     /\ httpReq' = IF res.result = "Ok"
                   THEN [httpReq EXCEPT ![s] = Add(@, LoadReq(TokenOf(inFlight[s], gen[s]), "Refresh"))]
                   ELSE httpReq
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, loading, shown, held, inFlight, gen, sending,
                    changes, losses, disconnects, lastIssued>>
 
 \* 読み込みの応答（use-session-timer.ts の load）。操作と重なった読み込みは、読み込めているなら捨てる
-\* （operation-overlap.ts の overlapped）。失敗は、読み込めていなければ LoadFailed
+\* （operation-overlap.ts の overlapped）。失敗は、読み込めていなければ LoadFailed、読み込めていれば手元のまま。
+\* どちらでも、間隔を空けてやり直す（load-retry.ts、Issue #53）。読み込めていなかった画面も、
+\* 失敗した読み込みより古い読み込みが後から届いて Loaded になると、「読み込み直す」が出ないため
 ReceiveLoad(s, res) ==
     /\ BagIn(res, httpRes[s])
     /\ res.kind = "Load"
@@ -307,18 +317,28 @@ ReceiveLoad(s, res) ==
                          /\ (res.token.busy \/ res.token.gen /= gen[s])
        IN IF res.result = "Ok"
           THEN IF overlapped /\ loading[s] = "Loaded"
-               THEN UNCHANGED <<loading, shown>>
+               THEN UNCHANGED <<loading, shown, held>>
                ELSE ApplyReceived(s, res.snap)
           ELSE /\ loading' = [loading EXCEPT ![s] = IF @ = "Loaded" THEN "Loaded" ELSE "LoadFailed"]
-               /\ UNCHANGED shown
+               /\ UNCHANGED <<shown, held>>
+    /\ retry' = IF res.result = "Ok" THEN retry ELSE [retry EXCEPT ![s] = TRUE]
     /\ sending' = IF res.cause = "AfterSend" THEN [sending EXCEPT ![s] = "Idle"] ELSE sending
     /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpReq, inFlight, gen, changes, losses, disconnects, lastIssued>>
+
+\* やり直しの時間が来て、読み込み直す（load-retry.ts のタイマー → load）。
+\* 間隔はモデルでは表さない。失敗が尽きれば、いつかは読み込める
+RetryLoad(s) ==
+    /\ retry[s]
+    /\ retry' = [retry EXCEPT ![s] = FALSE]
+    /\ httpReq' = [httpReq EXCEPT ![s] = Add(@, LoadReq(TokenOf(inFlight[s], gen[s]), "Refresh"))]
+    /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpRes, loading, shown, held, inFlight, gen, sending,
+                   changes, losses, disconnects, lastIssued>>
 
 \* 繋ぎ直す（sync-connection.ts の scheduleReconnect のタイマー、または check）
 Reconnect(s) ==
     /\ phase[s] = "Waiting"
     /\ phase' = [phase EXCEPT ![s] = "Connecting"]
-    /\ UNCHANGED <<clock, ver, rev, wsq, httpReq, httpRes, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, wsq, httpReq, httpRes, loading, shown, held, inFlight, gen, sending,
                    changes, losses, disconnects, lastIssued>>
 
 -----------------------------------------------------------------------------
@@ -337,7 +357,7 @@ LoseRequest(s, req) ==
     /\ httpReq' = [httpReq EXCEPT ![s] = Remove(@, req)]
     /\ httpRes' = [httpRes EXCEPT ![s] = Add(@, FailOf(req))]
     /\ losses' = losses + 1
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, loading, shown, held, inFlight, gen, sending,
                    changes, disconnects, lastIssued>>
 
 \* UserDO は処理したが、応答が画面に届かない。画面には Unreachable が返る
@@ -351,7 +371,7 @@ LoseResponse(s, res) ==
                        [] res.kind = "Load" -> [kind |-> "Load", result |-> "Unreachable",
                                                  token |-> res.token, cause |-> res.cause])]
     /\ losses' = losses + 1
-    /\ UNCHANGED <<clock, ver, rev, phase, wsq, httpReq, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, phase, wsq, httpReq, loading, shown, held, inFlight, gen, sending,
                    changes, disconnects, lastIssued>>
 
 \* WebSocket が切れる（onClose、または pong が返らず捨てる）。届いていないメッセージは失われる
@@ -361,7 +381,7 @@ Disconnect(s) ==
     /\ phase' = [phase EXCEPT ![s] = "Waiting"]
     /\ wsq' = [wsq EXCEPT ![s] = <<>>]
     /\ disconnects' = disconnects + 1
-    /\ UNCHANGED <<clock, ver, rev, httpReq, httpRes, loading, shown, inFlight, gen, sending,
+    /\ UNCHANGED <<retry, clock, ver, rev, httpReq, httpRes, loading, shown, held, inFlight, gen, sending,
                    changes, losses, lastIssued>>
 
 -----------------------------------------------------------------------------
@@ -378,6 +398,7 @@ System(s) ==
     \/ \E res \in Responses(s) : ReceiveOp(s, res) \/ ReceiveWrite(s, res) \/ ReceiveLoad(s, res)
     \/ Reconnect(s)
     \/ Reload(s)
+    \/ RetryLoad(s)
 
 Environment(s) ==
     \/ Operate(s)
@@ -404,6 +425,7 @@ Fairness ==
                      (ReceiveOp(s, res) \/ ReceiveWrite(s, res) \/ ReceiveLoad(s, res)))
         /\ WF_vars(Reconnect(s))
         /\ WF_vars(Reload(s))
+        /\ WF_vars(RetryLoad(s))
 
 Spec == Init /\ [][Next]_vars /\ Fairness
 

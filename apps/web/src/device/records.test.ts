@@ -4,6 +4,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { JournalEntryId } from "../domain/journal-entry.ts";
 import { SessionId } from "../domain/session.ts";
 import { storeContract } from "../testing/store-contract.ts";
+import { changeAdvanceMode } from "../workflows/change-advance-mode.ts";
 import { editJournalEntry } from "../workflows/edit-journal-entry.ts";
 import { operateSession } from "../workflows/operate-session.ts";
 import { startSession } from "../workflows/start-session.ts";
@@ -48,8 +49,44 @@ describe("端末の時計", () => {
     expect(Result.isSuccess(resumed)).toBe(true);
     expect(ended).toMatchObject({
       type: "Success",
-      value: { state: { kind: "Ended", endedBy: "End", endedAt: at(5) } },
+      value: { state: { kind: "Ended", endedBy: "End", endedAt: new Date(at(5).getTime() + 2) } },
     });
+  });
+
+  test("時計が戻っても止まっていても、記録の時刻はいつも前の記録より後になる", () => {
+    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 };
+    const deps = recordsDeps(draft);
+    let clock = at(10);
+    const now = () => deviceNow(() => clock, draft.current);
+
+    const operate = (kind: string) =>
+      expect(Result.isSuccess(operateSession(deps)({ id: crypto.randomUUID(), kind }, now()))).toBe(
+        true,
+      );
+    startSession(deps)({ id: crypto.randomUUID() }, now(), newSessionId());
+    operate("Pause");
+    clock = at(3);
+    operate("Resume");
+    const manual = {
+      FocusToJournal: "Manual",
+      JournalToFocus: "Manual",
+      JournalToBreak: "Manual",
+      BreakToFocus: "Manual",
+    };
+    expect(changeAdvanceMode(deps)(manual, now())).toMatchObject({ value: { kind: "Changed" } });
+    operate("Pause");
+    clock = at(20);
+    operate("End");
+
+    const ms = (offset: number) => new Date(at(10).getTime() + offset);
+    expect(draft.current.closed[0]?.events.map(({ at }) => at)).toEqual([
+      ms(0),
+      ms(1),
+      ms(2),
+      ms(4),
+      at(20),
+    ]);
+    expect(draft.current.advanceModeChanges.map(({ at }) => at)).toEqual([ms(3)]);
   });
 
   test("時計が戻っていなければ、端末の時計の時刻をそのまま使う", () => {
@@ -57,6 +94,7 @@ describe("端末の時計", () => {
     startSession(recordsDeps(draft))({ id: crypto.randomUUID() }, at(0), newSessionId());
 
     expect(deviceNow(() => at(7), draft.current)).toEqual(at(7));
+    expect(deviceNow(() => at(0), draft.current)).toEqual(new Date(at(0).getTime() + 1));
     expect(deviceNow(() => at(-1), DeviceRecords.empty)).toEqual(at(-1));
   });
 });
