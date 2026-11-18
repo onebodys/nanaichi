@@ -13,7 +13,7 @@ import type {
   SessionEventId,
   SessionOperation,
 } from "../domain/session-event.ts";
-import { SessionId, type Session } from "../domain/session.ts";
+import { Revision, SessionId, type Session } from "../domain/session.ts";
 import type { SyncMessage } from "../domain/sync-message.ts";
 import type { TagName } from "../domain/tag.ts";
 import {
@@ -50,41 +50,55 @@ const newStore = () => {
   const sessions: Session[] = [];
   const advanceModeChanges: AdvanceModeChange[] = [];
   const entries = new Map<string, StoredJournalEntry>();
+  // 記録を変えるたびに進める（記録先の変更の番号、ADR 0030）
+  let revision = 0;
+  const changed = () => {
+    revision += 1;
+  };
 
   const writtenEntries = () =>
     [...entries.values()].flatMap((stored) => (stored.kind === "Written" ? [stored.entry] : []));
 
   return {
     findOpenSession: () => open,
+    currentRevision: () => v.parse(Revision.schema, revision),
     closeSession: () => {
+      changed();
       open = undefined;
     },
     findSessionByEventId: (eventId: SessionEventId) =>
       sessions.find((session) => session.events.some((event) => event.id === eventId)),
     saveStartedSession: (session: Session) => {
+      changed();
       sessions.push(session);
       open = session;
     },
     appendSessionOperation: (_id: SessionId, operation: RecordedSessionEvent<SessionOperation>) => {
+      changed();
       if (open !== undefined) {
         open = { ...open, events: [...open.events, operation] };
       }
     },
     loadAdvanceModeChanges: () => advanceModeChanges,
     saveAdvanceModeChange: (change: AdvanceModeChange) => {
+      changed();
       advanceModeChanges.push(change);
     },
     findJournalEntry: (id: JournalEntryId) => entries.get(id),
     saveJournalEntry: (entry: JournalEntry) => {
+      changed();
       entries.set(entry.id, { kind: "Written", entry });
     },
     saveEditedJournalEntry: (entry: JournalEntry) => {
+      changed();
       entries.set(entry.id, { kind: "Written", entry });
     },
     saveJournalEntryTags: (entry: JournalEntry) => {
+      changed();
       entries.set(entry.id, { kind: "Written", entry });
     },
     deleteJournalEntry: (deleted: DeletedJournalEntry) => {
+      changed();
       entries.set(deleted.id, { kind: "Deleted", deleted });
     },
     listTagsOfOtherEntries: (id: JournalEntryId) =>

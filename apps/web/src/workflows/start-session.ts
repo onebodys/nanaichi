@@ -10,7 +10,8 @@ import {
   type SessionId,
   type SessionSnapshot,
 } from "../domain/session.ts";
-import { loadOpenSession, type OpenSessionDeps } from "./auto-end-session.ts";
+import { loadOpenSession } from "./auto-end-session.ts";
+import type { SnapshotDeps } from "./get-current-session.ts";
 import { replayRecordedEvent, type EventIdConflict } from "./replay-recorded-event.ts";
 
 /** `POST /api/session` の本文。`id` は開始の操作イベントの ID（クライアントが発行する） */
@@ -25,7 +26,7 @@ type SessionAlreadyInProgress = Readonly<{
 
 export type StartSessionError = ValidationError | SessionAlreadyInProgress | EventIdConflict;
 
-export type StartSessionDeps = OpenSessionDeps &
+export type StartSessionDeps = SnapshotDeps &
   Readonly<{
     findSessionByEventId: FindSessionByEventId;
     saveStartedSession: SaveStartedSession;
@@ -61,7 +62,7 @@ export const startSession =
         ensureNoSessionInProgress(loadOpenSession(deps)(now)),
         Result.map(() => Session.start(newSessionId, input.id, now, deps.loadAdvanceModeChanges())),
         Result.andThrough((session) => Result.succeed(deps.saveStartedSession(session))),
-        Result.map((session) => Session.snapshot(session, now)),
+        Result.map((session) => Session.snapshot(session, now, deps.currentRevision())),
       );
 
     return Result.pipe(
@@ -70,7 +71,7 @@ export const startSession =
         const recorded = deps.findSessionByEventId(input.id);
         return recorded === undefined
           ? start(input)
-          : replayRecordedEvent(recorded, input.id, "Start", now);
+          : replayRecordedEvent(recorded, input.id, "Start", now, deps.currentRevision());
       }),
     );
   };

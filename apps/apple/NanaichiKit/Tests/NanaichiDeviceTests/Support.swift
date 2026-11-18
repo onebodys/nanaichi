@@ -44,7 +44,7 @@ func failed<Value, Failure>(_ result: Result<Value, Failure>) throws -> Failure 
 struct NotInSession: Error {}
 
 func inSession(_ snapshot: SessionSnapshot) throws -> (session: Session, state: TimerState) {
-    guard case .session(_, let session, let state) = snapshot else { throw NotInSession() }
+    guard case .session(_, _, let session, let state) = snapshot else { throw NotInSession() }
     return (session, state)
 }
 

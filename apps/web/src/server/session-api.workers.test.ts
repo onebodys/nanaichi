@@ -58,11 +58,15 @@ describe("ログインしていないとき", () => {
 });
 
 describe("現在のセッション", () => {
-  test("セッションがなければ NoSession とサーバー時刻を返す", async () => {
+  test("セッションがなければ NoSession とサーバー時刻と、何も記録していない変更の番号を返す", async () => {
     const res = await getCurrent();
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ kind: "NoSession", serverTime: iso(minutes(0)) });
+    expect(await res.json()).toEqual({
+      kind: "NoSession",
+      serverTime: iso(minutes(0)),
+      revision: 0,
+    });
   });
 
   test("開始したセッションの操作イベントと、サーバー時刻での状態を返す", async () => {
@@ -90,6 +94,48 @@ describe("現在のセッション", () => {
     const res = await request("/api/session/current", { headers: other.headers });
 
     expect(await res.json()).toMatchObject({ kind: "NoSession" });
+  });
+});
+
+describe("変更の番号", () => {
+  const revisionOf = async (res: Response) =>
+    Result.unwrap(schemaResult(SessionSnapshotJsonSchema)(await res.json())).revision;
+  const write = (id: string = crypto.randomUUID()) =>
+    request("/api/journal-entries", json({ id, body: "書いた", tags: [] }));
+  const changeAdvanceMode = () =>
+    request("/api/settings/advance-mode", {
+      ...json({
+        FocusToJournal: "Manual",
+        JournalToFocus: "Auto",
+        JournalToBreak: "Auto",
+        BreakToFocus: "Auto",
+      }),
+      method: "PUT",
+    });
+
+  test("開始・記入・操作・進め方の変更のたびに、同じミリ秒でも現在のセッションの変更の番号が進む", async () => {
+    const revisions = [await revisionOf(await getCurrent())];
+    for (const change of [
+      () => start(),
+      () => write(),
+      () => operate("Pause"),
+      changeAdvanceMode,
+    ]) {
+      expect((await change()).ok).toBe(true);
+      revisions.push(await revisionOf(await getCurrent()));
+    }
+
+    revisions
+      .slice(1)
+      .forEach((revision, i) => expect(revision).toBeGreaterThan(revisions[i] ?? 0));
+  });
+
+  test("読み込みや断られた操作では変更の番号は進まない", async () => {
+    await start();
+    const before = await revisionOf(await getCurrent());
+
+    expect((await operate("Resume")).status).toBe(409);
+    expect(await revisionOf(await getCurrent())).toBe(before);
   });
 });
 
@@ -419,7 +465,9 @@ describe("応答はクライアントが検証するスキーマ（domain/）に
   test("セッションなしの現在のセッションは、スナップショットのスキーマに合う", async () => {
     const parsed = parseSnapshot(await (await getCurrent()).json());
 
-    expect(parsed).toEqual(Result.succeed({ kind: "NoSession", serverTime: new Date(minutes(0)) }));
+    expect(parsed).toEqual(
+      Result.succeed({ kind: "NoSession", serverTime: new Date(minutes(0)), revision: 0 }),
+    );
   });
 
   test("開始の応答も、スナップショットのスキーマに合う", async () => {

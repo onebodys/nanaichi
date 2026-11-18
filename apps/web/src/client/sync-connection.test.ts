@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import * as v from "valibot";
 import { SessionEventId } from "../domain/session-event.ts";
-import { Session, SessionId } from "../domain/session.ts";
+import { Revision, Session, SessionId } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import { connectSync, type OpenSyncSocket } from "./sync-connection.ts";
+
+const revision = v.parse(Revision.schema, 1);
 
 const at = (minutes: number) => new Date(Date.UTC(2026, 9, 17, 0, minutes, 0));
 const started = Session.start(
@@ -14,7 +16,7 @@ const started = Session.start(
 );
 const sessionChanged: SyncMessage = {
   kind: "SessionChanged",
-  snapshot: Session.snapshot(started, at(1)),
+  snapshot: Session.snapshot(started, at(1), revision),
 };
 
 /** サーバーの代わりに、開かれた WebSocket を記録し、テストからイベントを起こせるようにする */

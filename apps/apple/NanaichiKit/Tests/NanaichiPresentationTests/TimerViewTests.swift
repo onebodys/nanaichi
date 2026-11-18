@@ -17,7 +17,7 @@ func timerViewRecomputesState() {
 
 @Test("時計のずれを足した記録先の時刻で計算する")
 func timerViewAppliesClockOffset() {
-    let offset = Received(snapshot: started().snapshot(at: t0), offset: ClockOffset(serverAheadMs: 60_000))
+    let offset = Received(snapshot: started().snapshot(at: t0, revision: .initial), offset: ClockOffset(serverAheadMs: 60_000))
     guard case .inSession(_, .focus(let focus), _) = TimerView.of(.loaded(offset), deviceNow: minutes(1)) else {
         Issue.record("集中になっていない")
         return
@@ -46,6 +46,18 @@ func olderSnapshotsAreDropped() throws {
     #expect(current.applying(newer) == .loaded(newer))
 }
 
+@Test("同じ時刻でも、変更の番号が手元より小さいスナップショットは捨てる（同じミリ秒の読み込みと開始）")
+func olderRevisionIsDroppedAtSameTime() throws {
+    let revision = { (value: Int) in try #require(Revision(value)) }
+    let startedSnapshot = Received(
+        snapshot: started().snapshot(at: t0, revision: try revision(2)), offset: ClockOffset(serverAheadMs: 0))
+    let current = TimerLoading.loaded(startedSnapshot)
+    let beforeStart = Received(
+        snapshot: .noSession(serverTime: t0, revision: try revision(1)), offset: ClockOffset(serverAheadMs: 0))
+
+    #expect(current.applying(beforeStart) == current)
+}
+
 @Test("読み込めたあとに読み込みに失敗しても、手元のスナップショットを出し続ける")
 func loadFailureKeepsLoaded() {
     let loaded = TimerLoading.loaded(received(started(), at: t0))
@@ -55,7 +67,7 @@ func loadFailureKeepsLoaded() {
 
 @Test("同じスナップショットのまま時間が過ぎてフェーズが変わったら、移った先を知らせる")
 func watchAlertsOnTimeDrivenChange() {
-    let snapshot = started().snapshot(at: t0)
+    let snapshot = started().snapshot(at: t0, revision: .initial)
     var watch = PhaseChangeWatch()
     #expect(watch.observe(snapshot, started().stateAt(minutes(6))) == nil)
     #expect(watch.observe(snapshot, started().stateAt(minutes(7))) == .journal(round: 1, setNumber: 1))
@@ -68,6 +80,6 @@ func watchIgnoresHumanChanges() throws {
     let idle = try operated(session, .abort, at: minutes(3))
     let restarted = try operated(idle, .restartFocus, at: minutes(4))
     var watch = PhaseChangeWatch()
-    _ = watch.observe(idle.snapshot(at: minutes(3)), idle.stateAt(minutes(3)))
-    #expect(watch.observe(restarted.snapshot(at: minutes(4)), restarted.stateAt(minutes(4))) == nil)
+    _ = watch.observe(idle.snapshot(at: minutes(3), revision: .initial), idle.stateAt(minutes(3)))
+    #expect(watch.observe(restarted.snapshot(at: minutes(4), revision: .initial), restarted.stateAt(minutes(4))) == nil)
 }

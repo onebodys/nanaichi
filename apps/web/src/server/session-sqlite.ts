@@ -14,10 +14,12 @@ import {
   type SessionOperation,
 } from "../domain/session-event.ts";
 import {
+  Revision,
   SessionId,
   type Session,
   type AppendSessionOperation,
   type CloseSession,
+  type CurrentRevision,
   type FindOpenSession,
   type FindSessionByEventId,
   type SaveStartedSession,
@@ -62,6 +64,11 @@ const SessionIdRowSchema = v.object({ id: SessionId.schema });
 
 const SessionSpanRowSchema = v.object({ started_at: epochMs, ended_at: v.nullable(epochMs) });
 
+const RevisionRowSchema = v.pipe(
+  v.object({ value: Revision.schema }),
+  v.transform((row) => row.value),
+);
+
 const AdvanceModeChangeRowsSchema = v.array(
   v.pipe(
     v.object({
@@ -102,6 +109,7 @@ const parseJournalEntryTimeRows = parseRow(JournalEntryTimeRowsSchema, "journal_
 const parseSessionIdRow = parseRow(SessionIdRowSchema, "sessions");
 const parseSessionSpanRow = parseRow(SessionSpanRowSchema, "sessions");
 const parseAdvanceModeChangeRows = parseRow(AdvanceModeChangeRowsSchema, "advance_mode_changes");
+const parseRevisionRow = parseRow(RevisionRowSchema, "record_revision");
 
 /** フェーズの進め方の変更履歴を時刻の順に読む（ADR 0016）。同じミリ秒の変更は記録した順 */
 export const advanceModeChangesOf = (sql: SqlStorage): ReadonlyArray<AdvanceModeChange> =>
@@ -124,6 +132,7 @@ export type SessionSqlite = Readonly<{
   saveStartedSession: SaveStartedSession;
   appendSessionOperation: AppendSessionOperation;
   closeSession: CloseSession;
+  currentRevision: CurrentRevision;
   loadAdvanceModeChanges: LoadAdvanceModeChanges;
   saveAdvanceModeChange: SaveAdvanceModeChange;
 }>;
@@ -222,6 +231,10 @@ export const sessionSqlite = (sql: SqlStorage): SessionSqlite => {
         sessionId,
       );
     },
+
+    // 行を変えるたびにトリガーが進める（user-do-schema.ts）
+    currentRevision: () =>
+      parseRevisionRow(sql.exec("SELECT value FROM record_revision WHERE id = 1").one()),
 
     loadAdvanceModeChanges: () => advanceModeChangesOf(sql),
 

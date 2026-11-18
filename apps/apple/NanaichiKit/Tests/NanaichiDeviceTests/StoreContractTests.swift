@@ -91,8 +91,27 @@ private func ended(_ state: TimerState) -> TimerState.Ended? {
     return ended
 }
 
+private func isNoSession(_ snapshot: SessionSnapshot) -> Bool {
+    if case .noSession = snapshot { return true }
+    return false
+}
+
 @Suite("セッションと操作イベント")
 struct SessionContractTests {
+    @Test("読むだけでは変更の番号は進まず、開始すると、同じミリ秒でも読んだときより大きい番号になる")
+    func revisionAdvancesOnChange() throws {
+        try freshStore { records in
+            let store = Operator(records: records)
+            let before = try store.current(at(0))
+            let again = try store.current(at(0))
+            let started = try store.start(at(0)).get()
+
+            #expect(again.revision == before.revision)
+            #expect(started.revision > before.revision)
+            #expect(before.isOlder(than: started))
+        }
+    }
+
     @Test("同じミリ秒の操作は記録した順に操作イベントに並ぶ")
     func sameMillisecond() throws {
         try freshStore { records in
@@ -153,8 +172,8 @@ struct SessionContractTests {
             let entry = try store.write(at(30), "書いて消す").get()
             _ = try store.remove(at(31), entry.id).get()
 
-            #expect(try store.current(at(87)) != .noSession(serverTime: at(87)))
-            #expect(try store.current(at(89)) == .noSession(serverTime: at(89)))
+            #expect(try !isNoSession(store.current(at(87))))
+            #expect(try isNoSession(store.current(at(89))))
             let replayed = try inSession(store.start(at(90), id: startId).get())
             #expect(ended(replayed.state)?.endedBy == .autoEnd)
             #expect(ended(replayed.state)?.endedAt == at(30))

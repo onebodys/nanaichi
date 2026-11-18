@@ -22,7 +22,7 @@ struct DeviceBackendTests {
     @Test("開始すると記録され、記録先を開き直しても残っている")
     func persists() async throws {
         let database = TemporaryDatabase()
-        #expect(try await database.backend().getCurrentSession().get() == .noSession(serverTime: T0))
+        #expect(try await database.backend().getCurrentSession().get() == .noSession(serverTime: T0, revision: .initial))
 
         _ = try await database.backend().startSession(id: eventId()).get()
 
@@ -175,7 +175,7 @@ struct DeviceBackendTests {
         clock.advance(-10 * minute)
 
         let paused = try await backend.operateSession(id: eventId(), kind: .pause).get()
-        guard case .session(let serverTime, _, let state) = paused else {
+        guard case .session(let serverTime, _, _, let state) = paused else {
             Issue.record("一時停止したのにセッションがない")
             return
         }

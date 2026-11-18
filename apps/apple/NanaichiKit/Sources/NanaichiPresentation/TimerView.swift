@@ -64,7 +64,7 @@ public enum TimerView: Hashable, Sendable {
         case .loaded(let received):
             switch received.snapshot {
             case .noSession: return .noSession
-            case .session(_, let session, _):
+            case .session(_, _, let session, _):
                 let now = received.serverNow(deviceNow: deviceNow)
                 let state = session.stateAt(now)
                 if let unended = UnendedTimerState(state) {

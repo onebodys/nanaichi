@@ -16,8 +16,8 @@ private func recordedKind(of eventId: SessionEventId, in session: Session) -> Re
 /// 通信のやり直しで同じ操作が2回届いても、1回目と同じ成功として扱う（ADR 0007）。
 /// 1回目のあとにセッションが閉じていても、そのセッションの今の様子（終了）を返す
 func replayRecordedEvent(
-    _ session: Session, eventId: SessionEventId, requested: RequestedEvent, now: Instant
+    _ session: Session, eventId: SessionEventId, requested: RequestedEvent, now: Instant, revision: Revision
 ) -> Result<SessionSnapshot, EventIdConflict> {
     recordedKind(of: eventId, in: session) == requested
-        ? .success(session.snapshot(at: now)) : .failure(EventIdConflict(eventId: eventId))
+        ? .success(session.snapshot(at: now, revision: revision)) : .failure(EventIdConflict(eventId: eventId))
 }

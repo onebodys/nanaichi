@@ -6,7 +6,7 @@ import {
   type RecordedSessionEvent,
   type SessionOperation,
 } from "./session-event.ts";
-import { Session, SessionId, SessionSnapshot } from "./session.ts";
+import { Revision, Session, SessionId, SessionSnapshot } from "./session.ts";
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number, seconds = 0) =>
@@ -182,9 +182,12 @@ goldenCases(
   ],
 );
 
-const snapshotAt = (minutes: number): SessionSnapshot => ({
+const revision = (value: number) => v.parse(Revision.schema, value);
+
+const snapshotAt = (minutes: number, changes: number): SessionSnapshot => ({
   kind: "Session",
   serverTime: at(minutes),
+  revision: revision(changes),
   session: started,
   state: {
     kind: "Focus",
@@ -196,24 +199,40 @@ const snapshotAt = (minutes: number): SessionSnapshot => ({
   },
 });
 
+const noSessionAt = (minutes: number, changes: number): SessionSnapshot => ({
+  kind: "NoSession",
+  serverTime: at(minutes),
+  revision: revision(changes),
+});
+
 goldenCases(
   "SessionSnapshot.isOlder",
   (i: Readonly<{ received: SessionSnapshot; current: SessionSnapshot }>) =>
     SessionSnapshot.isOlder(i.received, i.current),
   [
     {
-      name: "届いたスナップショットのサーバーの時刻が手元より前なら、古いものとして捨てる",
-      input: { received: snapshotAt(1), current: snapshotAt(2) },
+      name: "変更の番号が手元より小さければ、サーバーの時刻が同じでも古いものとして捨てる",
+      input: { received: noSessionAt(2, 1), current: snapshotAt(2, 2) },
       expected: true,
     },
     {
-      name: "同じ時刻なら同じ変更なので、古いとはみなさない",
-      input: { received: { kind: "NoSession", serverTime: at(2) }, current: snapshotAt(2) },
+      name: "変更の番号が手元より大きければ、サーバーの時刻が前でも新しいものとして使う",
+      input: { received: noSessionAt(1, 3), current: snapshotAt(2, 2) },
       expected: false,
     },
     {
-      name: "手元より後の時刻なら、セッションなしに変わったものでも新しいものとして使う",
-      input: { received: { kind: "NoSession", serverTime: at(3) }, current: snapshotAt(2) },
+      name: "同じ変更の番号でサーバーの時刻が手元より前なら、古いものとして捨てる",
+      input: { received: snapshotAt(1, 2), current: snapshotAt(2, 2) },
+      expected: true,
+    },
+    {
+      name: "同じ変更の番号で同じ時刻なら、同じものなので古いとはみなさない",
+      input: { received: snapshotAt(2, 2), current: snapshotAt(2, 2) },
+      expected: false,
+    },
+    {
+      name: "同じ変更の番号でサーバーの時刻が手元より後なら、新しいものとして使う",
+      input: { received: snapshotAt(3, 2), current: snapshotAt(2, 2) },
       expected: false,
     },
   ],

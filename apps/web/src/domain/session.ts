@@ -45,15 +45,34 @@ export type Session = Readonly<{
   advanceModeChanges: ReadonlyArray<AdvanceModeChange>;
 }>;
 
+const RevisionSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.brand("Revision"));
+
+/**
+ * 変更の番号（GLOSSARY）。記録先がセッションの記録を変えるたびに進み、減らない（ADR 0030）。
+ * 記録先の外では作らない（スナップショットの新旧を比べるのに使うだけ）
+ */
+export type Revision = v.InferOutput<typeof RevisionSchema>;
+
+export const Revision = {
+  schema: RevisionSchema,
+} as const;
+
 /**
  * ある時刻のセッションの様子。API の応答にそのまま使う。
  *
  * クライアントは `events` と `journalEntryTimes` と `advanceModeChanges` から自分で状態を計算し直し、
  * `serverTime` との差で端末の時計のずれを補正する（ADR 0003）。
+ * `revision` は作ったときの変更の番号で、届いたものの新旧を決める（`SessionSnapshot.isOlder`、ADR 0030）。
  */
 export type SessionSnapshot =
-  | Readonly<{ kind: "NoSession"; serverTime: Date }>
-  | Readonly<{ kind: "Session"; serverTime: Date; session: Session; state: TimerState }>;
+  | Readonly<{ kind: "NoSession"; serverTime: Date; revision: Revision }>
+  | Readonly<{
+      kind: "Session";
+      serverTime: Date;
+      revision: Revision;
+      session: Session;
+      state: TimerState;
+    }>;
 
 /** JSON にしたセッション（スナップショットやタイムラインの応答の一部）を検証して戻す */
 export const SessionJsonSchema: v.GenericSchema<unknown, Session> = v.object({
@@ -72,10 +91,15 @@ export const SessionJsonSchema: v.GenericSchema<unknown, Session> = v.object({
 export const SessionSnapshotJsonSchema: v.GenericSchema<unknown, SessionSnapshot> = v.variant(
   "kind",
   [
-    v.object({ kind: v.literal("NoSession"), serverTime: JsonDateSchema }),
+    v.object({
+      kind: v.literal("NoSession"),
+      serverTime: JsonDateSchema,
+      revision: RevisionSchema,
+    }),
     v.object({
       kind: v.literal("Session"),
       serverTime: JsonDateSchema,
+      revision: RevisionSchema,
       session: SessionJsonSchema,
       state: TimerStateJsonSchema,
     }),
@@ -87,11 +111,15 @@ export const SessionSnapshot = {
    * 届いたスナップショット `received` が、手元のスナップショット `current` より古いか。
    *
    * 同じ変更が HTTP の応答と同期メッセージの両方で届き、順序が入れ替わることがある（ADR 0012）。
-   * サーバーの時刻が古いものは、それより後の変更を巻き戻してしまうので捨てる。
-   * 同じ時刻なら同じ変更なので、古いとはみなさない。
+   * 変更の番号が小さいものは、それより後の変更を巻き戻してしまうので捨てる（ADR 0030）。
+   * サーバーの時刻では決めない。同時に届いた要求は同じミリ秒に処理されうるので、変更の前と後で
+   * 同じ時刻になることがある（Workers の時計は I/O まで進まない）。
+   * 同じ番号なら同じ記録から作ったものなので、サーバーの時刻が前のものだけを古いとみなす。
    */
   isOlder: (received: SessionSnapshot, current: SessionSnapshot): boolean =>
-    received.serverTime.getTime() < current.serverTime.getTime(),
+    received.revision < current.revision ||
+    (received.revision === current.revision &&
+      received.serverTime.getTime() < current.serverTime.getTime()),
 } as const;
 
 export const Session = {
@@ -209,9 +237,10 @@ export const Session = {
   autoEndDueAt: (session: Session): Date =>
     autoEndDueAt(session.events, session.journalEntryTimes, session.advanceModeChanges),
 
-  snapshot: (session: Session, now: Date): SessionSnapshot => ({
+  snapshot: (session: Session, now: Date, revision: Revision): SessionSnapshot => ({
     kind: "Session",
     serverTime: now,
+    revision,
     session,
     state: Session.stateAt(session, now),
   }),
@@ -238,3 +267,11 @@ export type AppendSessionOperation = (
 
 /** 終了したセッションを閉じる。閉じたセッションは現在のセッションではなくなる */
 export type CloseSession = (sessionId: SessionId, ended: Ended) => void;
+
+/**
+ * 記録の今の変更の番号。スナップショットを作るときに読む。
+ *
+ * 記録先は、セッション・操作イベント・ジャーナル記入・フェーズの進め方の変更を書くたびに番号を進める。
+ * 同じ読み書きの中では、書いたあとに読めば書いたあとの番号が返る（ADR 0030）
+ */
+export type CurrentRevision = () => Revision;

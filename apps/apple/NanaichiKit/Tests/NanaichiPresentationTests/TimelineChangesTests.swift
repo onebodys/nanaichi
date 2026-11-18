@@ -37,10 +37,10 @@ func syncMessagesChangeTimeline() throws {
 @Test("始めたばかりのセッションは、セッションの変更が届くとタイムラインに区切りとして出る")
 func sessionChangeAddsSession() throws {
     let session = started()
-    let change = try #require(timelineChangeOf(.sessionChanged(session.snapshot(at: minutes(1)))))
+    let change = try #require(timelineChangeOf(.sessionChanged(session.snapshot(at: minutes(1), revision: .initial))))
     let sessions = change([])
     #expect(sessions.map(\.session.id) == [session.id])
-    let noSession = timelineChangeOf(.sessionChanged(.noSession(serverTime: t0)))
+    let noSession = timelineChangeOf(.sessionChanged(.noSession(serverTime: t0, revision: .initial)))
     #expect(noSession == nil)
 }
 

@@ -5,10 +5,12 @@ import { AdvanceMode } from "./advance-mode.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "./journal-entry.ts";
 import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
-import { Session, SessionId } from "./session.ts";
+import { Revision, Session, SessionId } from "./session.ts";
 import { SyncMessage, SyncMessageJsonSchema } from "./sync-message.ts";
 import { TagName } from "./tag.ts";
 import { Task, TaskId, TaskTitle } from "./task.ts";
+
+const revision = v.parse(Revision.schema, 1);
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -38,7 +40,7 @@ describe("同期メッセージの送受信", () => {
   test("セッションが変わったら、スナップショットを時刻を Date に戻して受け取れる", () => {
     const message: SyncMessage = {
       kind: "SessionChanged",
-      snapshot: Session.snapshot(started, at(3)),
+      snapshot: Session.snapshot(started, at(3), revision),
     };
 
     expect(receive(SyncMessage.serialize(message))).toEqual(Result.succeed(message));

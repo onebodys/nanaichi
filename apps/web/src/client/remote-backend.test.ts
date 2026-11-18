@@ -5,7 +5,7 @@ import { AdvanceMode } from "../domain/advance-mode.ts";
 import { SessionEventId } from "../domain/session-event.ts";
 import { JournalCalendar } from "../domain/journal-calendar.ts";
 import { JournalEntry, JournalEntryBody, JournalEntryId } from "../domain/journal-entry.ts";
-import { Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
+import { Revision, Session, SessionId, type SessionSnapshot } from "../domain/session.ts";
 import { Stats } from "../domain/stats.ts";
 import { TagName } from "../domain/tag.ts";
 import { TaggedEntries } from "../domain/tagged-entries.ts";
@@ -14,6 +14,8 @@ import { createImportApi, createRemoteBackend } from "./remote-backend.ts";
 import { ImportBatch } from "../domain/import.ts";
 import type { OpenSyncSocket } from "./sync-connection.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
+
+const revision = v.parse(Revision.schema, 1);
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -46,7 +48,7 @@ const respondWith = (status: number, body: unknown) => {
 
 describe("現在のセッションの取得", () => {
   test("GET /api/session/current を呼ぶ", async () => {
-    const { client, paths } = respondWith(200, { kind: "NoSession", serverTime: at(0) });
+    const { client, paths } = respondWith(200, { kind: "NoSession", serverTime: at(0), revision });
 
     await client.getCurrentSession();
 
@@ -54,14 +56,14 @@ describe("現在のセッションの取得", () => {
   });
 
   test("セッションがなければ、セッションなしのスナップショットを時刻を Date に戻して返す", async () => {
-    const snapshot: SessionSnapshot = { kind: "NoSession", serverTime: at(0) };
+    const snapshot: SessionSnapshot = { kind: "NoSession", serverTime: at(0), revision };
     const { client } = respondWith(200, snapshot);
 
     expect(await client.getCurrentSession()).toEqual(Result.succeed(snapshot));
   });
 
   test("セッション中なら、操作イベントとタイマーの状態を含むスナップショットを返す", async () => {
-    const snapshot = Session.snapshot(started, at(3));
+    const snapshot = Session.snapshot(started, at(3), revision);
     const { client } = respondWith(200, snapshot);
 
     const result = await client.getCurrentSession();
@@ -120,7 +122,10 @@ const operationId = v.parse(SessionEventId.schema, "00000000-0000-4000-8000-0000
 
 describe("セッションの開始", () => {
   test("開始の操作イベントの ID を本文に入れて POST /api/session を呼ぶ", async () => {
-    const { client, paths, requests } = respondWith(200, Session.snapshot(started, at(0)));
+    const { client, paths, requests } = respondWith(
+      200,
+      Session.snapshot(started, at(0), revision),
+    );
 
     await client.startSession(operationId);
 
@@ -132,7 +137,7 @@ describe("セッションの開始", () => {
   });
 
   test("開始したセッションのスナップショットを返す", async () => {
-    const snapshot = Session.snapshot(started, at(0));
+    const snapshot = Session.snapshot(started, at(0), revision);
     const { client } = respondWith(200, snapshot);
 
     expect(await client.startSession(operationId)).toEqual(Result.succeed(snapshot));
@@ -149,7 +154,10 @@ describe("セッションの開始", () => {
 
 describe("セッションへの操作", () => {
   test("操作イベントの ID と操作の種類を本文に入れて POST /api/session/commands を呼ぶ", async () => {
-    const { client, paths, requests } = respondWith(200, Session.snapshot(started, at(1)));
+    const { client, paths, requests } = respondWith(
+      200,
+      Session.snapshot(started, at(1), revision),
+    );
 
     await client.operateSession(operationId, "Pause");
 
@@ -532,7 +540,7 @@ describe("同期メッセージの購読", () => {
     open();
     const message: SyncMessage = {
       kind: "SessionChanged",
-      snapshot: Session.snapshot(started, at(1)),
+      snapshot: Session.snapshot(started, at(1), revision),
     };
     deliver(SyncMessage.serialize(message));
 

@@ -58,7 +58,11 @@ export const createDeviceRun = ({ vault, exclusive, clock, persist }: DeviceRunD
         return Result.fail(storageFailed(loaded.error));
       }
       cache = loaded.value;
-      const draft: Draft = { base: cache.records, current: cache.records };
+      const draft: Draft = {
+        base: cache.records,
+        current: cache.records,
+        revision: cache.revision,
+      };
       let value: T;
       try {
         value = withAutoEndSettled(step)(draft, deviceNow(clock, cache.records));

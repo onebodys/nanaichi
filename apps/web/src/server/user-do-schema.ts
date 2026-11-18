@@ -159,6 +159,41 @@ const MIGRATIONS: ReadonlyArray<string> = [
   ALTER TABLE advance_mode_changes ADD COLUMN origin TEXT NOT NULL DEFAULT 'Account'
     CHECK (origin IN ('Account', 'Import'));
   `,
+  `
+  -- 変更の番号（GLOSSARY、ADR 0030）。スナップショットの新旧を、サーバーの時刻ではなくこれで決める。
+  -- スナップショットに入る記録（セッション・操作イベント・記入・進め方の変更）の行を変えるたびに
+  -- トリガーで進めるので、書き込みの経路を足しても進め忘れない。1つの書き込みで複数の行を変えれば
+  -- その数だけ進むが、減らないことと、変更の前と後で違うことだけを使う
+  CREATE TABLE record_revision (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    value INTEGER NOT NULL CHECK (value >= 0)
+  );
+  INSERT INTO record_revision (id, value) VALUES (1, 0);
+  CREATE TRIGGER revision_after_insert_sessions AFTER INSERT ON sessions
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_update_sessions AFTER UPDATE ON sessions
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_delete_sessions AFTER DELETE ON sessions
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_insert_session_events AFTER INSERT ON session_events
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_update_session_events AFTER UPDATE ON session_events
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_delete_session_events AFTER DELETE ON session_events
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_insert_journal_entries AFTER INSERT ON journal_entries
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_update_journal_entries AFTER UPDATE ON journal_entries
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_delete_journal_entries AFTER DELETE ON journal_entries
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_insert_advance_mode_changes AFTER INSERT ON advance_mode_changes
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_update_advance_mode_changes AFTER UPDATE ON advance_mode_changes
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  CREATE TRIGGER revision_after_delete_advance_mode_changes AFTER DELETE ON advance_mode_changes
+    BEGIN UPDATE record_revision SET value = value + 1; END;
+  `,
 ];
 
 /** まだ当てていないマイグレーションを順に当てる。DO の SQLite は同期 API なので、そのまま実行してよい */

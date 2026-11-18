@@ -13,12 +13,13 @@ EXTENDS SessionSync, SessionSyncTraceData
 
 VARIABLE i
 
-Snap(e) == [t |-> e.t, v |-> e.v]
+\* 時刻と変更の番号は、check.mjs が実装の値から大小の順だけを残したもの
+Snap(e) == [t |-> e.t, v |-> e.v, r |-> e.r]
 
 \* 画面が見せているもの（読み込めていなければ shown は見ない）
 Observed(e) ==
     /\ loading'[e.screen] = e.loading
-    /\ e.loading = "Loaded" => shown'[e.screen] = [t |-> e.shownT, v |-> e.shownV]
+    /\ e.loading = "Loaded" => shown'[e.screen] = [t |-> e.shownT, v |-> e.shownV, r |-> e.shownR]
 
 Match(e) ==
     CASE e.action = "Operate" -> Operate(e.screen)

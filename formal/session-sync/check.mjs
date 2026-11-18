@@ -29,7 +29,7 @@ const TLA_VERSION = "1.7.4";
 const TLA_SHA256 = "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88";
 const TLA_URL = `https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VERSION}/tla2tools.jar`;
 
-const SAFETY = ["StaysLoaded", "NoTimeRollback", "NoChangeRollback", "SameTimeSameChange"];
+const SAFETY = ["StaysLoaded", "NoTimeRollback", "NoChangeRollback", "SameRevisionSameChange"];
 
 // 既定の手数は、push のたびに走らせても困らない長さ（全部で2分ほど）に抑える。
 // --deep は対象のコードを変えたときに走らせる（45分ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約10分）
@@ -49,7 +49,7 @@ const bounds = (deep) =>
 
 /**
  * 検査の一覧。`expect` は通る（"pass"）か、どの性質が破れるか。
- * 壊した実装（Mutation）は、その性質が本当に落ちうることを示すためのもの。
+ * 壊した実装（Mutations）は、その性質が本当に落ちうることを示すためのもの。
  * 直し方の候補（Fixes）は実装にはまだない。見つかった問題がそれで消えることを示すためのもの。
  */
 const checks = (deep) => {
@@ -68,36 +68,35 @@ const checks = (deep) => {
     symmetry: false,
     expect,
   });
-  const advancing = { WithWrites: "TRUE", ClockStalls: "FALSE", Mutation: '"None"', Fixes: "{}" };
+  const advancing = { WithWrites: "TRUE", ClockStalls: "FALSE", Mutations: "{}", Fixes: "{}" };
   const stalling = {
     WithWrites: "TRUE",
     ClockStalls: "TRUE",
     MaxClock: deep ? 8 : 6,
-    Mutation: '"None"',
+    Mutations: "{}",
     Fixes: "{}",
   };
   const held = { ...advancing, Fixes: '{"HoldSyncWhileLoading"}' };
   return [
-    // 時計が要求ごとに進むなら（同じミリ秒に2つの要求がない）、安全性は3つとも成り立つ
+    // 時計が要求ごとに進むなら（同じミリ秒に2つの要求がない）、安全性はどれも成り立つ
     safety("safety", advancing, "pass"),
     // HTTP の要求・応答が失われても、WebSocket が切れて繋ぎ直しても
     safety("safety-faults", { ...advancing, ...b.faults }, "pass"),
-    // 時計が止まることがあると（Workers の時計は I/O まで進まない）、前提が破れ、画面が巻き戻る
+    // 時計が止まることがあると（Workers の時計は I/O まで進まない）、同じ時刻に別の変更が出る。
+    // サーバーの時刻ではスナップショットの新旧を決められない理由（#51、ADR 0030）
     safety("stall-same-time", stalling, "SameTimeSameChange", ["SameTimeSameChange"]),
-    // 操作だけでも、別の画面の操作と同じミリ秒に処理された読み込みで巻き戻る
-    safety("stall-rollback", { ...stalling, WithWrites: "FALSE" }, "NoChangeRollback", [
-      "NoTimeRollback",
-      "NoChangeRollback",
-    ]),
-    // 画面が1つでも、記入と重なった読み込みで巻き戻る（operation-overlap.ts は操作しか数えない）
-    safety("stall-one-screen", { ...stalling, Screens: "{s1}" }, "NoChangeRollback", [
-      "NoChangeRollback",
-    ]),
-    // 画面が1つで操作だけなら、時計が止まっても巻き戻らない（operation-overlap.ts が重なった読み込みを捨てる）
-    safety("stall-one-screen-ops", { ...stalling, Screens: "{s1}", WithWrites: "FALSE" }, "pass", [
-      "NoTimeRollback",
-      "NoChangeRollback",
-    ]),
+    // 変更の番号で比べるので、別の画面の操作と同じミリ秒に処理された読み込みでも巻き戻らない（#51 の画面2つの並び）。
+    // 画面2つで記入もあり時計が止まる組み合わせは、既定の手数でも状態が数億を超えて終わらないので、2つに分けて調べる
+    safety("stall-rollback", { ...stalling, WithWrites: "FALSE" }, "pass"),
+    // 画面が1つで、記入と重なった読み込みでも巻き戻らない（#51 の画面1つの並び）
+    safety("stall-one-screen", { ...stalling, Screens: "{s1}" }, "pass"),
+    // 画面が1つで操作だけなら、時刻で比べても巻き戻らない（operation-overlap.ts が重なった読み込みを捨てる）
+    safety(
+      "stall-one-screen-ops",
+      { ...stalling, Screens: "{s1}", WithWrites: "FALSE", Mutations: '{"IsOlderByTime"}' },
+      "pass",
+      ["NoTimeRollback", "NoChangeRollback"],
+    ),
 
     // 活性は実装のままでは成り立たない（通信が失われなくても）
     liveness("liveness", advancing, "EventuallyConverged"),
@@ -114,24 +113,50 @@ const checks = (deep) => {
     // 壊した実装で落ちる
     safety(
       "mutant-isolder-reversed",
-      { ...advancing, Mutation: '"IsOlderReversed"' },
+      { ...advancing, Mutations: '{"IsOlderReversed"}' },
       "NoTimeRollback",
     ),
+    // #51 を直す前の実装（サーバーの時刻だけで比べる）。画面2つ・操作だけでも巻き戻る
     safety(
-      "mutant-change-keeps-clock",
-      { ...advancing, Mutation: '"ChangeKeepsClock"' },
-      "SameTimeSameChange",
-      ["SameTimeSameChange"],
+      "mutant-isolder-by-time",
+      { ...stalling, WithWrites: "FALSE", Mutations: '{"IsOlderByTime"}' },
+      "NoChangeRollback",
+      ["NoTimeRollback", "NoChangeRollback"],
+    ),
+    // 画面が1つでも、記入と重なった読み込みで巻き戻る（operation-overlap.ts は操作しか数えない）
+    safety(
+      "mutant-isolder-by-time-one-screen",
+      { ...stalling, Screens: "{s1}", Mutations: '{"IsOlderByTime"}' },
+      "NoChangeRollback",
+      ["NoChangeRollback"],
+    ),
+    safety(
+      "mutant-write-keeps-revision",
+      { ...advancing, Mutations: '{"WriteKeepsRevision"}' },
+      "SameRevisionSameChange",
+      ["SameRevisionSameChange"],
+    ),
+    // 記入で変更の番号を進め忘れると、時計が止まったときに画面が巻き戻る
+    safety(
+      "mutant-write-keeps-revision-stall",
+      { ...stalling, Screens: "{s1}", Mutations: '{"WriteKeepsRevision"}' },
+      "NoChangeRollback",
+      ["NoTimeRollback", "NoChangeRollback"],
     ),
     safety(
       "mutant-no-overlap-check",
-      { ...stalling, Screens: "{s1}", WithWrites: "FALSE", Mutation: '"NoOverlapCheck"' },
+      {
+        ...stalling,
+        Screens: "{s1}",
+        WithWrites: "FALSE",
+        Mutations: '{"IsOlderByTime", "NoOverlapCheck"}',
+      },
       "NoChangeRollback",
       ["NoTimeRollback", "NoChangeRollback"],
     ),
     liveness(
       "mutant-no-refresh-on-connect",
-      { ...held, Mutation: '"NoRefreshOnConnect"' },
+      { ...held, Mutations: '{"NoRefreshOnConnect"}' },
       "EventuallyConverged",
     ),
   ];
@@ -275,7 +300,10 @@ const tlaValue = (value) => {
 
 /**
  * session-sync-trace.workers.test.ts を JSON の報告つきで走らせ、テストごとのトレース（`task.meta`）を取り出す。
- * サーバーの時刻（ミリ秒）は、大小の順だけを残してモデルの時刻（1, 2, ...）にする
+ * サーバーの時刻（ミリ秒）は、大小の順だけを残してモデルの時刻（1, 2, ...）にする。
+ * 変更の番号も、大小の順だけを残してモデルの `r`（記録がない 0 から 0, 1, 2, ...）にする。
+ * 実装は行を変えるたびに番号を進めるので値はモデルと違うが、どの変更もトレースのどこかで出ていれば
+ * 順位はモデルの `r`（= 変更の数）と同じになる。違えば、番号が変更の順と合っていない
  */
 const tracesFromTest = (workDir) => {
   const report = join(workDir, "trace-report.json");
@@ -309,6 +337,10 @@ const tracesFromTest = (workDir) => {
       (a, b) => a - b,
     );
     const rank = (ms) => (ms > 0 ? times.indexOf(ms) + 1 : 0);
+    const revisions = [
+      ...new Set([0, ...steps.flatMap((s) => [s.revision, s.shownRevision])]),
+    ].sort((a, b) => a - b);
+    const revisionRank = (revision) => revisions.indexOf(revision);
     const count = (action) => steps.filter((s) => s.action === action).length;
     return {
       name: result.title,
@@ -316,10 +348,12 @@ const tracesFromTest = (workDir) => {
       maxLosses: 0,
       maxDisconnects: count("Disconnect"),
       maxClock: Math.max(1, times.length),
-      steps: steps.map(({ ms, shownMs, ...rest }) => ({
+      steps: steps.map(({ ms, shownMs, revision, shownRevision, ...rest }) => ({
         ...rest,
         t: rank(ms),
         shownT: rank(shownMs),
+        r: revisionRank(revision),
+        shownR: revisionRank(shownRevision),
       })),
     };
   });
@@ -355,7 +389,7 @@ const checkTraces = (java, jar, workDir) => {
         `  MaxDisconnects = ${trace.maxDisconnects}`,
         `  MaxClock = ${trace.maxClock}`,
         "  ClockStalls = TRUE",
-        '  Mutation = "None"',
+        "  Mutations = {}",
         "  Fixes = {}",
         "INIT TraceInit",
         "NEXT TraceNext",
