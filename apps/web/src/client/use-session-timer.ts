@@ -164,7 +164,8 @@ export const useSessionTimer = (
           return;
         }
         setLoading(applyLoadFailed);
-        // 読み込めている画面は手元のまま見せるので、失敗に気づけない。間隔を空けて読み込み直す（load-retry.ts、Issue #53）
+        // 読み込めている画面は手元のまま見せるので、失敗に気づけない。読み込めていない画面も、古い読み込みが
+        // 後から届くと「読み込み直す」が出ない。どちらも間隔を空けて読み込み直す（load-retry.ts、Issue #53）
         retry.failed(() => void loadOnce());
       });
     };
