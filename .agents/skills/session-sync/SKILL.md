@@ -23,9 +23,9 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 
 実装のままで成り立たないものがある。モデルと、本物の UserDO を動かしたトレースの両方で確かめてある。
 画面は、読み込めていない間に届いた同期メッセージのいちばん新しいものを待たせ、読み込めたときに読み込みの結果と比べる（#52 の直し。`snapshot-arrival.ts` の `HeldSync`、モデルの `held`）。
+操作の応答が届かなかった（`Unreachable`）ときも断られたときと同じく読み込み直し、読み込みが失敗したら間隔を空けてやり直す（#53 の直し。`use-session-timer.ts` の `send`・`load`、`load-retry.ts`、モデルの `ReceiveOp`・`retry`・`RetryLoad`）。HTTP の応答が失われても、活性は既定の手数で成り立つ（`liveness-losses`）。
 
 - **#51**: 同じミリ秒に処理された読み込みと別の変更で、画面が巻き戻る（`stall-rollback`、`stall-one-screen`）。Workers の時計は I/O まで進まないので、同時に届いた要求は同じミリ秒になりうる。`SameTimeSameChange` が破れ、`NoChangeRollback` も破れる
-- **#53**: HTTP の応答が失われると、次の変更か繋ぎ直しまで古いまま（`liveness-losses`）
 - **#54**: 操作と重なった読み込みを捨てるので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いまま（`--deep` の `liveness`。書き込み 2 の手数で出る。既定の手数 1 では成り立つ）。通信が失われなくても起きる
 
 時計が要求ごとに進む（同じミリ秒に2つの要求がない）なら、安全性は通信が失われても成り立つ（`safety`、`safety-faults`）。
@@ -124,6 +124,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 - `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoaded`・`applyLoadFailed`・`applySynced`・`startReload`
 - `apps/web/src/client/use-session-timer.ts`: `load`・`send`・`reload`・`refresh`・`receive`（どれをいつ呼ぶか）
 - `apps/web/src/client/operation-overlap.ts`: `createOperationTracker`
+- `apps/web/src/client/load-retry.ts`: `createLoadRetry`（失敗した読み込みのやり直し）
 - `apps/web/src/client/sync-connection.ts`: `connectSync`（繋ぎ直し、`isCurrent`）
 - `apps/web/src/client/use-sync.ts`: `onConnected` と `deliver` の `SessionChanged`
 - `apps/web/src/client/home-page.tsx`: 記入・進め方の変更のあとの `timer.refresh()`
@@ -133,7 +134,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 対象が変わったか見るには次を走らせる。
 
 ```sh
-git log --oneline 06207fb..HEAD -- apps/web/src/domain/session.ts apps/web/src/client/snapshot-arrival.ts apps/web/src/client/use-session-timer.ts apps/web/src/client/operation-overlap.ts apps/web/src/client/sync-connection.ts apps/web/src/client/use-sync.ts apps/web/src/client/home-page.tsx apps/web/src/server/user-do.ts apps/web/src/workflows/user-commands.ts
+git log --oneline 06207fb..HEAD -- apps/web/src/domain/session.ts apps/web/src/client/snapshot-arrival.ts apps/web/src/client/use-session-timer.ts apps/web/src/client/operation-overlap.ts apps/web/src/client/load-retry.ts apps/web/src/client/sync-connection.ts apps/web/src/client/use-sync.ts apps/web/src/client/home-page.tsx apps/web/src/server/user-do.ts apps/web/src/workflows/user-commands.ts
 ```
 
 何か出たら、変更を読んで次を確かめる。届いたスナップショットの扱い、読み込み直すきっかけ、同期メッセージを送る相手と順序、時刻の読み方が、`SessionSync.tla` のアクションと合っているか。

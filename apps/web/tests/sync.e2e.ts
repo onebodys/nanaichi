@@ -39,6 +39,9 @@ const asOtherDevice = async (app: App, browser: Browser) => {
  * `__settled()` は、同期の接続が開いていて、読み込み中の API がないときに true を返す。画面は繋がったときに
  * スナップショットとタイムラインを読み込み直すので、その応答が切断のあとに返ると、切断している間の
  * PC の操作が画面に届いてしまう。切断する前にこれを待つ。
+ *
+ * `__loseNextResponse(method, path)` は、次にその API を呼んだとき、要求はサーバーに届けたうえで応答を
+ * 捨て、通信できなかったことにする（UserDO は処理を終えたが、画面には届かない。Issue #53）。
  */
 const installDisconnectableSocket = () => {
   if ("__disconnect" in window) {
@@ -48,11 +51,22 @@ const installDisconnectableSocket = () => {
   const sockets: Array<WebSocket> = [];
   let blocked = false;
   let pendingRequests = 0;
+  const toLose: Array<{ method: string; path: string }> = [];
   const realFetch = window.fetch;
   window.fetch = async (...args) => {
     pendingRequests += 1;
     try {
-      return await realFetch(...args);
+      const response = await realFetch(...args);
+      const method = (args[1]?.method ?? "GET").toUpperCase();
+      const [input] = args;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const path = new URL(url, location.href).pathname;
+      const lost = toLose.findIndex((r) => r.method === method && r.path === path);
+      if (lost >= 0) {
+        toLose.splice(lost, 1);
+        throw new TypeError("Failed to fetch");
+      }
+      return response;
     } finally {
       pendingRequests -= 1;
     }
@@ -75,6 +89,9 @@ const installDisconnectableSocket = () => {
       for (const socket of sockets.splice(0)) {
         socket.close();
       }
+    },
+    __loseNextResponse: (method: string, path: string) => {
+      toLose.push({ method, path });
     },
     __reconnect: () => {
       blocked = false;
@@ -163,6 +180,57 @@ describe("複数の端末の同期", { serial: true, session: "syncWatcher" }, (
     await browser.evaluate<null>("(window.__reconnect(), null)");
     await expect(screen.getByRole("button", { name: "再開" })).toBeVisible();
     await expect(screen.getByText(body)).toBeVisible();
+
+    await pc.operate("End");
+  });
+
+  test("開始の応答が届かなくても、スマホは読み込み直して集中を見せる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    const pc = await asOtherDevice(app, browser);
+    await pc.operate("End");
+    await browser.addInitScript(installDisconnectableSocket);
+    await app.open("/");
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
+
+    // 同期メッセージで届かないよう、切断しておく
+    await expect.poll(() => browser.evaluate<boolean>("window.__settled()")).toBe(true);
+    await browser.evaluate<null>("(window.__disconnect(), null)");
+    await browser.evaluate<null>('(window.__loseNextResponse("POST", "/api/session"), null)');
+    await screen.getByRole("button", { name: START_BUTTON }).click();
+
+    await expect(
+      screen.getByText("通信できませんでした。最新の状態を読み込み直します。"),
+    ).toBeVisible();
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+
+    await browser.evaluate<null>("(window.__reconnect(), null)");
+    await pc.operate("End");
+  });
+
+  test("繋ぎ直したときの読み込み直しの応答が届かなくても、間隔を空けて読み込み直し、PC で開始したセッションを見せる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    const pc = await asOtherDevice(app, browser);
+    await pc.operate("End");
+    await browser.addInitScript(installDisconnectableSocket);
+    await app.open("/");
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
+
+    await expect.poll(() => browser.evaluate<boolean>("window.__settled()")).toBe(true);
+    await browser.evaluate<null>("(window.__disconnect(), null)");
+    await pc.start();
+    await expect(screen.getByRole("button", { name: START_BUTTON })).toBeVisible();
+
+    await browser.evaluate<null>(
+      '(window.__loseNextResponse("GET", "/api/session/current"), null)',
+    );
+    await browser.evaluate<null>("(window.__reconnect(), null)");
+    await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
 
     await pc.operate("End");
   });
