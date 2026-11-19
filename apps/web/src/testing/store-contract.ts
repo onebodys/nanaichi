@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
 import type { AdvanceMode } from "../domain/advance-mode.ts";
 import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
-import { SessionId, type SessionSnapshot } from "../domain/session.ts";
+import { SessionId, SessionSnapshot } from "../domain/session.ts";
 import type { SessionOperation } from "../domain/session-event.ts";
 import type { RecordsDeps } from "../device/records.ts";
 import { settleAutoEnd } from "../workflows/auto-end-session.ts";
@@ -116,6 +116,19 @@ const idsOf = (entries: ReadonlyArray<JournalEntry>) => entries.map(({ id }) => 
 /** 期待する値は SQLite の振る舞いを仕様として書く（ADR 0019） */
 export const storeContract = (freshStore: FreshStore): void => {
   describe("セッションと操作イベント", () => {
+    test("読むだけでは変更の番号は進まず、開始すると、同じミリ秒でも読んだときより大きい番号になる", async () => {
+      await freshStore((deps) => {
+        const store = operator(deps);
+        const before = store.current(at(0));
+        const again = store.current(at(0));
+        const started = succeeded(store.start(at(0)));
+
+        expect(again.revision).toBe(before.revision);
+        expect(started.revision).toBeGreaterThan(before.revision);
+        expect(SessionSnapshot.isOlder(before, started)).toBe(true);
+      });
+    });
+
     test("同じミリ秒の操作は記録した順に操作イベントに並ぶ", async () => {
       await freshStore((deps) => {
         const store = operator(deps);

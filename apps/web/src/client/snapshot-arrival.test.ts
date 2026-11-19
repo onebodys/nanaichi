@@ -1,5 +1,6 @@
+import * as v from "valibot";
 import { describe, expect, test } from "vite-plus/test";
-import type { SessionSnapshot } from "../domain/session.ts";
+import { Revision, type SessionSnapshot } from "../domain/session.ts";
 import {
   applyLoaded,
   applyLoadFailed,
@@ -9,9 +10,11 @@ import {
   startReload,
 } from "./snapshot-arrival.ts";
 
+/** 時刻が後のものほど、あとの変更のスナップショット（変更の番号も大きい） */
 const noSessionAt = (ms: number): SessionSnapshot => ({
   kind: "NoSession",
   serverTime: new Date(ms),
+  revision: v.parse(Revision.schema, ms),
 });
 
 const offset = { serverAheadMs: 5 };

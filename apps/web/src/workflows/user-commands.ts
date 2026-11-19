@@ -37,7 +37,7 @@ import {
   type EditJournalEntryDeps,
   type EditJournalEntryError,
 } from "./edit-journal-entry.ts";
-import { getCurrentSession } from "./get-current-session.ts";
+import { getCurrentSession, type SnapshotDeps } from "./get-current-session.ts";
 import {
   importSessions,
   type ImportOutcome,
@@ -88,7 +88,7 @@ export const operateSessionCommand =
 
 /** 記入で自動終了の時刻が延びるので、書いたあとのスナップショットもあわせて知らせる（ADR 0012） */
 export const writeJournalEntryCommand =
-  (deps: WriteJournalEntryDeps) =>
+  (deps: WriteJournalEntryDeps & SnapshotDeps) =>
   (raw: unknown, now: Date): Result.Result<Executed<JournalEntry>, WriteJournalEntryError> =>
     Result.pipe(
       writeJournalEntry(deps)(raw, now),

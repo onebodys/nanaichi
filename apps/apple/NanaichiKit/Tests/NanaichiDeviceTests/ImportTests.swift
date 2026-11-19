@@ -130,7 +130,7 @@ struct DeviceImportTests {
 }
 
 private func isOpen(_ snapshot: SessionSnapshot, _ id: SessionId) -> Bool {
-    guard case .session(_, let session, _) = snapshot else { return false }
+    guard case .session(_, _, let session, _) = snapshot else { return false }
     return session.id == id
 }
 

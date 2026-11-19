@@ -1,6 +1,6 @@
 import { Result } from "@praha/byethrow";
 import type { SessionEventId, SessionOperation } from "../domain/session-event.ts";
-import { Session, type SessionSnapshot } from "../domain/session.ts";
+import { Session, type Revision, type SessionSnapshot } from "../domain/session.ts";
 
 /** 記録済みの操作イベントと同じ ID で、別の操作が届いた（クライアントの ID の発行の誤り） */
 export type EventIdConflict = Readonly<{ kind: "EventIdConflict"; eventId: SessionEventId }>;
@@ -16,9 +16,10 @@ export const replayRecordedEvent = (
   eventId: SessionEventId,
   kind: "Start" | SessionOperation["kind"],
   now: Date,
+  revision: Revision,
 ): Result.Result<SessionSnapshot, EventIdConflict> => {
   const recorded = session.events.find((event) => event.id === eventId);
   return recorded?.kind === kind
-    ? Result.succeed(Session.snapshot(session, now))
+    ? Result.succeed(Session.snapshot(session, now, revision))
     : Result.fail({ kind: "EventIdConflict", eventId });
 };

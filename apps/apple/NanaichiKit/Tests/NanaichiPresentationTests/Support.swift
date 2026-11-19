@@ -26,5 +26,5 @@ func operated(_ session: Session, _ kind: SessionOperationKind, at: Instant) thr
 }
 
 func received(_ session: Session, at serverTime: Instant) -> Received {
-    Received(snapshot: session.snapshot(at: serverTime), offset: ClockOffset(serverAheadMs: 0))
+    Received(snapshot: session.snapshot(at: serverTime, revision: .initial), offset: ClockOffset(serverAheadMs: 0))
 }

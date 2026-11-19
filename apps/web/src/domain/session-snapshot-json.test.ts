@@ -3,7 +3,15 @@ import { Result } from "@praha/byethrow";
 import * as v from "valibot";
 import { schemaResult } from "./schema-result.ts";
 import { SessionEventId } from "./session-event.ts";
-import { Session, SessionId, SessionSnapshotJsonSchema, type SessionSnapshot } from "./session.ts";
+import {
+  Revision,
+  Session,
+  SessionId,
+  SessionSnapshotJsonSchema,
+  type SessionSnapshot,
+} from "./session.ts";
+
+const revision = v.parse(Revision.schema, 1);
 
 const STARTED_AT = Date.UTC(2026, 9, 17, 0, 0, 0);
 const at = (minutes: number) => new Date(STARTED_AT + minutes * 60_000);
@@ -30,7 +38,7 @@ const session: Session = {
 
 describe("API の応答のスナップショットを検証して戻す", () => {
   test("セッションなしのスナップショットを、サーバー時刻を Date に戻して受け取れる", () => {
-    const snapshot: SessionSnapshot = { kind: "NoSession", serverTime: at(0) };
+    const snapshot: SessionSnapshot = { kind: "NoSession", serverTime: at(0), revision };
 
     expect(parseSnapshot(overTheWire(snapshot))).toEqual(Result.succeed(snapshot));
   });
@@ -42,7 +50,7 @@ describe("API の応答のスナップショットを検証して戻す", () => 
     ["休憩中", 26],
     ["自動終了後", 200],
   ])("%sのスナップショットを、操作イベントと状態ごと元のとおりに受け取れる", (_, minutes) => {
-    const snapshot = Session.snapshot(session, at(minutes));
+    const snapshot = Session.snapshot(session, at(minutes), revision);
 
     expect(parseSnapshot(overTheWire(snapshot))).toEqual(Result.succeed(snapshot));
   });
@@ -52,7 +60,7 @@ describe("API の応答のスナップショットを検証して戻す", () => 
       ...session,
       events: [...session.events, { kind: "Abort", id: eventId(3), at: at(5) }],
     };
-    const snapshot = Session.snapshot(aborted, at(6));
+    const snapshot = Session.snapshot(aborted, at(6), revision);
 
     expect(snapshot.kind === "Session" && snapshot.state.kind).toBe("Idle");
     expect(parseSnapshot(overTheWire(snapshot))).toEqual(Result.succeed(snapshot));
@@ -71,7 +79,7 @@ describe("API の応答のスナップショットを検証して戻す", () => 
   });
 
   test("操作イベントが開始から始まっていなければ ValidationError になる", () => {
-    const wire = overTheWire(Session.snapshot(session, at(1)));
+    const wire = overTheWire(Session.snapshot(session, at(1), revision));
     const broken = {
       ...(typeof wire === "object" ? wire : {}),
       session: { id: sessionId, events: [], journalEntryTimes: [] },

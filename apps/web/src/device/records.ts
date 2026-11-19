@@ -1,3 +1,4 @@
+import * as v from "valibot";
 import { AdvanceModeChange } from "../domain/advance-mode.ts";
 import { recordTimeAfter } from "../domain/record-time.ts";
 import type { JournalEntry, JournalEntryId, StoredJournalEntry } from "../domain/journal-entry.ts";
@@ -7,7 +8,7 @@ import type {
   StoredEntry,
   StoredSession,
 } from "../domain/session-record.ts";
-import type { Session, SessionId } from "../domain/session.ts";
+import { Revision, type Session, type SessionId } from "../domain/session.ts";
 import type { EntryMark } from "../domain/stats.ts";
 import type { TagName, TagUsage } from "../domain/tag.ts";
 import type { TimelineSession } from "../domain/timeline.ts";
@@ -126,9 +127,24 @@ export type RecordsDeps = StartSessionDeps &
 
 /**
  * 1回のワークフローの間だけ使う、書き換えられる入れ物。契約は `current` を読み、新しい値に置き換える。
- * `base` は読み込んだときの値で、保存するときに変わったセッションを見分けるのに使う
+ * `base` は読み込んだときの値で、保存するときに変わったセッションを見分けるのに使う。
+ * `revision` は `base` を読み込んだときの保存先の版（vault.ts の `VaultContent.revision`）
  */
-export type Draft = { current: DeviceRecords; readonly base: DeviceRecords };
+export type Draft = {
+  current: DeviceRecords;
+  readonly base: DeviceRecords;
+  readonly revision: number;
+};
+
+/**
+ * この端末の記録先の変更の番号（ADR 0030）。保存先の版をそのまま使う。
+ *
+ * 版は書き込むたびに1つ以上進む（`nextRevision`）。このサイクルで記録を変えていれば、保存したあとの版は
+ * 読み込んだときの版より大きいので、1つ進めた値を使う。1つのサイクルでの書き込みは1つの変更として数える
+ * （UserDO の1つのトランザクションと同じく、途中の様子はほかの画面から見えない）
+ */
+const draftRevision = (draft: Draft): Revision =>
+  v.parse(Revision.schema, draft.current === draft.base ? draft.revision : draft.revision + 1);
 
 const startedAtOf = (session: StoredSession): Date => session.events[0].at;
 
@@ -275,6 +291,8 @@ export const recordsDeps = (draft: Draft): RecordsDeps => {
     sessionRecordsOf(records()).flatMap(({ session }) => writtenEntriesIn(session));
 
   return {
+    currentRevision: () => draftRevision(draft),
+
     findOpenSession: () => {
       const { open } = records();
       return open.kind === "Open" ? sessionOf(records(), open) : undefined;

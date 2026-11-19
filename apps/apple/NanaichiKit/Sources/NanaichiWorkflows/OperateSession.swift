@@ -32,12 +32,13 @@ public func operateSession(
     _ store: some SessionStore, id: SessionEventId, kind: SessionOperationKind, now: Instant
 ) throws -> Result<SessionSnapshot, OperateSessionError> {
     if let recorded = try store.findSessionByEventId(id) {
-        return replayRecordedEvent(recorded, eventId: id, requested: .operation(kind), now: now)
+        return replayRecordedEvent(
+            recorded, eventId: id, requested: .operation(kind), now: now, revision: try store.currentRevision())
             .mapError(OperateSessionError.eventIdConflict)
     }
     let operation = RecordedSessionEvent(id: id, event: SessionOperation(kind: kind, at: now))
     return try ensureSessionInProgress(loadOpenSession(store, now: now))
         .flatMap { $0.operate(operation).mapError(OperateSessionError.operationRejected) }
         .andThrough(record(store, operation))
-        .map { $0.session.snapshot(at: now) }
+        .tryMap { $0.session.snapshot(at: now, revision: try store.currentRevision()) }
 }

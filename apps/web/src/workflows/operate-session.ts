@@ -14,7 +14,8 @@ import {
   type SessionSnapshot,
 } from "../domain/session.ts";
 import type { OperationRejected, TimerState } from "../domain/timer-state.ts";
-import { loadOpenSession, type OpenSessionDeps } from "./auto-end-session.ts";
+import { loadOpenSession } from "./auto-end-session.ts";
+import type { SnapshotDeps } from "./get-current-session.ts";
 import { replayRecordedEvent, type EventIdConflict } from "./replay-recorded-event.ts";
 
 /**
@@ -38,7 +39,7 @@ export type OperateSessionError =
   | OperationRejected
   | EventIdConflict;
 
-export type OperateSessionDeps = OpenSessionDeps &
+export type OperateSessionDeps = SnapshotDeps &
   Readonly<{
     findSessionByEventId: FindSessionByEventId;
     appendSessionOperation: AppendSessionOperation;
@@ -83,7 +84,7 @@ export const operateSession =
         ensureSessionInProgress(loadOpenSession(deps)(now)),
         Result.andThen((session) => Session.operate(session, operation)),
         Result.andThrough(record(deps, operation)),
-        Result.map(({ session }) => Session.snapshot(session, now)),
+        Result.map(({ session }) => Session.snapshot(session, now, deps.currentRevision())),
       );
     };
 
@@ -93,7 +94,7 @@ export const operateSession =
         const recorded = deps.findSessionByEventId(input.id);
         return recorded === undefined
           ? operate(input)
-          : replayRecordedEvent(recorded, input.id, input.kind, now);
+          : replayRecordedEvent(recorded, input.id, input.kind, now, deps.currentRevision());
       }),
     );
   };

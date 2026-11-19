@@ -15,7 +15,7 @@ const at = (minutes: number) => new Date(T0 + minutes * 60_000);
 const newSessionId = () => v.parse(SessionId.schema, crypto.randomUUID());
 
 const changed = (records: DeviceRecords, change: (draft: Draft) => void): DeviceRecords => {
-  const draft: Draft = { base: records, current: records };
+  const draft: Draft = { base: records, current: records, revision: 0 };
   change(draft);
   return draft.current;
 };

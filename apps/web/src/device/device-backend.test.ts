@@ -4,7 +4,7 @@ import { describe, expect, test } from "vite-plus/test";
 import type { Backend, BackendError, SyncHandlers } from "../domain/backend.ts";
 import { JournalEntryId } from "../domain/journal-entry.ts";
 import { SessionEventId } from "../domain/session-event.ts";
-import { SessionId } from "../domain/session.ts";
+import { SessionId, SessionSnapshot } from "../domain/session.ts";
 import type { SyncMessage } from "../domain/sync-message.ts";
 import { createDeviceBackend, type SyncChannel } from "./device-backend.ts";
 import { MemoryStore, memoryVault } from "./vault.ts";
@@ -103,6 +103,25 @@ describe("この端末の記録先", () => {
     await unwrap(tabB.writeJournalEntry(id, "読書をした", []));
     const page = await unwrap(tabA.getTimeline());
     expect(page.sessions.flatMap(({ entries }) => entries.map((entry) => entry.id))).toEqual([id]);
+  });
+
+  test("記録を変えるたびに変更の番号が進み、時計が止まっていても別のタブの開始の前の読み込みは古いと分かる", async () => {
+    const { openTab } = browser();
+    const tabA = openTab();
+    const tabB = openTab();
+
+    const before = await unwrap(tabB.getCurrentSession());
+    const again = await unwrap(tabB.getCurrentSession());
+    const started = await unwrap(tabA.startSession(eventId()));
+    await unwrap(tabA.writeJournalEntry(entryId(), "書いた", []));
+    const afterEntry = await unwrap(tabB.getCurrentSession());
+    const paused = await unwrap(tabA.operateSession(eventId(), "Pause"));
+
+    expect(again.revision).toBe(before.revision);
+    expect(started.serverTime).toEqual(before.serverTime);
+    expect(SessionSnapshot.isOlder(before, started)).toBe(true);
+    expect(afterEntry.revision).toBeGreaterThan(started.revision);
+    expect(paused.revision).toBeGreaterThan(afterEntry.revision);
   });
 
   test("2つのタブで同時に開始してもセッションは1つ", async () => {

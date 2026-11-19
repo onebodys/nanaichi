@@ -18,7 +18,7 @@ import {
 } from "./records.ts";
 
 storeContract(async (scene) => {
-  scene(recordsDeps({ base: DeviceRecords.empty, current: DeviceRecords.empty }));
+  scene(recordsDeps({ base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 }));
 });
 
 const T0 = Date.UTC(2026, 10, 2, 9, 0, 0);
@@ -28,7 +28,7 @@ const entryId = () => v.parse(JournalEntryId.schema, crypto.randomUUID());
 
 describe("端末の時計", () => {
   test("時計が記録済みの時刻より前に戻っても、再開・終了できる", () => {
-    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty };
+    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 };
     const deps = recordsDeps(draft);
     let clock = at(0);
     const now = () => deviceNow(() => clock, draft.current);
@@ -54,7 +54,7 @@ describe("端末の時計", () => {
   });
 
   test("時計が戻っても止まっていても、記録の時刻はいつも前の記録より後になる", () => {
-    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty };
+    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 };
     const deps = recordsDeps(draft);
     let clock = at(10);
     const now = () => deviceNow(() => clock, draft.current);
@@ -90,7 +90,7 @@ describe("端末の時計", () => {
   });
 
   test("時計が戻っていなければ、端末の時計の時刻をそのまま使う", () => {
-    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty };
+    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 };
     startSession(recordsDeps(draft))({ id: crypto.randomUUID() }, at(0), newSessionId());
 
     expect(deviceNow(() => at(7), draft.current)).toEqual(at(7));
@@ -101,7 +101,7 @@ describe("端末の時計", () => {
 
 describe("書き換えたセッションだけが変わる", () => {
   test("別のセッションに書いても、ほかのセッションは同じオブジェクトのまま残る", () => {
-    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty };
+    const draft: Draft = { base: DeviceRecords.empty, current: DeviceRecords.empty, revision: 0 };
     const deps = recordsDeps(draft);
     const written = Array.from({ length: 2 }, (_, i) => {
       startSession(deps)({ id: crypto.randomUUID() }, at(i * 10), newSessionId());
@@ -112,13 +112,13 @@ describe("書き換えたセッションだけが変わる", () => {
     });
     startSession(deps)({ id: crypto.randomUUID() }, at(30), newSessionId());
     const loaded = draft.current;
-    const second = { base: loaded, current: loaded };
+    const second = { base: loaded, current: loaded, revision: 0 };
 
     writeJournalEntry(recordsDeps(second))({ id: entryId(), body: "進行中" }, at(31));
     second.current.closed.forEach((session, i) => expect(session).toBe(loaded.closed[i]));
     expect(changedSessionRecords(loaded, second.current).map((r) => r.kind)).toEqual(["Open"]);
 
-    const third = { base: loaded, current: loaded };
+    const third = { base: loaded, current: loaded, revision: 0 };
     editJournalEntry(recordsDeps(third))(written[0], { body: "直した", tags: [] }, at(32));
     expect(third.current.closed[1]).toBe(loaded.closed[1]);
     expect(third.current.open).toBe(loaded.open);

@@ -22,7 +22,8 @@ public func startSession(
     _ store: some StartSessionStore, id: SessionEventId, now: Instant, newSessionId: SessionId
 ) throws -> Result<SessionSnapshot, StartSessionError> {
     if let recorded = try store.findSessionByEventId(id) {
-        return replayRecordedEvent(recorded, eventId: id, requested: .start, now: now)
+        return replayRecordedEvent(
+            recorded, eventId: id, requested: .start, now: now, revision: try store.currentRevision())
             .mapError(StartSessionError.eventIdConflict)
     }
     return try ensureNoSessionInProgress(loadOpenSession(store, now: now))
@@ -32,5 +33,5 @@ public func startSession(
                 advanceModeChanges: try store.loadAdvanceModeChanges())
         }
         .andThrough(store.saveStartedSession)
-        .map { $0.snapshot(at: now) }
+        .tryMap { $0.snapshot(at: now, revision: try store.currentRevision()) }
 }

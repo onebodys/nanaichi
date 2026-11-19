@@ -26,7 +26,7 @@ public let maxPlannedPhaseNotifications = 64
 public func phaseNotificationPlanOf(_ snapshot: SessionSnapshot, now: Instant, settings: AlertSettings)
     -> [PlannedPhaseNotification]
 {
-    guard settings.notification, case .session(_, let session, _) = snapshot else { return [] }
+    guard settings.notification, case .session(_, _, let session, _) = snapshot else { return [] }
     return session.upcomingPhaseChanges(after: now, limit: maxPlannedPhaseNotifications).map { change in
         let message = phaseChangeMessageOf(change.to)
         return PlannedPhaseNotification(

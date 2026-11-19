@@ -7,12 +7,11 @@ import {
 } from "../domain/advance-mode.ts";
 import { schemaResult, type ValidationError } from "../domain/schema-result.ts";
 import type { SessionSnapshot } from "../domain/session.ts";
-import { getCurrentSession } from "./get-current-session.ts";
-import type { OpenSessionDeps } from "./auto-end-session.ts";
+import { getCurrentSession, type SnapshotDeps } from "./get-current-session.ts";
 
 export type ChangeAdvanceModeError = ValidationError;
 
-export type ChangeAdvanceModeDeps = OpenSessionDeps &
+export type ChangeAdvanceModeDeps = SnapshotDeps &
   Readonly<{
     loadAdvanceModeChanges: LoadAdvanceModeChanges;
     saveAdvanceModeChange: SaveAdvanceModeChange;

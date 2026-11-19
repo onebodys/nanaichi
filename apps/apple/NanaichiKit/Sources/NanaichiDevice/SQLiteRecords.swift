@@ -247,6 +247,15 @@ extension SQLiteRecords: SessionStore {
             sql: "UPDATE sessions SET ended_at = ?, ended_by = ? WHERE id = ? AND ended_at IS NULL",
             arguments: [ended.endedAt.milliseconds, ended.endedBy.rawValue, sessionId.rawValue])
     }
+
+    /// 行を変えるたびにトリガーが進める（DeviceSchema の v2）
+    func currentRevision() throws -> Revision {
+        let value = try Int.fetchOne(db, sql: "SELECT value FROM record_revision WHERE id = 1")
+        guard let value, let revision = Revision(value) else {
+            throw UnreadableRecord(table: "record_revision", column: "value")
+        }
+        return revision
+    }
 }
 
 extension SQLiteRecords: AdvanceModeStore {

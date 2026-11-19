@@ -60,13 +60,18 @@ type Step = Readonly<{
   screen: ScreenName;
   result: string;
   cause: string;
-  /** UserDO が出したスナップショットのサーバーの時刻（ミリ秒）と、何番目の変更までを含むか */
+  /**
+   * UserDO が出したスナップショットのサーバーの時刻（ミリ秒）と、何番目の変更までを含むかと、変更の番号。
+   * 変更の番号は行を変えるたびに進むので、モデルの `r` とは値が違う。`check.mjs` が大小の順だけを残す
+   */
   ms: number;
   v: number;
+  revision: number;
   /** 手のあとに画面が見せているもの */
   loading: string;
   shownMs: number;
   shownV: number;
+  shownRevision: number;
 }>;
 
 /**
@@ -113,9 +118,11 @@ const recorder = () => {
       cause: "",
       ms: 0,
       v: 0,
+      revision: 0,
       loading: screen?.loading.kind ?? "",
       shownMs: shown?.serverTime.getTime() ?? 0,
       shownV: shown === undefined ? 0 : versionOf(shown),
+      shownRevision: shown?.revision ?? 0,
       ...step,
     });
   };
@@ -143,6 +150,7 @@ const recorder = () => {
       cause: req.cause,
       ms: snapshot.serverTime.getTime(),
       v: versionOf(snapshot),
+      revision: snapshot.revision,
     });
     return { request: req, snapshot };
   };
@@ -182,6 +190,7 @@ const recorder = () => {
       result: "Ok",
       ms: snapshot.serverTime.getTime(),
       v: versionOf(snapshot),
+      revision: snapshot.revision,
     });
     return { kind: "Ok", snapshot };
   };
@@ -323,7 +332,7 @@ describe("同期のトレース（formal/session-sync で TLC に通す）", () 
     Object.assign(task.meta, { sessionSyncTrace: r.steps });
   });
 
-  test("別の画面の開始と同じミリ秒に処理された読み込みが同期メッセージより後に届くと、画面は開始の前に戻る", async ({
+  test("別の画面の開始と同じミリ秒に処理された読み込みが同期メッセージより後に届いても、変更の番号が古いので捨てられ、画面は開始の前に戻らない", async ({
     task,
   }) => {
     const r = recorder();
@@ -346,9 +355,15 @@ describe("同期のトレース（formal/session-sync で TLC に通す）", () 
     r.receiveLoad(s2, refreshed);
     r.receiveOp(s1, started);
 
+    // 読み込みと開始は同じサーバーの時刻だが、変更の番号は開始のほうが大きい（#51、ADR 0030）
+    if (started.kind !== "Ok") {
+      throw new Error("開始が断られた");
+    }
+    expect(refreshed.snapshot.serverTime).toEqual(started.snapshot.serverTime);
+    expect(refreshed.snapshot.revision).toBeLessThan(started.snapshot.revision);
     expect(afterSync).toBe(1);
-    // 巻き戻った（formal/session-sync の stall-rollback と同じ並び）
-    expect(shownVersion(s2)).toBe(0);
+    expect(shownVersion(s2)).toBe(1);
+    expect(shownVersion(s1)).toBe(1);
     Object.assign(task.meta, { sessionSyncTrace: r.steps });
   });
 

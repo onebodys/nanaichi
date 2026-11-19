@@ -8,14 +8,14 @@ description: 画面のセッションの同期（HTTP の応答と WebSocket の
 ## 何を守っているか
 
 UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期メッセージ（`SessionChanged`）の両方で画面に届く。届く順は入れ替わり、同じものが2回届き、WebSocket は切れて繋ぎ直す（ADR 0012）。
-画面は `SessionSnapshot.isOlder` でサーバーの時刻が古いスナップショットを捨て、繋がるたびに読み込み直す。
+画面は `SessionSnapshot.isOlder` で変更の番号（ADR 0030）が古いスナップショットを捨て、繋がるたびに読み込み直す。
 どの順で届いても画面が正しいかは届く順の組み合わせで決まり、テストでは代表的な順しか試せないので、TLA+ のモデルで全部の並びを調べる。
 
 | 性質（`SessionSync.tla`） | 一文で | 破れたときの害 |
 | --- | --- | --- |
 | `NoTimeRollback` | どの画面も、一度見せたスナップショットよりサーバーの時刻が前のものに戻らない | 新しい操作が古い状態で上書きされて見える |
 | `NoChangeRollback` | どの画面も、一度見せた変更より前の記録に戻らない | 同上（利用者から見た害そのもの） |
-| `SameTimeSameChange` | 同じサーバーの時刻のスナップショットは同じ変更である | `isOlder` の前提が崩れ、上の2つが破れうる |
+| `SameRevisionSameChange` | 同じ変更の番号のスナップショットは同じ変更である | `isOlder` の前提が崩れ、上の2つが破れうる |
 | `StaysLoaded` | 一度読み込めた画面は読み込めたまま | 上の2つを1歩ずつ比べてよい根拠がなくなる |
 | `EventuallyConverged` | 変更が止まれば、すべての画面はいつか最新のスナップショットにそろう | 画面が古いまま、次の変更か繋ぎ直しまで追いつかない |
 
@@ -25,11 +25,12 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 画面は、読み込めていない間に届いた同期メッセージのいちばん新しいものを待たせ、読み込めたときに読み込みの結果と比べる（#52 の直し。`snapshot-arrival.ts` の `HeldSync`、モデルの `held`）。
 操作の応答が届かなかった（`Unreachable`）ときも断られたときと同じく読み込み直し、読み込みが失敗したら間隔を空けてやり直す（#53 の直し。`use-session-timer.ts` の `send`・`load`、`load-retry.ts`、モデルの `ReceiveOp`・`retry`・`RetryLoad`）。HTTP の応答が失われても、活性は既定の手数で成り立つ（`liveness-losses`）。
 
-- **#51**: 同じミリ秒に処理された読み込みと別の変更で、画面が巻き戻る（`stall-rollback`、`stall-one-screen`）。Workers の時計は I/O まで進まないので、同時に届いた要求は同じミリ秒になりうる。`SameTimeSameChange` が破れ、`NoChangeRollback` も破れる
+スナップショットの新旧は、記録先が変更のたびに進める変更の番号で決める（#51 の直し、ADR 0030。モデルの `rev`・`r`）。Workers の時計は I/O まで進まないので、同時に届いた要求は同じミリ秒になりうるので、サーバーの時刻では新旧を決められない（`stall-same-time` で `SameTimeSameChange` が破れる）。番号で比べるので、時計が止まっても安全性は成り立つ（画面2つ・操作だけの `stall-rollback` と、画面1つ・記入ありの `stall-one-screen`。画面2つで記入もある組み合わせは状態が数億を超えて終わらないので調べていない）。直す前の比べ方（`IsOlderByTime`）では巻き戻る（`mutant-isolder-by-time*`）。
+
 - **#54**: 操作と重なった読み込みを捨てるので、その間に別の端末の変更があり同期メッセージを受け取れていないと、古いまま（`--deep` の `liveness`。書き込み 2 の手数で出る。既定の手数 1 では成り立つ）。通信が失われなくても起きる
 
-時計が要求ごとに進む（同じミリ秒に2つの要求がない）なら、安全性は通信が失われても成り立つ（`safety`、`safety-faults`）。
-画面が1つで操作だけなら、時計が止まっても巻き戻らない。`operation-overlap.ts` が効いている（`stall-one-screen-ops`）。
+安全性は通信が失われても成り立つ（`safety-faults`。時計は要求ごとに進む前提）。
+画面が1つで操作だけなら、時刻で比べても巻き戻らない。`operation-overlap.ts` が効いている（`stall-one-screen-ops`。直す前の比べ方で確かめる）。変更の番号で比べるいまは、巻き戻りを防ぐのに `operation-overlap.ts` は要らない（#54 で捨てるのをやめる）。
 
 これらを直したら、直し方をモデルに写し、`check.mjs` の期待（`expect`）を pass に変える。
 
@@ -44,7 +45,7 @@ UserDO が記録を変えるたびに、同じ変更が HTTP の応答と同期�
 - **時計**: 2つの見方で調べる。`ClockStalls = FALSE` は「UserDO が要求を処理するたびに時計が進む」。`ClockStalls = TRUE` は「時計は実時間で進み、同時に届いた要求は同じミリ秒に処理されうる。要求は送ってから 1ms 以上あとに届く」
 - **書き込み**: 開始・操作（`Operate`。断られることがある）と、記入・進め方の変更（`Write`。応答はスナップショットではなく、成功したら読み込み直す）
 - **通信**: HTTP の要求と応答はどの順でも届き、失われうる（画面には `Unreachable`）。WebSocket は1本の中では順に届き、切れると届いていないメッセージは失われる
-- **時刻と変更**: スナップショットは `[t, v]`。`t` はサーバーの時刻の大小だけを残した整数、`v` は何番目の変更までを含むか（実装にはない、検査のための値）
+- **時刻と変更**: スナップショットは `[t, v, r]`。`t` はサーバーの時刻の大小だけを残した整数、`v` は何番目の変更までを含むか（実装にはない、検査のための値）、`r` は実装の変更の番号（UserDO の `rev`）。壊した実装でなければ `r = v`。実装の番号は行を変えるたびに進むので値は違うが、大小の順は同じ
 
 ### 範囲の外
 
@@ -94,13 +95,14 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 
 ## 検査が効いていることの確かめ方
 
-性質ごとに、壊した実装（`Mutation`）で落ちることを確かめてある（同期したコミットの時点）。`check.mjs` が毎回走らせる。
+性質ごとに、壊した実装（`Mutations`）で落ちることを確かめてある（同期したコミットの時点）。`check.mjs` が毎回走らせる。
 
 | 壊し方 | 対応するコード | 落ちる性質 |
 | --- | --- | --- |
 | `IsOlderReversed`: `isOlder` の比較を逆にする | `domain/session.ts` の `SessionSnapshot.isOlder` | `NoTimeRollback` |
-| `ChangeKeepsClock`: 記録を変えても時計を進めない | `server/user-do.ts` の `#run`（`new Date()`） | `SameTimeSameChange` |
-| `NoOverlapCheck`: 操作と重なった読み込みも反映する | `client/snapshot-arrival.ts` の `applyLoaded`、`operation-overlap.ts` | `NoChangeRollback`（画面1つ、時計が止まる） |
+| `IsOlderByTime`: `isOlder` をサーバーの時刻だけで比べる（#51 を直す前） | `domain/session.ts` の `SessionSnapshot.isOlder` | `NoChangeRollback`（時計が止まる。画面2つ・操作だけでも、画面1つ・記入ありでも） |
+| `WriteKeepsRevision`: 記入などで変更の番号を進めない | `server/user-do-schema.ts` の `record_revision` のトリガー | `SameRevisionSameChange`、時計が止まると `NoChangeRollback` |
+| `NoOverlapCheck` と `IsOlderByTime`: 時刻で比べ、操作と重なった読み込みも反映する | `client/snapshot-arrival.ts` の `applyLoaded`、`operation-overlap.ts` | `NoChangeRollback`（画面1つ、時計が止まる） |
 | `NoRefreshOnConnect`: 繋がっても読み込み直さない | `client/use-sync.ts` の `onConnected` | `EventuallyConverged` |
 
 トレースの照合も、壊した実装で落ちることを確かめてある。`applySynced` が読み込み中のメッセージを待たせずに捨てるように戻すと（トレースのテストの最後の `expect` を外して）、`--trace` が3つ目のトレースの 11 手目（待たせたメッセージと比べるはずの `ReceiveLoad`）で `NG` になる。
@@ -121,6 +123,7 @@ TLC の結果は `/statechart` スキルで読む。破れた性質は、いち�
 対象:
 
 - `apps/web/src/domain/session.ts`: `SessionSnapshot.isOlder`、`Session.snapshot`
+- `apps/web/src/server/user-do-schema.ts`・`session-sqlite.ts`: `record_revision` とトリガー、`currentRevision`
 - `apps/web/src/client/snapshot-arrival.ts`: `applyReceived`・`applyLoaded`・`applyLoadFailed`・`applySynced`・`startReload`
 - `apps/web/src/client/use-session-timer.ts`: `load`・`send`・`reload`・`refresh`・`receive`（どれをいつ呼ぶか）
 - `apps/web/src/client/operation-overlap.ts`: `createOperationTracker`

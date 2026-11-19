@@ -18,7 +18,7 @@ public func mergeLatestPage(_ sessions: [TimelineSession], page: [TimelineSessio
 /// 同期メッセージがタイムラインに当てる変更。タイムラインに関わらないものは nil
 public func timelineChangeOf(_ message: SyncMessage) -> TimelineChange? {
     switch message {
-    case .sessionChanged(.session(_, let session, _)):
+    case .sessionChanged(.session(_, _, let session, _)):
         { Timeline.withCurrentSession($0, current: session) }
     case .journalEntrySaved(let entry): { Timeline.putEntry($0, entry) }
     case .journalEntryDeleted(let deleted): { Timeline.removeEntry($0, id: deleted.id) }

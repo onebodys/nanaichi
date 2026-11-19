@@ -132,8 +132,8 @@ public struct Session: Hashable, Sendable, Codable {
             advanceModeChanges: advanceModeChanges)
     }
 
-    public func snapshot(at now: Instant) -> SessionSnapshot {
-        .session(serverTime: now, session: self, state: stateAt(now))
+    public func snapshot(at now: Instant, revision: Revision) -> SessionSnapshot {
+        .session(serverTime: now, revision: revision, session: self, state: stateAt(now))
     }
 
     private func derive(_ events: SessionEvents, now: Instant) -> Result<TimerState, DeriveTimerStateError> {
@@ -149,26 +149,64 @@ public struct OperatedSession: Hashable, Sendable, Encodable {
     public let state: TimerState
 }
 
+/// 変更の番号（GLOSSARY）。記録先がセッションの記録を変えるたびに進み、減らない（ADR 0030）
+public struct Revision: Hashable, Comparable, Sendable, Codable {
+    public let rawValue: Int
+
+    /// 何も記録していない記録先の番号
+    public static let initial = Revision(validated: 0)
+
+    public init?(_ value: Int) {
+        guard value >= 0 else { return nil }
+        rawValue = value
+    }
+
+    private init(validated value: Int) { rawValue = value }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        guard let revision = Revision(try container.decode(Int.self)) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "変更の番号は 0 以上")
+        }
+        self = revision
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+
+    public static func < (lhs: Revision, rhs: Revision) -> Bool { lhs.rawValue < rhs.rawValue }
+}
+
 /// ある時刻のセッションの様子。API の応答にそのまま使う。
 ///
-/// クライアントは `session` から自分で状態を計算し直し、`serverTime` との差で端末の時計のずれを補正する（ADR 0003）
+/// クライアントは `session` から自分で状態を計算し直し、`serverTime` との差で端末の時計のずれを補正する（ADR 0003）。
+/// `revision` は作ったときの変更の番号で、届いたものの新旧を決める（`isOlder`、ADR 0030）
 public enum SessionSnapshot: Hashable, Sendable {
-    case noSession(serverTime: Instant)
-    case session(serverTime: Instant, session: Session, state: TimerState)
+    case noSession(serverTime: Instant, revision: Revision)
+    case session(serverTime: Instant, revision: Revision, session: Session, state: TimerState)
 
     public var serverTime: Instant {
         switch self {
-        case .noSession(let serverTime), .session(let serverTime, _, _): serverTime
+        case .noSession(let serverTime, _), .session(let serverTime, _, _, _): serverTime
+        }
+    }
+
+    public var revision: Revision {
+        switch self {
+        case .noSession(_, let revision), .session(_, let revision, _, _): revision
         }
     }
 
     /// 届いたスナップショットが、手元のスナップショット `current` より古いか。
     ///
     /// 同じ変更が HTTP の応答と同期メッセージの両方で届き、順序が入れ替わることがある（ADR 0012）。
-    /// サーバーの時刻が古いものは、それより後の変更を巻き戻してしまうので捨てる。
-    /// 同じ時刻なら同じ変更なので、古いとはみなさない
+    /// 変更の番号が小さいものは、それより後の変更を巻き戻してしまうので捨てる（ADR 0030）。
+    /// サーバーの時刻では決めない。同時に届いた要求は同じミリ秒に処理されうるので、変更の前と後で
+    /// 同じ時刻になることがある。同じ番号なら同じ記録から作ったものなので、サーバーの時刻が前のものだけを古いとみなす
     public func isOlder(than current: SessionSnapshot) -> Bool {
-        serverTime < current.serverTime
+        (revision, serverTime) < (current.revision, current.serverTime)
     }
 }
 
@@ -181,23 +219,29 @@ extension SessionSnapshot: Codable {
     public init(from decoder: any Decoder) throws {
         let fields = try decoder.fields()
         let serverTime = try fields.decode(Instant.self, forKey: "serverTime")
+        let revision = try fields.decode(Revision.self, forKey: "revision")
         switch try decoder.kind(Kind.self) {
         case .noSession:
-            self = .noSession(serverTime: serverTime)
+            self = .noSession(serverTime: serverTime, revision: revision)
         case .session:
             self = .session(
-                serverTime: serverTime, session: try fields.decode(Session.self, forKey: "session"),
+                serverTime: serverTime, revision: revision,
+                session: try fields.decode(Session.self, forKey: "session"),
                 state: try fields.decode(TimerState.self, forKey: "state"))
         }
     }
 
     public func encode(to encoder: any Encoder) throws {
         switch self {
-        case .noSession(let serverTime):
-            try encoder.encode(kind: Kind.noSession) { try $0.encode(serverTime, forKey: "serverTime") }
-        case .session(let serverTime, let session, let state):
+        case .noSession(let serverTime, let revision):
+            try encoder.encode(kind: Kind.noSession) {
+                try $0.encode(serverTime, forKey: "serverTime")
+                try $0.encode(revision, forKey: "revision")
+            }
+        case .session(let serverTime, let revision, let session, let state):
             try encoder.encode(kind: Kind.session) {
                 try $0.encode(serverTime, forKey: "serverTime")
+                try $0.encode(revision, forKey: "revision")
                 try $0.encode(session, forKey: "session")
                 try $0.encode(state, forKey: "state")
             }
@@ -218,4 +262,7 @@ public protocol SessionStore {
     func appendSessionOperation(_ sessionId: SessionId, _ operation: RecordedSessionEvent<SessionOperation>) throws
     /// セッションを閉じる。閉じたセッションは閉じ直さない
     func closeSession(_ sessionId: SessionId, _ ended: TimerState.Ended) throws
+    /// 記録の今の変更の番号（TS の `CurrentRevision`）。セッション・操作イベント・記入・進め方の変更を書くたびに進む。
+    /// 書いたあとに読めば書いたあとの番号が返る（ADR 0030）
+    func currentRevision() throws -> Revision
 }

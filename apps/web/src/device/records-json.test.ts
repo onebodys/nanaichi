@@ -39,7 +39,11 @@ const reload = (records: DeviceRecords): DeviceRecords => {
   return decoded.value;
 };
 
-const fresh = (): Draft => ({ base: DeviceRecords.empty, current: DeviceRecords.empty });
+const fresh = (): Draft => ({
+  base: DeviceRecords.empty,
+  current: DeviceRecords.empty,
+  revision: 0,
+});
 
 describe("保存の形", () => {
   test("記入の本文は伏せ字にならずに保存され、読み込み直すと同じ記録に戻る", () => {
@@ -54,7 +58,9 @@ describe("保存の形", () => {
     expect(sessions.join("")).toContain("今日は読書をした");
 
     const reloaded = reload(draft.current);
-    const found = recordsDeps({ base: reloaded, current: reloaded }).findJournalEntry(id);
+    const found = recordsDeps({ base: reloaded, current: reloaded, revision: 0 }).findJournalEntry(
+      id,
+    );
     expect(found?.kind === "Written" && found.entry.body.unwrap()).toBe("今日は読書をした");
     expect(encode(reloaded)).toEqual(encode(draft.current));
   });
@@ -68,7 +74,7 @@ describe("保存の形", () => {
     writeJournalEntry(deps)({ id, body: "書いて消す" }, at(30));
     deleteJournalEntry(deps)(id, at(31));
 
-    const reloaded = { base: reload(draft.current), current: reload(draft.current) };
+    const reloaded = { base: reload(draft.current), current: reload(draft.current), revision: 0 };
     const reloadedDeps = recordsDeps(reloaded);
     expect(JSON.stringify(encode(reloaded.current))).not.toContain("書いて消す");
     expect(getCurrentSession(reloadedDeps)(at(87)).kind).toBe("Session");
@@ -160,12 +166,12 @@ const measure = <T>(work: () => T): Readonly<{ ms: number; value: T }> => {
 describe("3年分の記録", () => {
   test("記入を1件書いたときに保存し直すのは、書いたセッションと進め方の1件だけで済む", () => {
     const records = syntheticRecords();
-    const draft: Draft = { base: records, current: records };
+    const draft: Draft = { base: records, current: records, revision: 0 };
     const deps = recordsDeps(draft);
     const started = startSession(deps)({ id: crypto.randomUUID() }, at(0), newSessionId());
     expect(Result.isSuccess(started)).toBe(true);
     const loaded = draft.current;
-    const commit: Draft = { base: loaded, current: loaded };
+    const commit: Draft = { base: loaded, current: loaded, revision: 0 };
     const commitDeps = recordsDeps(commit);
 
     const workflow = measure(() =>

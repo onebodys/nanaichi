@@ -81,6 +81,42 @@ enum DeviceSchema {
                     CREATE INDEX advance_mode_changes_by_time ON advance_mode_changes (changed_at);
                     """)
         }
+        // 変更の番号（GLOSSARY、ADR 0030）。UserDO（user-do-schema.ts）と同じく、スナップショットに入る記録の
+        // 行を変えるたびにトリガーで進める。取り込みでは写さない（アカウントにはアカウントの番号がある）
+        migrator.registerMigration("v2") { db in
+            try db.execute(
+                sql: """
+                    CREATE TABLE record_revision (
+                      id INTEGER PRIMARY KEY CHECK (id = 1),
+                      value INTEGER NOT NULL CHECK (value >= 0)
+                    );
+                    INSERT INTO record_revision (id, value) VALUES (1, 0);
+                    CREATE TRIGGER revision_after_insert_sessions AFTER INSERT ON sessions
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_update_sessions AFTER UPDATE ON sessions
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_delete_sessions AFTER DELETE ON sessions
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_insert_session_events AFTER INSERT ON session_events
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_update_session_events AFTER UPDATE ON session_events
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_delete_session_events AFTER DELETE ON session_events
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_insert_journal_entries AFTER INSERT ON journal_entries
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_update_journal_entries AFTER UPDATE ON journal_entries
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_delete_journal_entries AFTER DELETE ON journal_entries
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_insert_advance_mode_changes AFTER INSERT ON advance_mode_changes
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_update_advance_mode_changes AFTER UPDATE ON advance_mode_changes
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    CREATE TRIGGER revision_after_delete_advance_mode_changes AFTER DELETE ON advance_mode_changes
+                      BEGIN UPDATE record_revision SET value = value + 1; END;
+                    """)
+        }
         return migrator
     }
 }
