@@ -27,27 +27,49 @@ const chooseSubmitKey = async (screen: Screen, label: RegExp) => {
   await screen.getByRole("option", { name: label }).tap();
 };
 
+/** 日付の区切りの見出し。新しい順に並ぶので、最初のものが今日 */
+const dayHeadings = (screen: Screen) => screen.getByRole("heading", { name: /完了/, level: 3 });
+
 /**
- * 今日の日付の区切りに `expected` の完了セット数が出るまで、タイムラインの続きを読み込む。
+ * 今日の日付の区切りの数が確定するまで、タイムラインの続きを読み込む。
  *
- * 1日に1ページ分（10件）より多くのセッションがあると、今日の区切りの数はタイムラインだけでは確定せず、
+ * 1日に1ページ分（10件）より多くのセッションがあると、今日を読み終えるまでは、今日の区切りに
  * サーバーが数えたスタッツの今日の数を出す（ADR 0011、0014）。このテストはページの時計だけを進めるので、
- * サーバーは集中を終えたことを知らず、その数は合わない。ローカルの記録は実行のあいだで残り、今日のセッションは
- * 実行のたびに増えるので、何度走らせても確かめられるよう、タイムラインが今日の分を読み終えるまで続きを読み込む。
+ * サーバーは集中を終えたことを知らず、その数は合わない。セッションは新しい順に読み込まれるので、
+ * 昨日より前の区切りが出るか、続きがなくなれば、今日の分は読み終えていて、数はタイムラインから数えたものになる。
  */
-const loadUntilTodayShows = async (screen: Screen, expected: RegExp) => {
-  // 日付の区切りの見出しは新しい順に並ぶので、最初のものが今日
-  const today = screen.getByRole("heading", { name: /完了/, level: 3 }).first();
+const loadAllOfToday = async (screen: Screen) => {
   const more = screen.getByRole("button", { name: "さらに読み込む" });
-  // 続きはボタンが画面に入ると自動でも読み込まれるので、読み込み中なら終わるのを待ってから見出しを読む
-  const loaded = () => expect(screen.getByRole("button", { name: "読み込み中…" })).toBeHidden();
-  await expect(today).toBeVisible();
-  await loaded();
-  while (!expected.test((await today.textContent()) ?? "") && (await more.isVisible())) {
-    await more.tap();
-    await loaded();
+  const loading = screen.getByRole("button", { name: "読み込み中…" });
+  await expect(dayHeadings(screen).first()).toBeVisible();
+  for (;;) {
+    await expect(loading).toBeHidden();
+    if ((await dayHeadings(screen).count()) > 1 || !(await more.isVisible())) {
+      return;
+    }
+    // 続きはボタンが画面に入ると自動でも読み込まれる。押そうとして画面に入れると自動の読み込みが先に始まり、
+    // ボタンが「読み込み中…」に変わって押せないことがあるが、そのときも続きは読み込まれるので、待って見直す
+    await more.tap({ timeout: 2000 }).catch(() => undefined);
   }
-  await expect(today).toHaveText(expected);
+};
+
+const COMPLETED_SETS = /完了 (\d+)セット/;
+
+/** 今日の日付の区切りに出ている完了セット数。今日の分を読み終えてから読む */
+const completedSetsToday = async (screen: Screen): Promise<number> => {
+  await loadAllOfToday(screen);
+  const match = COMPLETED_SETS.exec((await dayHeadings(screen).first().textContent()) ?? "");
+  if (match === null) {
+    throw new Error("今日の日付の区切りに完了セット数が出ていない");
+  }
+  return Number(match[1]);
+};
+
+/** 日付の区切りの文言。集中時間は完了セット1つにつき7分（`完了 10セット · 集中 1時間10分`） */
+const completedSetsText = (sets: number): string => {
+  const minutes = sets * 7;
+  const hours = Math.floor(minutes / 60);
+  return `完了 ${sets}セット · 集中 ${hours === 0 ? "" : `${hours}時間`}${minutes % 60}分`;
 };
 
 // どのテストも同じユーザーのセッションを使うので、並べて走らせない
@@ -149,6 +171,9 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: START_BUTTON }).tap();
     await expect(screen.getByRole("heading", { name: "集中" })).toBeVisible();
+    // ローカルの D1 は実行のあいだで残り、途中で止まった実行のセッションが走り続けて完了セットになっていることもある。
+    // 今日の数は前の実行によるので、始めたときの数から1セット増えることを確かめる（docs/E2E.md）
+    const before = await completedSetsToday(screen);
     // 集中中は入力欄からカーソルを外しておく
     await screen.getByRole("button", { name: "一時停止" }).focus();
 
@@ -156,7 +181,10 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
 
     await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
     await expect(screen.getByLabel("ジャーナル記入の本文")).toBeFocused();
-    await loadUntilTodayShows(screen, /完了 1セット · 集中 7分$/);
+    await loadAllOfToday(screen);
+    await expect(dayHeadings(screen).first()).toHaveText(
+      new RegExp(`${completedSetsText(before + 1)}$`),
+    );
 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
