@@ -32,7 +32,7 @@ const TLA_URL = `https://github.com/tlaplus/tlaplus/releases/download/v${TLA_VER
 const SAFETY = ["StaysLoaded", "NoTimeRollback", "NoChangeRollback", "SameRevisionSameChange"];
 
 // 既定の手数は、push のたびに走らせても困らない長さ（全部で2分ほど）に抑える。
-// --deep は対象のコードを変えたときに走らせる（45分ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約10分）
+// --deep は対象のコードを変えたときに走らせる（70分ほど。安全性の書き込み 3 が約30分、活性の書き込み 2 が約35分）
 const bounds = (deep) =>
   deep
     ? {
@@ -50,7 +50,6 @@ const bounds = (deep) =>
 /**
  * 検査の一覧。`expect` は通る（"pass"）か、どの性質が破れるか。
  * 壊した実装（Mutations）は、その性質が本当に落ちうることを示すためのもの。
- * 直し方の候補（Fixes）は実装にはまだない。見つかった問題がそれで消えることを示すためのもの。
  */
 const checks = (deep) => {
   const b = bounds(deep);
@@ -68,15 +67,13 @@ const checks = (deep) => {
     symmetry: false,
     expect,
   });
-  const advancing = { WithWrites: "TRUE", ClockStalls: "FALSE", Mutations: "{}", Fixes: "{}" };
+  const advancing = { WithWrites: "TRUE", ClockStalls: "FALSE", Mutations: "{}" };
   const stalling = {
     WithWrites: "TRUE",
     ClockStalls: "TRUE",
     MaxClock: deep ? 8 : 6,
     Mutations: "{}",
-    Fixes: "{}",
   };
-  const held = { ...advancing, Fixes: '{"HoldSyncWhileLoading"}' };
   return [
     // 時計が要求ごとに進むなら（同じミリ秒に2つの要求がない）、安全性はどれも成り立つ
     safety("safety", advancing, "pass"),
@@ -91,17 +88,12 @@ const checks = (deep) => {
     // 画面が1つで、記入と重なった読み込みでも巻き戻らない（#51 の画面1つの並び）
     safety("stall-one-screen", { ...stalling, Screens: "{s1}" }, "pass"),
 
-    // 活性は実装のままでは成り立たない（通信が失われなくても）
-    liveness("liveness", advancing, "EventuallyConverged"),
-    // 読み込み中に届いた同期メッセージを待たせれば成り立つ（WebSocket が切れても）。
+    // 読み込み中に届いた同期メッセージを待たせるので成り立つ（WebSocket が切れても、#52）。
     // 操作と重なった読み込みも変更の番号で比べるので、書き込み 2（--deep）でも成り立つ（#54）
-    liveness("liveness-hold-sync", held, "pass"),
-    // HTTP の応答が失われると、待たせても成り立たない
-    liveness(
-      "liveness-hold-sync-losses",
-      { ...held, MaxLosses: 1, MaxDisconnects: 0 },
-      "EventuallyConverged",
-    ),
+    liveness("liveness", advancing, "pass"),
+    // HTTP の応答が失われても成り立つ。届かなかった操作のあとに読み込み直し、失敗した読み込みは
+    // 間隔を空けてやり直すため（#53）
+    liveness("liveness-losses", { ...advancing, MaxLosses: 1, MaxDisconnects: 0 }, "pass"),
 
     // 壊した実装で落ちる
     safety(
@@ -138,7 +130,7 @@ const checks = (deep) => {
     ),
     liveness(
       "mutant-no-refresh-on-connect",
-      { ...held, Mutations: '{"NoRefreshOnConnect"}' },
+      { ...advancing, Mutations: '{"NoRefreshOnConnect"}' },
       "EventuallyConverged",
     ),
   ];
@@ -372,7 +364,6 @@ const checkTraces = (java, jar, workDir) => {
         `  MaxClock = ${trace.maxClock}`,
         "  ClockStalls = TRUE",
         "  Mutations = {}",
-        "  Fixes = {}",
         "INIT TraceInit",
         "NEXT TraceNext",
         `INVARIANT ${invariant}`,

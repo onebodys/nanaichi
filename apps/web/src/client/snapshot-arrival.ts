@@ -12,30 +12,94 @@ import { SessionSnapshot } from "../domain/session.ts";
 /** 受け取ったスナップショットと、そのときに測った時計のずれ */
 export type Received = Readonly<{ snapshot: SessionSnapshot; offset: ClockOffset }>;
 
+/**
+ * 読み込めていない間に届いた同期メッセージのうち、いちばん新しいもの。
+ * 時計のずれを測れていないので見せられず、読み込めたときに読み込みの結果と比べて反映する（Issue #52）
+ */
+type HeldSync =
+  | Readonly<{ kind: "NothingHeld" }>
+  | Readonly<{ kind: "Held"; snapshot: SessionSnapshot }>;
+
 export type Loading =
-  | Readonly<{ kind: "Loading" }>
-  | Readonly<{ kind: "LoadFailed" }>
+  | Readonly<{ kind: "Loading"; held: HeldSync }>
+  | Readonly<{ kind: "LoadFailed"; held: HeldSync }>
   | Readonly<{ kind: "Loaded"; received: Received }>;
+
+const nothingHeld: HeldSync = { kind: "NothingHeld" };
+
+/** 画面を開いたときの状態 */
+export const initialLoading: Loading = { kind: "Loading", held: nothingHeld };
+
+/** 「読み込み直す」。待たせている同期メッセージは、読み込み直しの結果と比べるために残す */
+export const startReload = (current: Loading): Loading => {
+  switch (current.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: "Loading", held: current.held };
+    case "Loaded":
+      return initialLoading;
+  }
+};
+
+/** 待たせていた同期メッセージのほうが新しければ、そちらを見せる。時計のずれは読み込みで測ったもの */
+const releaseHeld = (received: Received, held: HeldSync): Received => {
+  switch (held.kind) {
+    case "NothingHeld":
+      return received;
+    case "Held":
+      return SessionSnapshot.isOlder(held.snapshot, received.snapshot)
+        ? received
+        : { snapshot: held.snapshot, offset: received.offset };
+  }
+};
 
 /**
  * 届いたスナップショット（操作の応答、読み込みの応答）を反映する。手元より古いものは捨てる。
  * 自分の操作と重なった読み込みも同じく変更の番号で比べる（ADR 0030）。捨てると、その間の別の端末の
  * 変更を同期メッセージで受け取れていなかったときに、画面が古いまま残る（Issue #54）
  */
-export const applyReceived = (current: Loading, received: Received): Loading =>
-  current.kind === "Loaded" && SessionSnapshot.isOlder(received.snapshot, current.received.snapshot)
-    ? current
-    : { kind: "Loaded", received };
+export const applyReceived = (current: Loading, received: Received): Loading => {
+  switch (current.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: "Loaded", received: releaseHeld(received, current.held) };
+    case "Loaded":
+      return SessionSnapshot.isOlder(received.snapshot, current.received.snapshot)
+        ? current
+        : { kind: "Loaded", received };
+  }
+};
 
 /** 読み込みに失敗した。読み込めていれば手元のまま */
-export const applyLoadFailed = (current: Loading): Loading =>
-  current.kind === "Loaded" ? current : { kind: "LoadFailed" };
+export const applyLoadFailed = (current: Loading): Loading => {
+  switch (current.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: "LoadFailed", held: current.held };
+    case "Loaded":
+      return current;
+  }
+};
 
 /**
  * 同期メッセージで届いたスナップショットを反映する。送った時刻がわからないので時計のずれは測り直さず、
- * 直前に測ったものを使う。まだ読み込めていなければ捨てる（読み込みの結果を待つ）
+ * 直前に測ったものを使う。まだ読み込めていなければ、読み込めるまで待たせる
  */
-export const applySynced = (current: Loading, snapshot: SessionSnapshot): Loading =>
-  current.kind === "Loaded"
-    ? applyReceived(current, { snapshot, offset: current.received.offset })
-    : current;
+export const applySynced = (current: Loading, snapshot: SessionSnapshot): Loading => {
+  switch (current.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: current.kind, held: holdSynced(current.held, snapshot) };
+    case "Loaded":
+      return applyReceived(current, { snapshot, offset: current.received.offset });
+  }
+};
+
+const holdSynced = (held: HeldSync, snapshot: SessionSnapshot): HeldSync => {
+  switch (held.kind) {
+    case "NothingHeld":
+      return { kind: "Held", snapshot };
+    case "Held":
+      return SessionSnapshot.isOlder(snapshot, held.snapshot) ? held : { kind: "Held", snapshot };
+  }
+};

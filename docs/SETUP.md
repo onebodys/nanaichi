@@ -105,6 +105,15 @@ NANAICHI_REMOTE_AI=enabled pnpm dev
 Setup Script が、worktree を作るときに元のチェックアウトの `apps/web/.env` を worktree の
 `apps/web/.dev.vars` にコピーする（あわせて `vp install` と `vp hooks enable` も走らせる）。
 
+- Git のフックは worktree ごとに、その worktree の `node_modules` の `vp` で動かす。`core.hooksPath` は
+  worktree の間で共有される設定なので、Setup Script は `git config --worktree core.hooksPath` で
+  その worktree だけの値（`<worktree>/.vite-hooks/_`）を置いてから `vp hooks enable` で振り分けを作る。
+  共有の値は `vp hooks enable` が書く相対パス（`.vite-hooks/_`）のままにし、メインのチェックアウトは
+  自分の `.vite-hooks/_` を使う。worktree を消しても、メインのフックはそのまま効く。
+- `vp hooks status` で `core.hooksPath` がその worktree のパスを指し、`Dispatcher: installed` なら正しい。
+  `Dispatcher: missing` なら、フックがメインのチェックアウトの `vp` で動いて workers のテストが
+  落ちる（Issue #23）。Setup Script の初めの2行と `vp hooks enable` をその worktree で走らせ直す。
+
 - 元のチェックアウトに `apps/web/.env` を置いておく（中身は `.dev.vars.example` と同じ形）。
   1Password Environments でマウントしたファイル（名前付きパイプ）でもよい。1Password Environments が
   `.env` という名前にしか対応していないため、元では `.env`、worktree では `.dev.vars` という名前にしている。

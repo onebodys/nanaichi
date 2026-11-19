@@ -9,13 +9,16 @@ import type { Ended, TimerState } from "../domain/timer-state.ts";
 import type { BackendError } from "../domain/backend.ts";
 import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
+import { createLoadRetry } from "./load-retry.ts";
 import type { PhaseAlert } from "./phase-alert.ts";
 import {
   applyLoadFailed,
   applyReceived,
   applySynced,
+  initialLoading,
   type Loading,
   type Received,
+  startReload,
 } from "./snapshot-arrival.ts";
 import { startTicker } from "./ticker.ts";
 
@@ -43,10 +46,16 @@ export type TimerView =
  * （ADR 0003）。状態とできる操作の判断はドメインの関数に任せる。
  */
 const timerViewOf = (loading: Loading, deviceNow: Date): TimerView => {
-  if (loading.kind !== "Loaded") {
-    return loading;
+  switch (loading.kind) {
+    case "Loading":
+    case "LoadFailed":
+      return { kind: loading.kind };
+    case "Loaded":
+      return timerViewOfReceived(loading.received, deviceNow);
   }
-  const { snapshot, offset } = loading.received;
+};
+
+const timerViewOfReceived = ({ snapshot, offset }: Received, deviceNow: Date): TimerView => {
   if (snapshot.kind === "NoSession") {
     return { kind: "NoSession" };
   }
@@ -65,8 +74,9 @@ const timerViewOf = (loading: Loading, deviceNow: Date): TimerView => {
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
 const messageOf = (error: BackendError): string => {
   switch (error.kind) {
+    // 届かなかっただけで、UserDO は処理を終えているかもしれない。読み込み直した画面を見てから操作してもらう
     case "Unreachable":
-      return "通信できませんでした。もう一度お試しください。";
+      return "通信できませんでした。最新の状態を読み込み直します。";
     case "StorageFailed":
       return storageFailedMessageOf(error);
     case "Rejected":
@@ -127,26 +137,36 @@ export const useSessionTimer = (
   refresh: () => void;
   /**
    * 同期メッセージで届いたスナップショットに置き換える（ADR 0012）。送った時刻がわからないので
-   * 時計のずれは測り直さず、直前に測ったものを使う。まだ読み込めていなければ、読み込みの結果を待つ
+   * 時計のずれは測り直さず、直前に測ったものを使う。まだ読み込めていなければ、読み込めるまで待たせる
    */
   receive: (snapshot: SessionSnapshot) => void;
 }> => {
   const backend = useBackend();
-  const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
+  const [loading, setLoading] = useState<Loading>(initialLoading);
   const [deviceNow, setDeviceNow] = useState(readDeviceClock);
   const [pending, setPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+  const [retry] = useState(createLoadRetry);
 
-  const load = useCallback(() => {
-    return receive(backend.getCurrentSession).then((result) => {
-      if (Result.isSuccess(result)) {
-        const received = result.value;
-        setLoading((current) => applyReceived(current, received));
-        return;
-      }
-      setLoading(applyLoadFailed);
-    });
-  }, [backend]);
+  const load = useCallback((): Promise<void> => {
+    const loadOnce = (): Promise<void> => {
+      return receive(backend.getCurrentSession).then((result) => {
+        if (Result.isSuccess(result)) {
+          retry.succeeded();
+          const received = result.value;
+          setLoading((current) => applyReceived(current, received));
+          return;
+        }
+        setLoading(applyLoadFailed);
+        // 読み込めている画面は手元のまま見せるので、失敗に気づけない。読み込めていない画面も、古い読み込みが
+        // 後から届くと「読み込み直す」が出ない。どちらも間隔を空けて読み込み直す（load-retry.ts、Issue #53）
+        retry.failed(() => void loadOnce());
+      });
+    };
+    return loadOnce();
+  }, [backend, retry]);
+
+  useEffect(() => () => retry.stop(), [retry]);
 
   useEffect(() => {
     void load();
@@ -201,10 +221,9 @@ export const useSessionTimer = (
       setLoading((current) => applyReceived(current, received));
     } else {
       setErrorMessage(messageOf(result.error));
-      // 別のタブで操作したなどで食い違っているかもしれないので、今の状態を読み込み直す
-      if (result.error.kind !== "Unreachable") {
-        await load();
-      }
+      // 別のタブで操作したなどで食い違っているかもしれないので、今の状態を読み込み直す。
+      // 届かなかった（Unreachable）ときも、UserDO は処理を終えているかもしれない（Issue #53）
+      await load();
     }
     setPending(false);
   };
@@ -228,7 +247,7 @@ export const useSessionTimer = (
       void send(() => backend.operateSession(id, kind));
     },
     reload: () => {
-      setLoading({ kind: "Loading" });
+      setLoading(startReload);
       void load();
     },
     refresh: () => {
