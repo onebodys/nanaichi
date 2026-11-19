@@ -87,17 +87,10 @@ const checks = (deep) => {
     safety("stall-rollback", { ...stalling, WithWrites: "FALSE" }, "pass"),
     // 画面が1つで、記入と重なった読み込みでも巻き戻らない（#51 の画面1つの並び）
     safety("stall-one-screen", { ...stalling, Screens: "{s1}" }, "pass"),
-    // 画面が1つで操作だけなら、時刻で比べても巻き戻らない（operation-overlap.ts が重なった読み込みを捨てる）
-    safety(
-      "stall-one-screen-ops",
-      { ...stalling, Screens: "{s1}", WithWrites: "FALSE", Mutations: '{"IsOlderByTime"}' },
-      "pass",
-      ["NoTimeRollback", "NoChangeRollback"],
-    ),
 
-    // 読み込み中に届いた同期メッセージを待たせるので、書き込み 1 までは成り立つ（WebSocket が切れても、#52）。
-    // 書き込み 2 では、操作と重なった読み込みを捨てるために成り立たない（#54）
-    liveness("liveness", advancing, deep ? "EventuallyConverged" : "pass"),
+    // 読み込み中に届いた同期メッセージを待たせるので成り立つ（WebSocket が切れても、#52）。
+    // 操作と重なった読み込みも変更の番号で比べるので、書き込み 2（--deep）でも成り立つ（#54）
+    liveness("liveness", advancing, "pass"),
     // HTTP の応答が失われても成り立つ。届かなかった操作のあとに読み込み直し、失敗した読み込みは
     // 間隔を空けてやり直すため（#53）
     liveness("liveness-losses", { ...advancing, MaxLosses: 1, MaxDisconnects: 0 }, "pass"),
@@ -115,7 +108,7 @@ const checks = (deep) => {
       "NoChangeRollback",
       ["NoTimeRollback", "NoChangeRollback"],
     ),
-    // 画面が1つでも、記入と重なった読み込みで巻き戻る（operation-overlap.ts は操作しか数えない）
+    // 画面が1つでも、自分の操作や記入と同じミリ秒に処理された読み込みで巻き戻る
     safety(
       "mutant-isolder-by-time-one-screen",
       { ...stalling, Screens: "{s1}", Mutations: '{"IsOlderByTime"}' },
@@ -132,18 +125,6 @@ const checks = (deep) => {
     safety(
       "mutant-write-keeps-revision-stall",
       { ...stalling, Screens: "{s1}", Mutations: '{"WriteKeepsRevision"}' },
-      "NoChangeRollback",
-      ["NoTimeRollback", "NoChangeRollback"],
-    ),
-    // 時刻で比べ、操作と重なった読み込みも反映すると巻き戻る（番号で比べるいまは operation-overlap.ts に頼らない）
-    safety(
-      "mutant-no-overlap-check",
-      {
-        ...stalling,
-        Screens: "{s1}",
-        WithWrites: "FALSE",
-        Mutations: '{"IsOlderByTime", "NoOverlapCheck"}',
-      },
       "NoChangeRollback",
       ["NoTimeRollback", "NoChangeRollback"],
     ),

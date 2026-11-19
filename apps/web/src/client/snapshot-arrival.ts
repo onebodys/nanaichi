@@ -53,7 +53,11 @@ const releaseHeld = (received: Received, held: HeldSync): Received => {
   }
 };
 
-/** 届いたスナップショットを反映する。手元より古いものは捨てる */
+/**
+ * 届いたスナップショット（操作の応答、読み込みの応答）を反映する。手元より古いものは捨てる。
+ * 自分の操作と重なった読み込みも同じく変更の番号で比べる（ADR 0030）。捨てると、その間の別の端末の
+ * 変更を同期メッセージで受け取れていなかったときに、画面が古いまま残る（Issue #54）
+ */
 export const applyReceived = (current: Loading, received: Received): Loading => {
   switch (current.kind) {
     case "Loading":
@@ -65,13 +69,6 @@ export const applyReceived = (current: Loading, received: Received): Loading => 
         : { kind: "Loaded", received };
   }
 };
-
-/**
- * 読み込み（`GET /api/session/current`）の応答を反映する。
- * 自分の操作と重なった読み込みは、操作の応答より古いかもしれないので、読み込めているなら捨てる（operation-overlap.ts）
- */
-export const applyLoaded = (current: Loading, received: Received, overlapped: boolean): Loading =>
-  overlapped && current.kind === "Loaded" ? current : applyReceived(current, received);
 
 /** 読み込みに失敗した。読み込めていれば手元のまま */
 export const applyLoadFailed = (current: Loading): Loading => {
