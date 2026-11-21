@@ -119,7 +119,7 @@ struct JournalInput: View {
 private func newEntryId() -> JournalEntryId { JournalEntryId(UUID().uuidString.lowercased())! }
 
 /// 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。
-/// セッションの外では送り直せないが、本文は選んでコピーできる
+/// セッションの外では送り直すことも入力欄に戻すこともできないが、本文は選んでコピーできる
 private struct UnsentEntries: View {
     let entries: [UnsentEntry]
     let inSession: Bool
@@ -133,7 +133,7 @@ private struct UnsentEntries: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.red)
             if !inSession {
-                Text("セッションの外では送り直せません。本文は選んでコピーできます。")
+                Text("セッションの外では送り直すことも入力欄に戻すこともできません。本文は選んでコピーできます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -171,8 +171,9 @@ private struct UnsentEntries: View {
                 Button("捨てる") { onDiscard(submission.id) }
                     .disabled(resending)
                     .accessibilityIdentifier("journal.unsent.discard")
+                // セッションの外では入力欄を使えず、戻すと本文を選んでコピーできなくなるので、帯に残す
                 Button("入力欄に戻す") { onReturnToInput(submission.id) }
-                    .disabled(resending)
+                    .disabled(!inSession || resending)
                     .accessibilityIdentifier("journal.unsent.returnToInput")
                 Button(resending ? "送り直し中…" : "送り直す") { onResend(submission.id) }
                     .buttonStyle(.borderedProminent)

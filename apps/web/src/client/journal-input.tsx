@@ -201,7 +201,7 @@ export const JournalInput = ({
 
 /**
  * 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。
- * セッションの外では送り直せないが、本文は選んでコピーできる
+ * セッションの外では送り直すことも入力欄に戻すこともできないが、本文は選んでコピーできる
  */
 const UnsentEntries = ({
   entries,
@@ -223,7 +223,7 @@ const UnsentEntries = ({
     <h2 className="text-xs font-medium text-destructive">送れなかった記入</h2>
     {!inSession && (
       <p className="text-xs text-muted-foreground">
-        セッションの外では送り直せません。本文は選んでコピーできます。
+        セッションの外では送り直すことも入力欄に戻すこともできません。本文は選んでコピーできます。
       </p>
     )}
     <ul className="flex flex-col gap-2">
@@ -252,7 +252,8 @@ const UnsentEntries = ({
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={resending}
+                // セッションの外では入力欄を使えず、戻すと本文を選んでコピーできなくなるので、帯に残す
+                disabled={!inSession || resending}
                 onClick={() => onReturnToInput(id)}
               >
                 入力欄に戻す

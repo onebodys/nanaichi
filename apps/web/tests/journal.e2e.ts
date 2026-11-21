@@ -259,17 +259,22 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await expect(entries).toHaveCount(1);
     await expect(entries.first()).toContainText("送れない記入A");
 
-    // セッションが終わると送り直せないが、本文は帯に残る
+    // セッションが終わると送り直すことも入力欄に戻すこともできないが、本文は帯に残る
     await screen.getByRole("button", { name: "終了" }).tap();
     await expect(input).toBeDisabled();
     await expect(unsent.first().getByRole("button", { name: "送り直す" })).toBeDisabled();
+    await expect(unsent.first().getByRole("button", { name: "入力欄に戻す" })).toBeDisabled();
     await expect(unsent.first()).toContainText("書き足したB");
 
-    // B を入力欄に戻すと、書き足した C の前に改行をはさんでつながり、帯が消える
+    // 次のセッションで B を入力欄に戻すと、書き足した C の前に改行をはさんでつながり、帯が消える
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    await expect(input).toBeEnabled();
     await unsent.first().getByRole("button", { name: "入力欄に戻す" }).tap();
     await expect(input).toHaveValue("書き足したB\n書き足したC");
     await expect(band).toBeHidden();
     await browser.unroute(/\/api\/journal-entries$/);
+    await input.fill("");
+    await screen.getByRole("button", { name: "終了" }).tap();
   });
 
   test("記入を編集・削除できる", async ({ app, browser, screen }) => {
