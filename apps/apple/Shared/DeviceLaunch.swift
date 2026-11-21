@@ -1,6 +1,7 @@
 import Foundation
 import NanaichiDevice
 import NanaichiDomain
+import UserNotifications
 
 /// アプリと記録先が読む時計。通知の予約のために、ドメインの時刻を実際の時計の時刻に戻せる
 struct AppClock: Sendable {
@@ -40,7 +41,7 @@ struct DeviceLaunch {
     /// - `NANAICHI_TIME_ORIGIN`: 速さを変える起点（UNIX エポックからのミリ秒）。開き直しても時刻が続くよう、
     ///   テストが同じ値を渡す。なければ起動した時刻
     /// - `NANAICHI_DATABASE`: 記録のファイル名（Application Support/nanaichi の中）。`:memory:` なら残さない
-    /// - `NANAICHI_RESET_DATABASE`: `1` なら、開く前にそのファイルを消す
+    /// - `NANAICHI_RESET_DATABASE`: `1` なら、開く前にそのファイルを消し、通知センターに残った前の通知も消す
     /// - `NANAICHI_RESET_DEFAULTS`: `1` なら、端末ごとの設定（知らせ方・テーマ・送信キー・つけたままのタグ）を初期に戻す
     /// - `NANAICHI_MANUAL_ADVANCE`: 手動にするフェーズの切り替わり（`JournalToFocus` などをカンマで区切る）。
     ///   ほかは自動。iPhone の XCUITest が、短いフェーズの終わりと操作の速さを競わずに切り替え待ちで止めるため
@@ -66,9 +67,13 @@ struct DeviceLaunch {
             if environment["NANAICHI_RESET_DEFAULTS"] == "1", let domain = Bundle.main.bundleIdentifier {
                 UserDefaults.standard.removePersistentDomain(forName: domain)
             }
-            if environment["NANAICHI_RESET_DATABASE"] == "1", case .file(let url) = database {
-                for suffix in ["", "-wal", "-shm"] {
-                    try? FileManager.default.removeItem(at: URL(filePath: url.path + suffix))
+            if environment["NANAICHI_RESET_DATABASE"] == "1" {
+                // 前の実行で届いた通知を、今回の通知と取り違えないようにする
+                UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+                if case .file(let url) = database {
+                    for suffix in ["", "-wal", "-shm"] {
+                        try? FileManager.default.removeItem(at: URL(filePath: url.path + suffix))
+                    }
                 }
             }
             return DeviceLaunch(clock: clock, database: database)

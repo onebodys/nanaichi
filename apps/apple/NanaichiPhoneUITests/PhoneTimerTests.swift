@@ -12,6 +12,17 @@ final class PhoneTimerTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         origin = Int64(Date().timeIntervalSince1970 * 1000)
+        // 通知の許可を求める画面が遅れて出て、次の操作に割り込んだときも許可する。XCUITest に任せると
+        // 許可しないほうを押すことがあり、そのあとは通知が届かない
+        addUIInterruptionMonitor(withDescription: "通知の許可") { alert in
+            // 割り込みの処理は、XCUITest がメインスレッドで呼ぶ
+            MainActor.assumeIsolated {
+                let allow = alert.buttons.matching(NSPredicate(format: "label IN %@", allowLabels)).firstMatch
+                guard allow.exists else { return false }
+                allow.tap()
+                return true
+            }
+        }
     }
 
     @MainActor
@@ -50,8 +61,8 @@ final class PhoneTimerTests: XCTestCase {
     /// 開始ボタンで通知の許可を求められたら許可する。前のテストで答えていれば、もう聞かれない
     @MainActor
     private func allowNotificationsIfAsked() {
-        let allow = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", ["許可", "Allow"])).firstMatch
-        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        let allow = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", allowLabels)).firstMatch
+        if allow.waitForExistence(timeout: 10) { allow.tap() }
     }
 
     /// 1ラウンドを最後まで進め、開き直しても続き、終了してまとめが出る
@@ -165,3 +176,6 @@ final class PhoneTimerTests: XCTestCase {
         if done.exists, done.isHittable { done.tap() }
     }
 }
+
+/// 通知の許可を求める画面の、許可するボタン
+private let allowLabels = ["許可", "Allow"]

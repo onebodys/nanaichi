@@ -19,13 +19,22 @@ case "$platform" in
   iphone)
     out=.uitest-iphone
     scheme=NanaichiPhone
-    name=${IPHONE_SIMULATOR:-$(xcrun simctl list devices available --json |
-      jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .key as $runtime | .value[] | select(.name | startswith("iPhone")) | {runtime: $runtime, name}] | sort_by(.runtime | sub(".*iOS-"; "") | split("-") | map(tonumber)) | last | .name // empty')}
-    if [ -z "$name" ]; then
+    # 名前が IPHONE_SIMULATOR に合う（なければ名前が iPhone で始まる）もののうち、いちばん新しい OS のもの
+    udid=$(xcrun simctl list devices available --json |
+      jq -r --arg name "${IPHONE_SIMULATOR:-}" '[.devices | to_entries[]
+        | (.key | capture("iOS-(?<major>[0-9]+)-(?<minor>[0-9]+)") | [(.major | tonumber), (.minor | tonumber)]) as $version
+        | .value[] | select(if $name == "" then (.name | startswith("iPhone")) else .name == $name end)
+        | {version: $version, udid}] | sort_by(.version) | last | .udid // empty')
+    if [ -z "$udid" ]; then
       echo "iPhone のシミュレーターがありません（xcodebuild -downloadPlatform iOS で入れる）" >&2
       exit 1
     fi
-    destination="platform=iOS Simulator,name=$name"
+    xcrun simctl boot "$udid" 2>/dev/null || true
+    xcrun simctl bootstatus "$udid" >/dev/null
+    # 新しいシミュレーターは英語のキーボードを初めて出すときに「なぞって入力」の説明を重ね、その間アプリの画面の
+    # 要素を読めなくなる（CI でテストが止まった）。説明はもう見たことにしておく
+    xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
+    destination="platform=iOS Simulator,id=$udid"
     ;;
   *)
     echo "使い方: sh scripts/ui-test.sh [mac|iphone]" >&2
