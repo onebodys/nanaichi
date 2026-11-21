@@ -20,6 +20,6 @@ goldenCases(
 );
 
 // 検証用（Issue #60）: わざと弱いテスト。結果が数であることしか確かめないので、ミュータントが生き残る
-test("集中時間は数になる", () => {
-  expect(typeof FocusTime.ofCompletedSets(-1)).toBe("number");
+test("集中時間を分にすると数になる", () => {
+  expect(typeof FocusTime.minutesOf(7 * 60_000)).toBe("number");
 });
