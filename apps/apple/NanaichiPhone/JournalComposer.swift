@@ -3,7 +3,7 @@ import SwiftUI
 
 /// ジャーナル記入の入力欄（docs/PRODUCT.md「画面」の中央）。
 ///
-/// 送信ボタンで送り、Return は改行にする（iPhone のキーボードには ⌘ がないので、送信キーは選ばせない）。
+/// 送信ボタン（書いている間はキーボードの上）で送り、Return は改行にする（iPhone のキーボードには ⌘ がないので、送信キーは選ばせない）。
 /// 送信すると空になり、続けて書ける。セッションの外では書けないので、入力欄を使えなくする。
 /// ジャーナルのフェーズに入ったら、すぐ書けるようカーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする。
 /// タグはつけない（タグをつける欄は Web と Mac で使う。Issue #70）
@@ -40,11 +40,16 @@ struct JournalComposer: View {
             }
         }
         .toolbar {
-            // Return は改行なので、キーボードを閉じるボタンをキーボードの上に置く
+            // 入力欄の下の送信ボタンはキーボードに隠れるので、書いている間はキーボードの上で送る。
+            // Return は改行なので、キーボードを閉じるボタンも並べる
             ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("完了") { focused = false }
+                Button("閉じる") { focused = false }
                     .accessibilityIdentifier("journal.dismissKeyboard")
+                Spacer()
+                Button("送信", action: submit)
+                    .fontWeight(.semibold)
+                    .disabled(!canSend)
+                    .accessibilityIdentifier("journal.sendFromKeyboard")
             }
         }
         .onChange(of: model.view.journalPhase) { _, phase in

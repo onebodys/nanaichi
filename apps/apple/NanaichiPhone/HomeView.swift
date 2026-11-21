@@ -13,6 +13,7 @@ struct HomeView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         TimerPane(model: timer)
+                            .id(timerAnchor)
                         Divider()
                         JournalComposer(model: timer)
                             .padding(20)
@@ -22,9 +23,16 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                // ジャーナルのフェーズに入って入力欄にカーソルを置いたら、キーボードに隠れないところまで送る
+                // ジャーナルのフェーズに入って入力欄にカーソルを置いたら、キーボードに隠れないところまで送る。
+                // ジャーナルが終わったら、フェーズと残り時間が見えるようタイマーへ戻す
                 .onChange(of: timer.view.journalPhase) { _, phase in
-                    if phase != nil { withAnimation { proxy.scrollTo(journalAnchor, anchor: .bottom) } }
+                    withAnimation {
+                        if phase != nil {
+                            proxy.scrollTo(journalAnchor, anchor: .bottom)
+                        } else {
+                            proxy.scrollTo(timerAnchor, anchor: .top)
+                        }
+                    }
                 }
             }
             .navigationTitle("nanaichi")
@@ -42,4 +50,5 @@ struct HomeView: View {
     }
 }
 
+private let timerAnchor = "timer"
 private let journalAnchor = "journal"

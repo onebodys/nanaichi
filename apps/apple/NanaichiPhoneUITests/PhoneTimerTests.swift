@@ -53,8 +53,9 @@ final class PhoneTimerTests: XCTestCase {
     /// 1ラウンドを最後まで進め、開き直しても続き、終了してまとめが出る
     @MainActor
     func testOneRoundOnTheDeviceRecordStore() throws {
-        // 15倍なら集中は28秒、ジャーナルは4秒、休憩は20秒
-        let timeScale = 15.0
+        // 4倍なら集中は105秒、ジャーナルは15秒、休憩は75秒。iPhone の XCUITest は刻みのたびに描き直す画面で
+        // 1回の操作に数秒かかり、8倍（ジャーナルが7.5秒）ではジャーナルに入ってから一時停止を押すまでに終わってしまう
+        let timeScale = 4.0
         func phaseTimeout(minutes: Double) -> TimeInterval { minutes * 60 / timeScale + 10 }
 
         var app = launch(timeScale: timeScale, resetting: true)
@@ -68,7 +69,7 @@ final class PhoneTimerTests: XCTestCase {
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(named: "02-集中中")
 
-        // ジャーナルは4秒しかないので、入ったらすぐ一時停止し、止めてから撮って書く
+        // ジャーナルは短いので、入ったらすぐ一時停止し、止めてから撮って書く
         waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: phaseTimeout(minutes: 7))
         app.buttons["operation.Pause"].tap()
         XCTAssertTrue(app.staticTexts["timer.paused"].waitForExistence(timeout: 5), "一時停止にならない")
@@ -80,7 +81,7 @@ final class PhoneTimerTests: XCTestCase {
         attachScreenshot(named: "03-ジャーナル")
         body.typeText("1セット目の振り返り\n次は見出しを直す")
         XCTAssertEqual(body.value as? String, "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
-        app.buttons["journal.send"].tap()
+        app.buttons["journal.sendFromKeyboard"].tap()
         expectation(for: NSPredicate(format: "value == ''"), evaluatedWith: body)
         waitForExpectations(timeout: 5)
         app.buttons["journal.dismissKeyboard"].tap()
