@@ -47,9 +47,9 @@
     "reason": "equivalent: ブランド名 \"Revision\" は型だけのもので、valibot の出力の値は数値のままなので、実行時にどの入力でも見分けられない",
     "where": "src/domain/session.ts:48:79 \"Revision\" -> \"\""
   },
-  "23kiavdu84w": {
-    "reason": "equivalent: 検証の失敗の message は誰も読まない（schemaResult は issues をそのまま返し、サーバーとデバイスは path だけをログに使う）。合否は変わらない",
-    "where": "src/domain/journal-period.ts:53:49 \"from が to より後の日付\" -> \"\""
+  "1ttic5wfs5y": {
+    "reason": "equivalent: 検証の失敗の message はどこにも出さない。サーバーと端末は issue の path だけを記録する（server/validation-error.ts）。PII を含みうるため",
+    "where": "src/domain/journal-period.ts:57:5 `期間が ${JOURNAL_PERIOD_MAX_DAYS} 日より長い` -> ``"
   },
   "2aymcn8te58": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
@@ -58,10 +58,6 @@
   "2bldywmbrq3": {
     "reason": "equivalent: 今日と週の前の期間の終わり to は、これを含む日でも index が fullDays（今日の期間の何日目か、週は最大6）以上になる今の期間の日しか増えないので、isUpToSamePoint の結果が変わらない",
     "where": "src/domain/stats.ts:212:13 range.from - 1 -> range.from + 1"
-  },
-  "2ck2f4fv3yp": {
-    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
-    "where": "src/domain/task.ts:35:84 \"Probability\" -> \"\""
   },
   "2g4yi51tlez": {
     "reason": "equivalent: Ended になったあとは lastActivityAt はどこからも読まれない（自動終了の判定は progress が Ended でないときだけ lastActivityAt を見る）ので、Ended のときに更新しても結果は変わらない",
@@ -90,10 +86,6 @@
   "ia1fbxrl5o": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/tag.ts:26:11 \"TagName\" -> \"\""
-  },
-  "qz5thdkza4": {
-    "reason": "equivalent: 直後の v.check が key を年月日から作り直した key と完全に比べるので、末尾に何かが付いた key はどのみち通らない",
-    "where": "src/domain/local-date.ts:115:37 /^\\d{4}-\\d{2}-\\d{2}$/ -> /^\\d{4}-\\d{2}-\\d{2}/"
   },
   "w239g1e7p5": {
     "reason": "equivalent: 自動終了で Ended になったあとは、advanceTo も applyAdvanceMode も progress を変えず、lastActivityAt と mode はその後どこからも読まれないので、早期 return の有無で結果は同じ",
