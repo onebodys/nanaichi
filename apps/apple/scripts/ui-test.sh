@@ -1,10 +1,39 @@
 #!/bin/sh
-# Mac アプリの XCUITest を走らせ、撮った画面を .uitest/screenshots/<名前>.png に書き出す（ADR 0028）。
-# Xcode のプロジェクトは project.yml から作り直す。Xcode は DEVELOPER_DIR か xcode-select のものを使う
+# Apple のアプリの XCUITest を走らせ、撮った画面を書き出す（ADR 0028、ADR 0031）。
+#
+#   sh scripts/ui-test.sh          Mac のアプリ。.uitest/screenshots/<名前>.png に書き出す
+#   sh scripts/ui-test.sh iphone   iPhone のアプリを iOS のシミュレーターで。.uitest-iphone/screenshots/<名前>.png に書き出す
+#
+# Xcode のプロジェクトは project.yml から作り直す。Xcode は DEVELOPER_DIR か xcode-select のものを使う。
+# iPhone のシミュレーターは IPHONE_SIMULATOR（名前）で選べる。なければ入っている iPhone のうち、いちばん新しい OS のもの
 set -eu
 cd "$(dirname "$0")/.."
 
-out=.uitest
+platform=${1:-mac}
+case "$platform" in
+  mac)
+    out=.uitest
+    scheme=Nanaichi
+    destination='platform=macOS'
+    ;;
+  iphone)
+    out=.uitest-iphone
+    scheme=NanaichiPhone
+    name=${IPHONE_SIMULATOR:-$(xcrun simctl list devices available --json |
+      jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .key as $runtime | .value[] | select(.name | startswith("iPhone")) | {runtime: $runtime, name}] | sort_by(.runtime | sub(".*iOS-"; "") | split("-") | map(tonumber)) | last | .name // empty')}
+    if [ -z "$name" ]; then
+      echo "iPhone のシミュレーターがありません（xcodebuild -downloadPlatform iOS で入れる）" >&2
+      exit 1
+    fi
+    destination="platform=iOS Simulator,name=$name"
+    ;;
+  *)
+    echo "使い方: sh scripts/ui-test.sh [mac|iphone]" >&2
+    exit 2
+    ;;
+esac
+echo "$scheme を $destination で確かめる"
+
 rm -rf "$out"
 mkdir -p "$out/screenshots"
 
@@ -12,8 +41,8 @@ xcodegen generate --quiet
 status=0
 xcodebuild test \
   -project Nanaichi.xcodeproj \
-  -scheme Nanaichi \
-  -destination 'platform=macOS' \
+  -scheme "$scheme" \
+  -destination "$destination" \
   -resultBundlePath "$out/result.xcresult" \
   -quiet || status=$?
 

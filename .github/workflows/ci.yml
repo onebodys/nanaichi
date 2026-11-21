@@ -3,10 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
-  # labeled: PR に ui-test のラベルを付けたら、Mac アプリの UI テストを走らせる（apple-ui）
+  # labeled: PR に ui-test のラベルを付けたら、Mac と iPhone のアプリの UI テストを走らせる（apple-ui）
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-  # Mac アプリの UI テストを手で走らせる（Actions の画面の Run workflow）
+  # Mac と iPhone のアプリの UI テストを手で走らせる（Actions の画面の Run workflow）
   workflow_dispatch:
 
 # 同じ PR に続けて push したら、古い実行を取り消す（macOS のランナーの分数を無駄にしないため）。
@@ -55,7 +55,7 @@ jobs:
               fi
             fi
           fi
-          # Mac アプリの UI テスト（XCUITest）は macOS のランナーで長くかかるので、Swift のコードが変わっていて、
+          # Mac と iPhone のアプリの UI テスト（XCUITest）は macOS のランナーで長くかかるので、Swift のコードが変わっていて、
           # 手で走らせたか、PR に ui-test のラベルがあるときだけ走らせる（docs/E2E.md）
           ui=false
           if [ "$apple" = true ]; then
@@ -161,7 +161,7 @@ jobs:
       - working-directory: apps/apple/NanaichiKit
         run: swift test
 
-  # Mac アプリの画面を XCUITest で動かし、撮った画面を PR にコメントする（Web の E2E と同じ形）。
+  # Mac と iPhone のアプリの画面を XCUITest で動かし、撮った画面を PR にコメントする（Web の E2E と同じ形）。
   # 手で走らせたときか、PR に ui-test のラベルがあるときだけ（changes の ui）
   apple-ui:
     needs: changes
@@ -170,8 +170,19 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      # Mac アプリのスクリーンショットへのリンクを PR にコメントする
+      # アプリのスクリーンショットへのリンクを PR にコメントする
       pull-requests: write
+    strategy:
+      # 片方が落ちても、もう片方の画面は撮りきる
+      fail-fast: false
+      matrix:
+        include:
+          - platform: mac
+            out: .uitest
+            title: Mac
+          - platform: iphone
+            out: .uitest-iphone
+            title: iPhone
     steps:
       - uses: actions/checkout@v7.0.1
       - run: |
@@ -179,12 +190,12 @@ jobs:
           echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
           echo "::notice title=Xcode::$xcode"
       - run: brew install xcodegen
-      - run: sh apps/apple/scripts/ui-test.sh
+      - run: sh apps/apple/scripts/ui-test.sh ${{ matrix.platform }}
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: apple-ui-test-results
-          path: apps/apple/.uitest/result.xcresult
+          name: apple-ui-test-results-${{ matrix.platform }}
+          path: apps/apple/${{ matrix.out }}/result.xcresult
           retention-days: 14
       # 一覧の HTML は Web の E2E と同じスクリプトで作る。ランナーの Node は TS をそのまま動かせないことがあるので、Node 24 を入れる
       - if: ${{ !cancelled() }}
@@ -192,12 +203,15 @@ jobs:
         with:
           node-version: "24"
       - if: ${{ !cancelled() }}
-        run: node apps/web/scripts/screenshot-gallery.ts apps/apple/.uitest/screenshots apps/apple/.uitest/screenshots.html "nanaichi の Mac アプリの画面"
+        env:
+          OUT: apps/apple/${{ matrix.out }}
+          TITLE: nanaichi の ${{ matrix.title }} アプリの画面
+        run: node apps/web/scripts/screenshot-gallery.ts "$OUT/screenshots" "$OUT/screenshots-${{ matrix.platform }}.html" "$TITLE"
       - id: screenshots
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7.0.2
         with:
-          path: apps/apple/.uitest/screenshots.html
+          path: apps/apple/${{ matrix.out }}/screenshots-${{ matrix.platform }}.html
           archive: false
           retention-days: 14
       - if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.screenshots.outputs.artifact-url != '' }}
@@ -208,10 +222,13 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           URL: ${{ steps.screenshots.outputs.artifact-url }}
+          PLATFORM: ${{ matrix.platform }}
+          TITLE: ${{ matrix.title }}
         run: |
-          marker="<!-- apple-screenshots -->"
+          # Mac のコメントの印は、iPhone を足す前と同じにして、前からあるコメントを書き換え続ける
+          if [ "$PLATFORM" = mac ]; then marker="<!-- apple-screenshots -->"; else marker="<!-- apple-screenshots-$PLATFORM -->"; fi
           body="$marker
-          Mac アプリの画面のスクリーンショット（${SHA}）: [screenshots.html](${URL})"
+          $TITLE アプリの画面のスクリーンショット（${SHA}）: [screenshots-$PLATFORM.html](${URL})"
           id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"

@@ -13,7 +13,7 @@ import os
 final class PhaseNotificationScheduler {
     private let center = UNUserNotificationCenter.current()
     private let clock: AppClock
-    private let log = Logger(subsystem: "app.nanaichi.mac", category: "notifications")
+    private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "app.nanaichi", category: "notifications")
     /// 予約し直しを1つずつ順に行う。前の予約し直しの途中で次が始まると、消したあとに古い予約が入りうる
     private var queue: Task<Void, Never>?
 
