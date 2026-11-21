@@ -42,6 +42,8 @@ struct DeviceLaunch {
     /// - `NANAICHI_DATABASE`: 記録のファイル名（Application Support/nanaichi の中）。`:memory:` なら残さない
     /// - `NANAICHI_RESET_DATABASE`: `1` なら、開く前にそのファイルを消す
     /// - `NANAICHI_RESET_DEFAULTS`: `1` なら、端末ごとの設定（知らせ方・テーマ・送信キー・つけたままのタグ）を初期に戻す
+    /// - `NANAICHI_MANUAL_ADVANCE`: 手動にするフェーズの切り替わり（`JournalToFocus` などをカンマで区切る）。
+    ///   ほかは自動。iPhone の XCUITest が、短いフェーズの終わりと操作の速さを競わずに切り替え待ちで止めるため
     extension DeviceLaunch {
         /// 環境変数から起動のしかたを読む。時計の速さも記録のファイル名もなく、`requested` でもなければ nil
         /// （ふつうに起動する）。`requested` は、ほかの理由（Mac の代わりのアカウント）でテスト用に起動するとき
@@ -71,6 +73,15 @@ struct DeviceLaunch {
             }
             return DeviceLaunch(clock: clock, database: database)
         }
+    }
+
+    /// `NANAICHI_MANUAL_ADVANCE` があれば、記録先のフェーズの進め方をそれに替える。画面を動かし始める前に呼ぶ
+    func applyDebugAdvanceMode(_ environment: [String: String], to backend: any Backend) async {
+        guard let names = environment["NANAICHI_MANUAL_ADVANCE"] else { return }
+        let manual = Set(names.split(separator: ",").compactMap { PhaseTransition(rawValue: String($0)) })
+        var mode = AdvanceMode.allAuto
+        for transition in manual { mode[transition] = .manual }
+        _ = await backend.changeAdvanceMode(mode)
     }
 
     extension AppClock {

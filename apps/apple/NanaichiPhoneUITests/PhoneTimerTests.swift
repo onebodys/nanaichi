@@ -15,12 +15,16 @@ final class PhoneTimerTests: XCTestCase {
     }
 
     @MainActor
-    private func launch(timeScale: Double, resetting reset: Bool, appearance: String = "Light") -> XCUIApplication {
+    /// `manualAdvance` は手動にするフェーズの切り替わり（`NANAICHI_MANUAL_ADVANCE`）。空ならすべて自動
+    private func launch(
+        timeScale: Double, resetting reset: Bool, appearance: String = "Light", manualAdvance: String = ""
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment = [
             "NANAICHI_TIME_SCALE": String(timeScale), "NANAICHI_TIME_ORIGIN": String(origin),
             "NANAICHI_DATABASE": database, "NANAICHI_RESET_DATABASE": reset ? "1" : "0",
             "NANAICHI_RESET_DEFAULTS": reset ? "1" : "0", "NANAICHI_APPEARANCE": appearance,
+            "NANAICHI_MANUAL_ADVANCE": manualAdvance,
         ]
         app.launch()
         return app
@@ -53,12 +57,13 @@ final class PhoneTimerTests: XCTestCase {
     /// 1ラウンドを最後まで進め、開き直しても続き、終了してまとめが出る
     @MainActor
     func testOneRoundOnTheDeviceRecordStore() throws {
-        // 4倍なら集中は105秒、ジャーナルは15秒、休憩は75秒。iPhone の XCUITest は刻みのたびに描き直す画面で
-        // 1回の操作に数秒かかり、8倍（ジャーナルが7.5秒）ではジャーナルに入ってから一時停止を押すまでに終わってしまう
-        let timeScale = 4.0
-        func phaseTimeout(minutes: Double) -> TimeInterval { minutes * 60 / timeScale + 10 }
+        // 8倍なら集中は53秒、ジャーナルは7.5秒、休憩は38秒。iPhone の XCUITest は刻みのたびに描き直す画面で
+        // 1回の操作に数秒かかり、短いジャーナルの間に操作が間に合わないことがある。そこで、ジャーナルから集中への
+        // 切り替わりを手動にし、ジャーナルが終わったら切り替え待ちで止まるようにして、そこで書いて進める
+        let timeScale = 8.0
+        func phaseTimeout(minutes: Double) -> TimeInterval { minutes * 60 / timeScale + 20 }
 
-        var app = launch(timeScale: timeScale, resetting: true)
+        var app = launch(timeScale: timeScale, resetting: true, manualAdvance: "JournalToFocus")
         let start = app.buttons["timer.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         attachScreenshot(named: "01-開始前")
@@ -69,57 +74,62 @@ final class PhoneTimerTests: XCTestCase {
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(named: "02-集中中")
 
-        // ジャーナルは短いので、入ったらすぐ一時停止し、止めてから撮って書く
-        waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: phaseTimeout(minutes: 7))
         app.buttons["operation.Pause"].tap()
-        XCTAssertTrue(app.staticTexts["timer.paused"].waitForExistence(timeout: 5), "一時停止にならない")
-        waitFor(app, "timer.phase", toRead: "ジャーナル")
+        XCTAssertTrue(app.staticTexts["timer.paused"].waitForExistence(timeout: 10), "一時停止にならない")
+        attachScreenshot(named: "03-一時停止中")
+        app.buttons["operation.Resume"].tap()
+        XCTAssertTrue(app.staticTexts["timer.paused"].waitForNonExistence(timeout: 10), "再開しない")
 
-        // ジャーナルに入ると入力欄にカーソルが置かれ、キーボードが出る
-        let body = app.textViews["journal.body"]
+        // ジャーナルが終わると、集中を始めるのを待つ。ジャーナルに入ったときに入力欄にカーソルが置かれ、キーボードが出ている
+        let advance = app.buttons["operation.Advance"]
+        XCTAssertTrue(advance.waitForExistence(timeout: phaseTimeout(minutes: 8)), "ジャーナルのあとの切り替え待ちにならない")
+        waitFor(app, "timer.phase", toRead: "切り替え待ち")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "ジャーナルに入ってもキーボードが出ない")
-        attachScreenshot(named: "03-ジャーナル")
+        let body = app.textViews["journal.body"]
         body.typeText("1セット目の振り返り\n次は見出しを直す")
         XCTAssertEqual(body.value as? String, "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
+        attachScreenshot(named: "04-ジャーナルを書いている")
         app.buttons["journal.sendFromKeyboard"].tap()
         expectation(for: NSPredicate(format: "value == ''"), evaluatedWith: body)
-        waitForExpectations(timeout: 5)
+        waitForExpectations(timeout: 10)
         app.buttons["journal.dismissKeyboard"].tap()
-        attachScreenshot(named: "04-一時停止中に記入した")
+        attachScreenshot(named: "05-記入して切り替え待ち")
+        advance.tap()
+        waitFor(app, "timer.position", toRead: "1ラウンド目・2セット目")
+        waitFor(app, "timer.phase", toRead: "集中")
 
-        app.buttons["operation.Resume"].tap()
-        XCTAssertTrue(app.staticTexts["timer.paused"].waitForNonExistence(timeout: 5), "再開しない")
-
-        // 残りの2セットと休憩は、時間が過ぎるのに任せる。ジャーナルのたびにキーボードが出るので、閉じておく
-        waitFor(app, "timer.position", toRead: "1ラウンド目・2セット目", timeout: phaseTimeout(minutes: 1))
-        waitFor(app, "timer.position", toRead: "1ラウンド目・3セット目", timeout: phaseTimeout(minutes: 8))
+        // 2セット目のジャーナルのあとも切り替え待ちになるので進める。3セット目のジャーナルのあとは休憩に自動で入る
+        XCTAssertTrue(advance.waitForExistence(timeout: phaseTimeout(minutes: 8)), "2セット目のジャーナルのあとの切り替え待ちにならない")
+        dismissKeyboardIfShown(app)
+        advance.tap()
+        waitFor(app, "timer.position", toRead: "1ラウンド目・3セット目")
         waitFor(app, "timer.phase", toRead: "休憩", timeout: phaseTimeout(minutes: 8))
         dismissKeyboardIfShown(app)
-        attachScreenshot(named: "05-休憩")
+        attachScreenshot(named: "06-休憩")
         waitFor(app, "timer.position", toRead: "2ラウンド目・1セット目", timeout: phaseTimeout(minutes: 5))
         waitFor(app, "timer.phase", toRead: "集中")
-        attachScreenshot(named: "06-次のラウンドの集中")
+        attachScreenshot(named: "07-次のラウンドの集中")
 
         app.buttons["operation.Abort"].tap()
         waitFor(app, "timer.phase", toRead: "待機")
-        XCTAssertTrue(app.staticTexts["timer.idle"].waitForExistence(timeout: 5))
-        attachScreenshot(named: "07-中断して待機")
+        XCTAssertTrue(app.staticTexts["timer.idle"].waitForExistence(timeout: 10))
+        attachScreenshot(named: "08-中断して待機")
         app.buttons["operation.RestartFocus"].tap()
         waitFor(app, "timer.phase", toRead: "集中")
 
         // 終了して開き直しても、同じ記録からセッションが続く（ダークの見た目もここで確かめる）
         app.terminate()
-        app = launch(timeScale: timeScale, resetting: false, appearance: "Dark")
+        app = launch(timeScale: timeScale, resetting: false, appearance: "Dark", manualAdvance: "JournalToFocus")
         waitFor(app, "timer.phase", toRead: "集中")
         waitFor(app, "timer.position", toRead: "2ラウンド目・1セット目")
-        attachScreenshot(named: "08-開き直したあと（ダーク）")
+        attachScreenshot(named: "09-開き直したあと（ダーク）")
 
         app.buttons["operation.End"].tap()
-        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 5), "まとめが出ない")
+        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "まとめが出ない")
         waitFor(app, "summary.completedSets", toRead: "3")
         waitFor(app, "summary.entries", toRead: "1")
         waitFor(app, "summary.focusTime", toRead: "21分")
-        attachScreenshot(named: "09-セッションのまとめ")
+        attachScreenshot(named: "10-セッションのまとめ")
     }
 
     /// アプリを閉じていても（裏に回したあと終了しても）、フェーズの切り替わりが通知で届く
@@ -146,7 +156,7 @@ final class PhoneTimerTests: XCTestCase {
             top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             XCTAssertTrue(notification.waitForExistence(timeout: 10), "ジャーナルに切り替わった通知が届かない")
         }
-        attachScreenshot(named: "10-閉じている間に届いた通知")
+        attachScreenshot(named: "11-閉じている間に届いた通知")
     }
 
     @MainActor

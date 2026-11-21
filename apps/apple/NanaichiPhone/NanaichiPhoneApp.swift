@@ -24,13 +24,15 @@ struct NanaichiPhoneApp: App {
 @MainActor
 final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let timer: TimerModel
+    private let backend: DeviceBackend
     private var running: Task<Void, Never>?
 
     override init() {
         let launch = currentDeviceLaunch()
         let alertSettings = AlertSettingsStore()
+        backend = DeviceBackend(location: launch.database, clock: launch.clock.now)
         timer = TimerModel(
-            backend: DeviceBackend(location: launch.database, clock: launch.clock.now), clock: launch.clock,
+            backend: backend, clock: launch.clock,
             alert: PhaseAlertPlayer(), notifications: PhaseNotificationScheduler(clock: launch.clock),
             alertSettings: { alertSettings.settings })
         super.init()
@@ -42,7 +44,12 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        running = Task { [timer] in await timer.run() }
+        running = Task { [timer, backend] in
+            #if DEBUG
+                await applyDebugAdvanceMode(ProcessInfo.processInfo.environment, to: backend)
+            #endif
+            await timer.run()
+        }
         return true
     }
 
