@@ -730,3 +730,179 @@ describe("API の入力と応答", () => {
     expect(Result.isSuccess(parsed) && parsed.value).toEqual(report);
   });
 });
+
+/** `year`年`month`月`day`日の日本時間 `hour`:`minute`（年をまたぐ場面用） */
+const tokyoOf = (year: number, month: number, day: number, hour: number, minute = 0) =>
+  new Date(Date.UTC(year, month - 1, day, hour - 9, minute));
+
+const activityOf = (report: StatsReport) => {
+  if (report.activity.kind !== "Active") {
+    throw new Error("記録のある期間のはず");
+  }
+  return report.activity;
+};
+
+describe("Stats.of の数える範囲と比べる期間", () => {
+  const session = completed(1, tokyo(10, 14, 9), 1);
+  const journal: WrittenDuring = { kind: "Journal", round: 1, setNumber: 1 };
+
+  test("今日より前の日に書いた記入は、今日の記入に数えない", () => {
+    const report = Stats.of(
+      statsOf([session], "Today", WEDNESDAY_NOON, {
+        entries: [
+          entryOf(session, tokyo(10, 14, 9, 7), journal),
+          entryOf(session, tokyo(10, 13, 9, 7), journal),
+        ],
+      }),
+    );
+
+    expect(activityOf(report).entries).toBe(1);
+  });
+
+  test("今の時刻より後に書いた記入は、同じ日でもまだ数えない", () => {
+    const report = Stats.of(
+      statsOf([session], "Today", WEDNESDAY_NOON, {
+        entries: [
+          entryOf(session, tokyo(10, 14, 9, 7), journal),
+          entryOf(session, tokyo(10, 14, 13), journal),
+        ],
+      }),
+    );
+
+    expect(activityOf(report).entries).toBe(1);
+  });
+
+  test("完了セットと記入が同じ数ずつあっても、記録のある期間になる", () => {
+    const report = Stats.of(
+      statsOf([session], "Today", WEDNESDAY_NOON, {
+        entries: [entryOf(session, tokyo(10, 14, 9, 7), journal)],
+      }),
+    );
+
+    expect(activityOf(report)).toMatchObject({ completedSets: 1, entries: 1 });
+  });
+
+  test("完了セットも不成立セットもなく記入だけの日も、記録のある期間になる", () => {
+    const orphan = running(9, tokyo(10, 14, 11, 59));
+    const report = Stats.of(
+      statsOf([], "Today", WEDNESDAY_NOON, {
+        entries: [entryOf(orphan, tokyo(10, 14, 9, 7), journal)],
+      }),
+    );
+
+    expect(activityOf(report)).toMatchObject({ completedSets: 0, abortedSets: 0, entries: 1 });
+  });
+
+  test("昨日の今とちょうど同じ時刻に終えた完了セットは比べる", () => {
+    // 11:53 に始めると集中を終えるのは 12:00 ちょうど。12:01 に終えるほうは比べない
+    const report = Stats.of(
+      statsOf(
+        [
+          completed(1, tokyo(10, 13, 11, 53), 1),
+          completed(2, tokyo(10, 13, 11, 54), 1),
+          completed(3, tokyo(10, 14, 9), 1),
+        ],
+        "Today",
+        WEDNESDAY_NOON,
+      ),
+    );
+
+    expect(report.activity).toMatchObject({
+      comparison: { kind: "Compared", previousCompletedSets: 1 },
+    });
+  });
+
+  test("月は今月の1日の完了セットを、先月の同じ時点までの比べるほうに数えない", () => {
+    const report = Stats.of(
+      statsOf(
+        [completed(1, tokyo(3, 1, 9), 1), completed(2, tokyo(2, 10, 9), 1)],
+        "Month",
+        tokyo(3, 31, 12),
+      ),
+    );
+
+    expect(report.activity).toMatchObject({
+      completedSets: 1,
+      comparison: { kind: "Compared", previousCompletedSets: 1 },
+    });
+  });
+
+  test("1月の月は、前の年の12月の同じ日の同じ時刻までと比べる", () => {
+    const report = Stats.of(
+      statsOf(
+        [
+          completed(1, tokyoOf(2025, 12, 10, 9), 1),
+          completed(2, tokyoOf(2025, 12, 20, 9), 1),
+          completed(3, tokyoOf(2026, 1, 15, 9), 1),
+        ],
+        "Month",
+        tokyoOf(2026, 1, 15, 12),
+      ),
+    );
+
+    expect(report.activity).toMatchObject({
+      completedSets: 1,
+      comparison: { kind: "Compared", previousCompletedSets: 1 },
+    });
+  });
+
+  test("すべての期間の月ごとは、年をまたいでも古い月から順に年と月が進む", () => {
+    const report = Stats.of(
+      statsOf(
+        [completed(1, tokyoOf(2025, 11, 20, 9), 1), completed(2, tokyoOf(2026, 1, 14, 9), 2)],
+        "All",
+        tokyoOf(2026, 1, 14, 12),
+      ),
+    );
+
+    expect(activityOf(report).trend).toEqual({
+      kind: "Months",
+      months: [
+        { year: 2025, month: 11, completedSets: 1 },
+        { year: 2025, month: 12, completedSets: 0 },
+        { year: 2026, month: 1, completedSets: 2 },
+      ],
+    });
+  });
+
+  test("タグごとの完了セット数が同じなら、タグの名前の順に並べる", () => {
+    const three = completed(1, tokyo(10, 14, 9), 2);
+    const report = Stats.of(
+      statsOf([three], "Today", WEDNESDAY_NOON, {
+        entries: [
+          entryOf(three, tokyo(10, 14, 9, 7), { kind: "Journal", round: 1, setNumber: 1 }, [
+            "読書",
+          ]),
+          entryOf(three, tokyo(10, 14, 9, 15), { kind: "Journal", round: 1, setNumber: 2 }, [
+            "仕事",
+          ]),
+        ],
+      }),
+    );
+
+    expect(activityOf(report).tags.map(({ name }) => name)).toEqual(["仕事", "読書"]);
+  });
+});
+
+describe("CompactStats.of の月", () => {
+  test("西暦は4桁、月は2桁に0でそろえる", () => {
+    const report = reportOf({
+      serverTime: WEDNESDAY_NOON,
+      period: "All",
+      today: localDate(2026, 10, 14),
+      range: { from: localDate(999, 1, 5), to: localDate(2026, 10, 14) },
+      activity: active({
+        completedSets: 1,
+        comparison: { kind: "NotCompared" },
+        trend: { kind: "Months", months: [{ year: 999, month: 1, completedSets: 1 }] },
+        hours: hoursOf({ 9: 1 }),
+      }),
+      streak: { current: 0, longest: 1 },
+      calendar: [],
+    });
+
+    expect(CompactStats.of(report).activity).toMatchObject({
+      trend: { kind: "Months", months: [{ month: "0999-01", completedSets: 1 }] },
+    });
+  });
+});

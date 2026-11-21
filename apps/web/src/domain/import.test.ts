@@ -154,6 +154,15 @@ describe("取り込むセッションの進め方の行", () => {
     ).toEqual([{ at: at(0), mode: manual }]);
   });
 
+  test("始めた時刻ちょうどの端末の変更は、始めた時刻の行と二重にならず1行だけ足す", () => {
+    const session = closedSession(0, 30);
+    const device = [{ at: at(0), mode: manual }];
+
+    expect(
+      Import.advanceModeRows({ session, device, existing: [], account: onlyImported }),
+    ).toEqual([{ at: at(0), mode: manual }]);
+  });
+
   test("始めた時刻の進め方がアカウントと同じなら、始めた時刻の行は足さない", () => {
     const session = closedSession(0, 30);
     const device = [{ at: at(-100), mode: manual }];
@@ -197,6 +206,19 @@ describe("取り込むセッションの進め方の行", () => {
     expect(Import.advanceModeRows({ session, device, existing, account: own })).toEqual([
       { at: at(0), mode: manual },
       { at: new Date(at(30).getTime() + 1), mode: allManual },
+    ]);
+  });
+
+  test("アカウントの変更がセッションの間にあれば、時刻の順に並べて効いている進め方を判断し、戻す行は足さない", () => {
+    const session = closedSession(0, 30);
+    const device = [{ at: at(-100), mode: manual }];
+    const existing = [
+      { at: at(-500), mode: allManual },
+      { at: at(10), mode: auto },
+    ];
+
+    expect(Import.advanceModeRows({ session, device, existing, account: own })).toEqual([
+      { at: at(0), mode: manual },
     ]);
   });
 
@@ -426,6 +448,34 @@ describe("取り込みの束", () => {
     expect(batches.flatMap((batch) => batch.sessions)).toHaveLength(31);
   });
 
+  describe("束の大きさが上限に近いとき", () => {
+    const MAX_CHARS = 1_000_000;
+    const withBodyOf = (length: number) =>
+      closedSession(0, 30, { written: [1], body: "あ".repeat(length) });
+    const lengthOf = (sessions: ReadonlyArray<ClosedSession>) =>
+      JSON.stringify(ImportBatch.toJson({ sessions, advanceModeChanges: [] })).length;
+    const pairOfLength = (target: number): ReadonlyArray<ClosedSession> => {
+      const first = withBodyOf(400_000);
+      const probe = withBodyOf(400_000);
+      const second = withBodyOf(400_000 + target - lengthOf([first, probe]));
+      return [first, second];
+    };
+
+    test("送る形の長さが上限に1文字足りないところまでは、1つの束にまとめる", () => {
+      const sessions = pairOfLength(MAX_CHARS - 1);
+
+      expect(lengthOf(sessions)).toBe(MAX_CHARS - 1);
+      expect(Import.batches(sessions, []).map((batch) => batch.sessions.length)).toEqual([2]);
+    });
+
+    test("送る形の長さが上限に達するなら、束を分ける", () => {
+      const sessions = pairOfLength(MAX_CHARS);
+
+      expect(lengthOf(sessions)).toBe(MAX_CHARS);
+      expect(Import.batches(sessions, []).map((batch) => batch.sessions.length)).toEqual([1, 1]);
+    });
+  });
+
   test("どの束にも端末の進め方の履歴を全部持たせる", () => {
     const history = [
       { at: at(-100), mode: manual },
@@ -480,6 +530,16 @@ describe("取り込みの束の検証", () => {
     ).toMatchObject({ type: "Failure" });
   });
 
+  test("始めた時刻と同じ時刻に終わったセッションは、検証に通る", () => {
+    const instant = closedSession(30, 30);
+
+    expect(
+      Result.isSuccess(
+        parse(overTheWire(ImportBatch.toJson({ sessions: [instant], advanceModeChanges: [] }))),
+      ),
+    ).toBe(true);
+  });
+
   test("セッションのない束と、上限より多いセッションの束は、検証に失敗する", () => {
     const many = Array.from({ length: IMPORT_BATCH_MAX_SESSIONS + 1 }, (_, i) =>
       closedSession(i * 60, i * 60 + 30),
@@ -491,6 +551,43 @@ describe("取り込みの束の検証", () => {
     expect(
       parse(overTheWire(ImportBatch.toJson({ sessions: many, advanceModeChanges: [] }))),
     ).toMatchObject({ type: "Failure" });
+  });
+
+  test("同じ時刻の進め方の履歴は、時刻の順に並んでいるものとして受け取る", () => {
+    const batch = {
+      sessions: [closedSession(0, 30)],
+      advanceModeChanges: [
+        { at: at(10), mode: manual },
+        { at: at(10), mode: auto },
+      ],
+    };
+
+    expect(Result.isSuccess(parse(overTheWire(ImportBatch.toJson(batch))))).toBe(true);
+  });
+
+  test("検証の失敗は、どの約束が破られたかを指摘の message で伝える", () => {
+    const open = SessionRecord.toJson({ kind: "Open", session: closedSession(0, 30) });
+    const backwards = { ...closedSession(30, 30), endedAt: at(10) };
+    const unordered = [
+      { at: at(10), mode: manual },
+      { at: at(5), mode: auto },
+    ];
+    const messagesOf = (json: unknown): ReadonlyArray<string> => {
+      const parsed = parse(overTheWire(json));
+      return Result.isFailure(parsed) ? parsed.error.issues.map((issue) => issue.message) : [];
+    };
+
+    expect(messagesOf({ sessions: [open], advanceModeChanges: [] })).toContain(
+      "閉じていないセッションは取り込めない",
+    );
+    expect(
+      messagesOf(ImportBatch.toJson({ sessions: [backwards], advanceModeChanges: [] })),
+    ).toContain("終わった時刻が始めた時刻より前");
+    expect(
+      messagesOf(
+        ImportBatch.toJson({ sessions: [closedSession(0, 30)], advanceModeChanges: unordered }),
+      ),
+    ).toContain("進め方の変更が時刻の順に並んでいない");
   });
 
   test("時刻の順に並んでいない進め方の履歴は、検証に失敗する", () => {
@@ -526,7 +623,7 @@ describe("取り込みのダイアログに出す数", () => {
   test("削除した記入は数えない", () => {
     const sessions = [
       closedSession(0, 30, { written: [1, 2], deleted: [3] }),
-      closedSession(60, 90, { deleted: [61] }),
+      closedSession(60, 90, { deleted: [61, 62] }),
     ];
 
     expect(Import.summaryOf(sessions)).toEqual({ sessions: 2, entries: 2 });

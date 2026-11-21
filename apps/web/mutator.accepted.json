@@ -1,7 +1,19 @@
 {
+  "10kzgyj7qg": {
+    "reason": "equivalent: 連続した日の途中の日から数え戻した日数は、連続の最後の日から数え戻した日数以下なので、最長（最大値）は絞り込んでも変わらない。絞り込みは計算を減らすだけ",
+    "where": "src/domain/stats.ts:348:19 [...days] .filter((day) => !days.has(day + 1)) -> [...days]"
+  },
+  "14gxabbe3r0": {
+    "reason": "equivalent: 自動終了で Ended になったあとは、advanceTo も applyAdvanceMode も progress を変えず、lastActivityAt と mode はその後どこからも読まれない（Ended のときは記入も操作も progress を変えない）ので、早期 return の有無で結果は同じ",
+    "where": "src/domain/timer-state.ts:475:11 current.progress.kind === \"Ended\" -> false"
+  },
   "16rtpbe5rov": {
     "reason": "equivalent: v.brand(\"Email\") の名前は型の印だけで、実行時の検証にも出力にも使われない。どんな入力でも結果は変わらない",
     "where": "src/domain/email.ts:7:86 \"Email\" -> \"\""
+  },
+  "19tkhjwmp9k": {
+    "reason": "equivalent: 始めた時刻ちょうどの変更は、初期の進め方（modeAt は以下で数える）にすでに入っており、操作として当てはめても進め方も最後の操作の時刻（始めた時刻）も変わらないので、> と >= は見分けられない",
+    "where": "src/domain/timer-state.ts:514:27 change.at.getTime() > startedAt -> change.at.getTime() >= startedAt"
   },
   "1hnx5g1ml1p": {
     "reason": "equivalent: 検証の失敗の message は誰も読まない（schemaResult は issues をそのまま返し、ログには path だけを使う決まり）。合否は変わらない",
@@ -15,17 +27,37 @@
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/journal-entry.ts:14:67 \"JournalEntryId\" -> \"\""
   },
+  "1mbpbstmeu2": {
+    "reason": "equivalent: 数える出来事（完了セット・不成立セット・記入）はどれも now 以前で、now の日付は期間の終わり以前なので、range.to を超える出来事はなく、この条件はいつも true",
+    "where": "src/domain/stats.ts:234:40 happening.dayNumber <= range.to -> true"
+  },
   "1pivgdd522z": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/task.ts:10:59 \"TaskId\" -> \"\""
+  },
+  "1t4v4yened4": {
+    "reason": "equivalent: ブランド名 \"Revision\" は型だけのもので、valibot の出力の値は数値のままなので、実行時にどの入力でも見分けられない",
+    "where": "src/domain/session.ts:48:79 \"Revision\" -> \"\""
   },
   "2aymcn8te58": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/task.ts:26:11 \"TaskTitle\" -> \"\""
   },
+  "2bldywmbrq3": {
+    "reason": "equivalent: 今日と週の前の期間の終わり to は、これを含む日でも index が fullDays（今日の期間の何日目か、週は最大6）以上になる今の期間の日しか増えないので、isUpToSamePoint の結果が変わらない",
+    "where": "src/domain/stats.ts:212:13 range.from - 1 -> range.from + 1"
+  },
   "2ck2f4fv3yp": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/task.ts:35:84 \"Probability\" -> \"\""
+  },
+  "4m7s7fjpds": {
+    "reason": "equivalent: ブランド名 \"SessionId\" は型だけのもので、valibot の出力の値は文字列のままなので、実行時にどの入力でも見分けられない",
+    "where": "src/domain/session.ts:24:62 \"SessionId\" -> \"\""
+  },
+  "cbvnnu64bx": {
+    "reason": "equivalent: セッションがなければ Math.min(...[]) は Infinity になり、期間「すべて」の始まりは Math.min(Infinity, 今日) で今日になる。undefined のときの min(今日, 今日) と同じ。firstDayNumber はここでしか読まない",
+    "where": "src/domain/stats.ts:160:21 startDays.length === 0 -> false"
   },
   "fci40tn0gv": {
     "reason": "equivalent: 確率が等しいとき > でも >= でも Map に入る値は同じ確率なので、結果が変わらない",
@@ -34,5 +66,9 @@
   "ia1fbxrl5o": {
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/tag.ts:26:11 \"TagName\" -> \"\""
+  },
+  "w239g1e7p5": {
+    "reason": "equivalent: 自動終了で Ended になったあとは、advanceTo も applyAdvanceMode も progress を変えず、lastActivityAt と mode はその後どこからも読まれないので、早期 return の有無で結果は同じ",
+    "where": "src/domain/timer-state.ts:475:46 { return Result.succeed(current); } -> {}"
   }
 }

@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { describe, expect, test } from "vite-plus/test";
 import { goldenCases, settled } from "../testing/golden.ts";
 import type { AdvanceModeChange } from "./advance-mode.ts";
 import {
@@ -237,3 +238,19 @@ goldenCases(
     },
   ],
 );
+
+describe("記録が壊れたセッション", () => {
+  const broken: Session = operated(["Pause", 10], ["Resume", 5]);
+
+  test("時刻の順に並んでいない記録から状態を計算しようとすると、理由をつけて失敗する", () => {
+    expect(() => Session.stateAt(broken, at(20))).toThrow(
+      "記録済みの操作イベントから状態を計算できない: EventOutOfOrder",
+    );
+  });
+
+  test("時刻の順に並んでいない記録からセットの結末を計算しようとすると、理由をつけて失敗する", () => {
+    expect(() => Session.setOutcomesAt(broken, at(20))).toThrow(
+      "記録済みの操作イベントからセットの結末を計算できない: EventOutOfOrder",
+    );
+  });
+});

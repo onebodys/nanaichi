@@ -101,6 +101,11 @@ goldenCases(
       expected: relevantChanges,
     },
     {
+      name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（すべての変更が始める前なら最後の変更だけ）",
+      input: { changes: relevantChanges, startedAt: at(20) },
+      expected: [{ at: at(10), mode: manualFocusToJournal }],
+    },
+    {
       name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（変更がなければ空）",
       input: { changes: [], startedAt: at(5) },
       expected: [],
