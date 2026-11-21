@@ -1,0 +1,13 @@
+diff --git a/dist/index.js b/dist/index.js
+index 329f788416320d10cffefbb1bd25f57b1d5978c6..017594261b6e4f653d5e3d3c4bb7313e6ea2745e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -20,7 +20,7 @@ import { createNativeChecker } from './native.js';
+  */
+ export async function createTypeChecker(options) {
+     const { root } = options;
+-    const tsconfig = options.tsconfig ?? join(root, 'tsconfig.json');
++    const tsconfig = options.tsconfig ?? join(root, process.env.MUTATOR_TSCONFIG ?? 'tsconfig.json');
+     if (!existsSync(tsconfig))
+         return undefined;
+     const require = createRequire(join(root, 'package.json'));

@@ -101,6 +101,47 @@ jobs:
       - if: needs.changes.outputs.code == 'true'
         run: vp run -r build
 
+  # ミューテーションテスト（.agents/skills/mutation-test）。PR で変えた domain / workflows の行だけを回し、
+  # 生き残ったミュータントを Step Summary に出す。報告だけで、生き残りがあっても落とさない（等価ミュータントで落ちる誤検知を避ける）。
+  # mutator が動かないとき（テストが落ちる、設定が読めない）は落とす
+  mutation:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/web
+    # apps/web の tsconfig.json は参照だけを並べるので、ミュータントの型チェックは tsconfig.app.json で行う
+    # （patches/ の @mizchi/mutator-typecheck、package.json の mutation と同じ）
+    env:
+      MUTATOR_TSCONFIG: tsconfig.app.json
+    steps:
+      # PR のマージコミットと、その1つ目の親（PR の base）を取る。--since はその親と比べる
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          if git diff --quiet HEAD^1 HEAD -- src/domain src/workflows; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "domain / workflows を変えていないので、ミューテーションテストを飛ばしました。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.diff.outputs.changed == 'true'
+        uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          node-version: "24"
+          cache: true
+      - if: steps.diff.outputs.changed == 'true'
+        run: |
+          mkdir -p .mutator
+          vp exec mutator --since HEAD^1 --reporter agent > .mutator/agent.json
+          node scripts/mutation-summary.ts .mutator/agent.json >> "$GITHUB_STEP_SUMMARY"
+
   # Apple のネイティブアプリ（apps/apple、ADR 0028）。ドメインがゴールデンケースで TS と一致することを確かめる。
   # macOS のランナーは Linux より遅く高いので、Swift のコードかゴールデンケースが変わったときだけ走らせる
   apple:

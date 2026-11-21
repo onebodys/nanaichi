@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/@mizchi/mutator/schema/mutator.config.schema.json",
+  "include": ["src/domain/**/*.ts", "src/workflows/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "vitestConfig": "vitest.node.config.ts"
+}

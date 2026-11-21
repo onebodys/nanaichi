@@ -40,6 +40,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vite-plus: 1.4.0
   wrangler: 4.155.0
+  "@mizchi/mutator": 0.5.0
 overrides:
   vite: "catalog:"
 peerDependencyRules:
@@ -50,3 +51,5 @@ peerDependencyRules:
 allowBuilds:
   esbuild: true
   workerd: true
+patchedDependencies:
+  "@mizchi/mutator-typecheck@0.5.0": patches/@mizchi__mutator-typecheck@0.5.0.patch
