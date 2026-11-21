@@ -39,6 +39,7 @@ ADR 0015 で、Apple の端末は Swift・SwiftUI で作ると決めた。その
 ## Consequences
 
 - ADR 0015 の「最初に作るのは iPhone + Apple Watch」と作る順番は、この ADR で置き換える。
+- iPhone と Watch は、Web にあるものをすべては入れず、タイマーとジャーナルに絞る（ADR 0031）。配布の方法も、iPhone を作るときではなく、そのあとに決める。
 - ADR 0019 のこの端末の記録先は、Web では IndexedDB に、ネイティブでは SQLite に置く。Web とネイティブのこの端末の記録は別のもので、互いに同期しない。どちらもログインして取り込めばアカウントにまとまる（ADR 0020）。
 - サーバーは Cookie と Bearer トークンの2つの認証を受けるようになる。Web の Cookie の流れは変えない。
 - Mac の画面は e2e のテストの一覧に入らず、XCUITest の一覧になる。E2E が2つの仕組みに分かれる。
