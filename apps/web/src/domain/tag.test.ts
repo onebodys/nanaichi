@@ -22,6 +22,11 @@ goldenCases("TagName.parse", parseTagName, [
     expected: { kind: "Success", value: "読書" },
   },
   {
+    name: "先頭に # が続いていても、すべて外す",
+    input: { value: "##読書" },
+    expected: { kind: "Success", value: "読書" },
+  },
+  {
     name: "英字の大文字・小文字を区別しない",
     input: { value: "#Reading" },
     expected: { kind: "Success", value: "reading" },

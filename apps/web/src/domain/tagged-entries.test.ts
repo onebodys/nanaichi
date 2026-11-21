@@ -57,6 +57,19 @@ goldenCases(
       },
     },
     {
+      name: "読めた数がちょうどページの大きさなら、これより古い記入はない",
+      input: {
+        tag: reading,
+        found: [entryAt(1, "2026-10-20T03:00:00Z"), entryAt(2, "2026-10-19T03:00:00Z")],
+        limit: 2,
+      },
+      expected: {
+        tag: "読書",
+        entries: [entryFields(1, "2026-10-20T03:00:00Z"), entryFields(2, "2026-10-19T03:00:00Z")],
+        next: { kind: "End" },
+      },
+    },
+    {
       name: "読めた数がページの大きさまでなら、これより古い記入はない",
       input: { tag: reading, found: [entryAt(1, "2026-10-20T03:00:00Z")], limit: 2 },
       expected: {

@@ -3,8 +3,36 @@
     "reason": "equivalent: v.brand(\"Email\") の名前は型の印だけで、実行時の検証にも出力にも使われない。どんな入力でも結果は変わらない",
     "where": "src/domain/email.ts:7:86 \"Email\" -> \"\""
   },
+  "1hnx5g1ml1p": {
+    "reason": "equivalent: 検証の失敗の message は誰も読まない（schemaResult は issues をそのまま返し、ログには path だけを使う決まり）。合否は変わらない",
+    "where": "src/domain/local-date.ts:122:5 \"key が年月日と合わない\" -> \"\""
+  },
   "1ij2kly6oi8": {
     "reason": "equivalent: v.brand(\"Allowlist\") の名前は型の印だけで、実行時の検証にも出力にも使われない。どんな入力でも結果は変わらない",
     "where": "src/domain/allowlist.ts:18:11 \"Allowlist\" -> \"\""
+  },
+  "1lcxxcidmdy": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/journal-entry.ts:14:67 \"JournalEntryId\" -> \"\""
+  },
+  "1pivgdd522z": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/task.ts:10:59 \"TaskId\" -> \"\""
+  },
+  "2aymcn8te58": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/task.ts:26:11 \"TaskTitle\" -> \"\""
+  },
+  "2ck2f4fv3yp": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/task.ts:35:84 \"Probability\" -> \"\""
+  },
+  "fci40tn0gv": {
+    "reason": "equivalent: 確率が等しいとき > でも >= でも Map に入る値は同じ確率なので、結果が変わらない",
+    "where": "src/domain/task.ts:135:34 probability > known -> probability >= known"
+  },
+  "ia1fbxrl5o": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/tag.ts:26:11 \"TagName\" -> \"\""
   }
 }
