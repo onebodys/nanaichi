@@ -151,6 +151,27 @@ goldenCases("phaseChangeBetween", (i: Input) => phaseChangeBetween(i.previous, i
     expected: { kind: "Unchanged" },
   },
   {
+    // 端末がスリープしていて、1ラウンド目の休憩から次のラウンドの3セットを飛ばし、2ラウンド目の休憩まで進めた
+    name: "休憩から次のラウンドの休憩まで飛ばしたときも、切り替わりとして知らせる",
+    input: {
+      previous: {
+        kind: "Break",
+        round: 1,
+        completedSets: 3,
+        remainingSeconds: 60,
+        clock: running(at(29)),
+      },
+      current: {
+        kind: "Break",
+        round: 2,
+        completedSets: 6,
+        remainingSeconds: 60,
+        clock: running(at(58)),
+      },
+    },
+    expected: { kind: "PhaseChanged", to: { kind: "Break", round: 2 } },
+  },
+  {
     // 端末がスリープしていて、集中 → ジャーナル → 次の集中 を一度に進めた
     name: "間のフェーズを飛ばしたときは、最後に移った先だけを知らせる",
     input: {

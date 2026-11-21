@@ -91,6 +91,10 @@
     "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
     "where": "src/domain/tag.ts:26:11 \"TagName\" -> \"\""
   },
+  "qz5thdkza4": {
+    "reason": "equivalent: 直後の v.check が key を年月日から作り直した key と完全に比べるので、末尾に何かが付いた key はどのみち通らない",
+    "where": "src/domain/local-date.ts:115:37 /^\\d{4}-\\d{2}-\\d{2}$/ -> /^\\d{4}-\\d{2}-\\d{2}/"
+  },
   "w239g1e7p5": {
     "reason": "equivalent: 自動終了で Ended になったあとは、advanceTo も applyAdvanceMode も progress を変えず、lastActivityAt と mode はその後どこからも読まれないので、早期 return の有無で結果は同じ",
     "where": "src/domain/timer-state.ts:475:46 { return Result.succeed(current); } -> {}"
