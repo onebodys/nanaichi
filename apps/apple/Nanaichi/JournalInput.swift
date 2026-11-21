@@ -8,12 +8,15 @@ import SwiftUI
 /// 送るキーは送信キー（GLOSSARY）で選び、送信ボタンの隣で切り替える。送信すると空になり、続けて書ける。
 /// 入力欄の上でつけたタグは、外すかセッションが終わるまで、続けて書く記入すべてにつく（GLOSSARY の「タグ」）。
 /// セッションの外では書けないので、入力欄を使えなくする。ジャーナルのフェーズに入ったら、すぐ書けるよう
-/// カーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする
+/// カーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする。
+///
+/// 送れなかったとき、入力欄が空なら本文を戻す。送っている間に書き足していれば、送れなかった記入を
+/// 入力欄の上の帯に残し、送り直す・入力欄に戻す・捨てるを選べるようにする（Issue #80、`JournalDraft`）
 struct JournalInput: View {
     let model: TimerModel
     let tags: TagsModel
     @AppStorage(PreferenceKey.submitKey) private var submitKey = SubmitKey.defaultKey
-    @State private var draft = ""
+    @State private var draft = JournalDraft()
     @State private var sending = false
     /// 入力欄にカーソルを置く合図。増えるたびに置く
     @State private var focusSignal = 0
@@ -23,13 +26,18 @@ struct JournalInput: View {
     private var inSession: Bool { model.view.writableSession != nil }
     private var inJournalPhase: Bool { model.view.journalPhase != nil }
     private var canSend: Bool {
-        inSession && !sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        inSession && !sending && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ジャーナル記入")
                 .font(.headline)
+            if !draft.unsent.isEmpty {
+                UnsentEntries(
+                    entries: draft.unsent, inSession: inSession, onResend: resend,
+                    onReturnToInput: { draft.returnToInput($0) }, onDiscard: { draft.discard($0) })
+            }
             TagInput(
                 known: tags.known, attached: attachedTags,
                 onChange: { tags.attach($0, in: model.view.writableSession) })
@@ -62,7 +70,7 @@ struct JournalInput: View {
 
     private var editor: some View {
         JournalTextEditor(
-            text: $draft, isEnabled: inSession, focusSignal: focusSignal,
+            text: $draft.body, isEnabled: inSession, focusSignal: focusSignal,
             onReturn: { press in
                 guard submitKey.shouldSubmit(press) else { return false }
                 submit()
@@ -70,7 +78,7 @@ struct JournalInput: View {
             }
         )
         .overlay(alignment: .topLeading) {
-            if draft.isEmpty {
+            if draft.body.isEmpty {
                 Text(inSession ? "やったこと・次にやること・感想など（\(submitKey.hint)）" : "セッションを始めると書けます")
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 5)
@@ -91,13 +99,87 @@ struct JournalInput: View {
 
     private func submit() {
         guard canSend else { return }
-        let body = draft
         sending = true
-        // 送っている間も続けて書けるよう、先に空にする。書けなかったら、その間に何も書いていなければ戻す
-        draft = ""
+        // 送っている間も続けて書けるよう、先に空にする
+        let submission = draft.submit(tags: attachedTags, newId: newEntryId)
         Task {
-            if await !model.write(body, tags: attachedTags), draft.isEmpty { draft = body }
+            if await !model.write(submission) { draft.failed(submission) }
             sending = false
+        }
+    }
+
+    private func resend(_ id: JournalEntryId) {
+        guard let submission = draft.resend(id) else { return }
+        Task {
+            if await model.write(submission) { draft.resent(id) } else { draft.resendFailed(id) }
+        }
+    }
+}
+
+private func newEntryId() -> JournalEntryId { JournalEntryId(UUID().uuidString.lowercased())! }
+
+/// 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。
+/// セッションの外では送り直せないが、本文は選んでコピーできる
+private struct UnsentEntries: View {
+    let entries: [UnsentEntry]
+    let inSession: Bool
+    let onResend: (JournalEntryId) -> Void
+    let onReturnToInput: (JournalEntryId) -> Void
+    let onDiscard: (JournalEntryId) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("送れなかった記入")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.red)
+            if !inSession {
+                Text("セッションの外では送り直せません。本文は選んでコピーできます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(entries) { entry in
+                row(entry)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.red.opacity(0.4)) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("journal.unsent")
+    }
+
+    private func row(_ entry: UnsentEntry) -> some View {
+        let submission = entry.submission
+        let resending: Bool
+        switch entry {
+        case .unsent: resending = false
+        case .resending: resending = true
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(submission.body)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("journal.unsent.body")
+            if !submission.tags.isEmpty {
+                Text(submission.tags.map { "#\($0.rawValue)" }.joined(separator: " "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Spacer()
+                Button("捨てる") { onDiscard(submission.id) }
+                    .disabled(resending)
+                    .accessibilityIdentifier("journal.unsent.discard")
+                Button("入力欄に戻す") { onReturnToInput(submission.id) }
+                    .disabled(resending)
+                    .accessibilityIdentifier("journal.unsent.returnToInput")
+                Button(resending ? "送り直し中…" : "送り直す") { onResend(submission.id) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!inSession || resending)
+                    .accessibilityIdentifier("journal.unsent.resend")
+            }
+            .controlSize(.small)
         }
     }
 }

@@ -36,6 +36,39 @@ const capture = async (
   await copyFile(path, `${SCREENSHOT_DIR}/${name}-${label}.png`);
 };
 
+/**
+ * 送っている間に書き足して送れなかった記入（入力欄の上の帯）を撮る（Issue #80）。
+ * 記入を書く要求を、書き足すまで止めてから落とす。撮ったら帯の記入を捨て、入力欄を空に戻す
+ */
+const shootUnsentEntry = async (browser: Browser, screen: Screen, shoot: () => Promise<void>) => {
+  const pattern = /\/api\/journal-entries$/;
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await browser.route(pattern, async (route) => {
+    if (route.request.method !== "POST") {
+      await route.fallback();
+      return;
+    }
+    await gate;
+    await route.abort();
+  });
+  const input = screen.getByLabel("ジャーナル記入の本文");
+  await input.fill("設計のメモを書いた");
+  await screen.getByRole("button", { name: "送信" }).tap();
+  await expect(input).toHaveValue("");
+  await input.fill("次はテストを足す");
+  release();
+  const band = screen.getByRole("region", { name: "送れなかった記入" });
+  await expect(band.getByRole("listitem")).toHaveCount(1);
+  await shoot();
+  await browser.unroute(pattern);
+  await band.getByRole("button", { name: "捨てる" }).tap();
+  await expect(band).toBeHidden();
+  await input.fill("");
+};
+
 /** 手元の D1 と UserDO は実行のあいだで残るので、途中で止まった実行のセッションが残っていれば終了する */
 const endLeftoverSession = async (screen: Screen) => {
   const end = screen.getByRole("button", { name: "終了" });
@@ -103,6 +136,7 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
       await advanceClock(browser, 7);
       await expect(screen.getByRole("heading", { name: "ジャーナル" })).toBeVisible();
       await shoot("05-ジャーナル");
+      await shootUnsentEntry(browser, screen, () => shoot("05a-送れなかった記入"));
 
       // 開始から24分で、3セット目のジャーナルが終わって休憩になる
       await advanceClock(browser, 17);
