@@ -57,6 +57,19 @@ goldenCases(
       },
     },
     {
+      name: "読めた数がちょうどページの大きさなら、これより古い記入はない",
+      input: {
+        tag: reading,
+        found: [entryAt(1, "2026-10-20T03:00:00Z"), entryAt(2, "2026-10-19T03:00:00Z")],
+        limit: 2,
+      },
+      expected: {
+        tag: "読書",
+        entries: [entryFields(1, "2026-10-20T03:00:00Z"), entryFields(2, "2026-10-19T03:00:00Z")],
+        next: { kind: "End" },
+      },
+    },
+    {
       name: "読めた数がページの大きさまでなら、これより古い記入はない",
       input: { tag: reading, found: [entryAt(1, "2026-10-20T03:00:00Z")], limit: 2 },
       expected: {
@@ -111,6 +124,30 @@ goldenCases(
             entryFields(3, "2026-10-19T14:30:00Z", "日付が変わる前"),
             entryFields(1, "2026-10-19T01:00:00Z", "同じ日の朝"),
           ],
+        },
+      ],
+    },
+    {
+      name: "いちばん新しい日付に記入が2つあれば、その日に続けてまとめる",
+      input: {
+        entries: [
+          entryAt(1, "2026-10-19T14:30:00Z", "前の日"),
+          entryAt(2, "2026-10-20T01:00:00Z", "今日の朝"),
+          entryAt(3, "2026-10-20T03:00:00Z", "今日の昼"),
+        ],
+        timeZone: TOKYO,
+      },
+      expected: [
+        {
+          date: localDate(2026, 10, 20),
+          entries: [
+            entryFields(3, "2026-10-20T03:00:00Z", "今日の昼"),
+            entryFields(2, "2026-10-20T01:00:00Z", "今日の朝"),
+          ],
+        },
+        {
+          date: localDate(2026, 10, 19),
+          entries: [entryFields(1, "2026-10-19T14:30:00Z", "前の日")],
         },
       ],
     },

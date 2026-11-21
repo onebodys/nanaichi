@@ -1,3 +1,5 @@
+import { expect, test } from "vite-plus/test";
+import * as v from "valibot";
 import { goldenCases, settled } from "../testing/golden.ts";
 import { AdvanceMode, type AdvanceModeChange } from "./advance-mode.ts";
 import type { SessionEvents, SessionOperation } from "./session-event.ts";
@@ -5,6 +7,7 @@ import {
   autoEndDueAt,
   deriveSetOutcomes,
   deriveTimerState,
+  TimerStateJsonSchema,
   type TimerState,
 } from "./timer-state.ts";
 
@@ -802,3 +805,17 @@ goldenCases(
     },
   ],
 );
+
+test("切り替え待ちの JSON は、終えたフェーズの種類を検証して戻せる", () => {
+  const awaiting = (finished: unknown) =>
+    v.safeParse(TimerStateJsonSchema, {
+      kind: "AwaitingAdvance",
+      finished,
+      completedSets: 1,
+      since: at(7).toISOString(),
+    });
+
+  expect(awaiting({ kind: "Break", round: 1 }).success).toBe(true);
+  expect(awaiting({ kind: "Focus", round: 1, setNumber: 1 }).success).toBe(true);
+  expect(awaiting({ kind: "Idle", round: 1 }).success).toBe(false);
+});

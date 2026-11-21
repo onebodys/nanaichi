@@ -199,6 +199,38 @@
       }
     },
     {
+      "name": "休憩から次のラウンドの休憩まで飛ばしたときも、切り替わりとして知らせる",
+      "input": {
+        "previous": {
+          "kind": "Break",
+          "round": 1,
+          "completedSets": 3,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:29:00.000Z"
+          }
+        },
+        "current": {
+          "kind": "Break",
+          "round": 2,
+          "completedSets": 6,
+          "remainingSeconds": 60,
+          "clock": {
+            "kind": "Running",
+            "endsAt": "2026-10-17T00:58:00.000Z"
+          }
+        }
+      },
+      "expected": {
+        "kind": "PhaseChanged",
+        "to": {
+          "kind": "Break",
+          "round": 2
+        }
+      }
+    },
+    {
       "name": "間のフェーズを飛ばしたときは、最後に移った先だけを知らせる",
       "input": {
         "previous": {

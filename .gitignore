@@ -37,3 +37,6 @@ dist-ssr
 
 # design-taste-frontend スキルの作業ファイル（方向性の抽選結果と、画面の検査のスクリーンショット）
 .taste-skill/
+
+# ミューテーションテスト（@mizchi/mutator）のキャッシュとレポート。受け入れた等価ミュータントの mutator.accepted.json はコミットする
+.mutator/

@@ -88,9 +88,22 @@ goldenCases(
       ],
     },
     {
+      name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（始めた時刻ちょうどの変更が効いていて、その前の変更は要らない）",
+      input: { changes: relevantChanges, startedAt: at(2) },
+      expected: [
+        { at: at(2), mode: AdvanceMode.default },
+        { at: at(10), mode: manualFocusToJournal },
+      ],
+    },
+    {
       name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（始める前に変更がなければすべて）",
       input: { changes: relevantChanges, startedAt: at(0) },
       expected: relevantChanges,
+    },
+    {
+      name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（すべての変更が始める前なら最後の変更だけ）",
+      input: { changes: relevantChanges, startedAt: at(20) },
+      expected: [{ at: at(10), mode: manualFocusToJournal }],
     },
     {
       name: "セッションの計算に要るのは、始めた時刻に効いていた変更とそれより後の変更（変更がなければ空）",

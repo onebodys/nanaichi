@@ -10,7 +10,8 @@
     "preview": "vp preview",
     "test": "vp test",
     "cf-typegen": "wrangler types",
-    "test:e2e": "wrangler d1 migrations apply nanaichi --local && e2e run"
+    "test:e2e": "wrangler d1 migrations apply nanaichi --local && e2e run",
+    "mutation": "MUTATOR_TSCONFIG=tsconfig.app.json mutator"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
@@ -38,6 +39,7 @@
     "@cloudflare/vite-plugin": "catalog:",
     "@cloudflare/vitest-plugin": "catalog:",
     "@e2e-dev/web": "catalog:",
+    "@mizchi/mutator": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "25.9.9",
     "@types/react": "19.3.0",

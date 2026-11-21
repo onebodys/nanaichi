@@ -136,6 +136,11 @@ goldenCases("JournalCalendar.monthBefore", JournalCalendar.monthBefore, [
     input: { year: 2026, month: 1 },
     expected: { year: 2025, month: 12 },
   },
+  {
+    name: "前の月は年の途中なら同じ年の1つ前の月",
+    input: { year: 2026, month: 10 },
+    expected: { year: 2026, month: 9 },
+  },
 ]);
 
 goldenCases("JournalCalendar.monthAfter", JournalCalendar.monthAfter, [
@@ -144,6 +149,11 @@ goldenCases("JournalCalendar.monthAfter", JournalCalendar.monthAfter, [
     input: { year: 2026, month: 12 },
     expected: { year: 2027, month: 1 },
   },
+  {
+    name: "次の月は年の途中なら同じ年の1つ後の月",
+    input: { year: 2026, month: 10 },
+    expected: { year: 2026, month: 11 },
+  },
 ]);
 
 goldenCases("JournalCalendar.keyOfMonth", JournalCalendar.keyOfMonth, [
@@ -151,6 +161,11 @@ goldenCases("JournalCalendar.keyOfMonth", JournalCalendar.keyOfMonth, [
     name: "API のクエリに書く月は、0 で埋めた YYYY-MM",
     input: { year: 2026, month: 3 },
     expected: "2026-03",
+  },
+  {
+    name: "API のクエリに書く月は、年も 0 で埋めて4桁にする",
+    input: { year: 999, month: 12 },
+    expected: "0999-12",
   },
 ]);
 
@@ -210,6 +225,9 @@ describe("クエリ", () => {
     ["2026-10", true],
     ["2026-13", false],
     ["2026-1", false],
+    ["2026-00", false],
+    ["x2026-10", false],
+    ["2026-101", false],
   ])("月 %s を受け付けるか: %s", (month, ok) => {
     expect(v.safeParse(JournalCalendarQuerySchema, { month, timeZone: TOKYO }).success).toBe(ok);
   });

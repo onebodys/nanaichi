@@ -22,6 +22,14 @@ describe("Sensitive", () => {
     expect(String(sensitive)).toBe("[REDACTED]");
   });
 
+  test("Node の inspect が使う印（nodejs.util.inspect.custom）でも伏せられる", () => {
+    const sensitive = Sensitive.of("me@example.com");
+
+    const customInspect = Reflect.get(sensitive, Symbol.for("nodejs.util.inspect.custom"));
+
+    expect(customInspect()).toBe("[REDACTED]");
+  });
+
   test("メールアドレスのスキーマを通すと自動的に包まれる", () => {
     const parsed = v.parse(SensitiveEmailSchema, "me@example.com");
 
