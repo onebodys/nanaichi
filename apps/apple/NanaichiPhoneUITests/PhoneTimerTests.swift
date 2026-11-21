@@ -138,9 +138,14 @@ final class PhoneTimerTests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         app.terminate()
 
-        let banner = springboard.descendants(matching: .any)
+        let notification = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "ジャーナルの時間です")).firstMatch
-        XCTAssertTrue(banner.waitForExistence(timeout: 30), "ジャーナルに切り替わった通知が届かない")
+        // バナーは数秒で消え、ホーム画面の要素を探すのが遅いと見逃すので、見つからなければ通知センターを開いて探す
+        if !notification.waitForExistence(timeout: 30) {
+            let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01))
+            top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
+            XCTAssertTrue(notification.waitForExistence(timeout: 10), "ジャーナルに切り替わった通知が届かない")
+        }
         attachScreenshot(named: "10-閉じている間に届いた通知")
     }
 
