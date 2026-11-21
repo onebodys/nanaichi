@@ -41,6 +41,10 @@ describe("JSON にした日付", () => {
     expect(parse(dateOf(2026, 10, 20))).toMatchObject({ success: true });
   });
 
+  test("5桁の年の日付は、key が年月日と合っていても通さない", () => {
+    expect(parse(dateOf(12026, 10, 20)).success).toBe(false);
+  });
+
   test("key が年月日と合わない日付は通さない", () => {
     expect(parse({ ...dateOf(2026, 10, 20), key: "2026-10-21" }).success).toBe(false);
   });
@@ -57,6 +61,8 @@ describe("日付のクエリ", () => {
     ["2026-00-10", false],
     ["2026-10-00", false],
     ["2026-10-201", false],
+    ["2026-12-31", true],
+    ["2026-10-20-2026-10-20", false],
   ])("日付 %s を受け付けるか: %s", (key, ok) => {
     expect(parse(key).success).toBe(ok);
   });

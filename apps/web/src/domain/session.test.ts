@@ -254,3 +254,11 @@ describe("記録が壊れたセッション", () => {
     );
   });
 });
+
+test("記録済みのイベントより前の時刻の操作を加えようとすると、理由をつけて失敗する", () => {
+  const paused = operated(["Pause", 10]);
+
+  expect(() => Session.operate(paused, { kind: "Resume", id: eventId(9), at: at(5) })).toThrow(
+    "操作イベントの時刻が記録済みのイベントより前になっている",
+  );
+});

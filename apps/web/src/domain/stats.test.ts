@@ -772,6 +772,24 @@ describe("Stats.of の数える範囲と比べる期間", () => {
     expect(activityOf(report).entries).toBe(1);
   });
 
+  test("今の時刻ちょうどに書いた記入は、今日の記入に数える", () => {
+    const report = Stats.of(
+      statsOf([session], "Today", WEDNESDAY_NOON, {
+        entries: [entryOf(session, WEDNESDAY_NOON, journal)],
+      }),
+    );
+
+    expect(activityOf(report).entries).toBe(1);
+  });
+
+  test("完了セットと不成立セットが同じ数ずつあっても、記録のある期間になる", () => {
+    const report = Stats.of(
+      statsOf([session, aborted(2, tokyo(10, 14, 10))], "Today", WEDNESDAY_NOON),
+    );
+
+    expect(activityOf(report)).toMatchObject({ completedSets: 1, abortedSets: 1, entries: 0 });
+  });
+
   test("完了セットと記入が同じ数ずつあっても、記録のある期間になる", () => {
     const report = Stats.of(
       statsOf([session], "Today", WEDNESDAY_NOON, {
