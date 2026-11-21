@@ -5,6 +5,7 @@ import { JournalEntryBody, JournalEntryId, type JournalEntry } from "../domain/j
 import { SessionId } from "../domain/session.ts";
 import { Task, TaskId, TaskTitle } from "../domain/task.ts";
 import type { TaskSetting } from "../domain/task-setting.ts";
+import { DAILY_DECISION_LIMIT } from "../domain/task-decision.ts";
 import { prepareCompletionFromJournal } from "./complete-tasks-from-journal.ts";
 
 const NOW = new Date(Date.UTC(2026, 9, 17, 0, 0, 0));
@@ -54,6 +55,39 @@ describe("ジャーナルからの完了を始める前の判断", () => {
     expect(result).toEqual(
       Result.succeed({ entryId: entry.id, body: entry.body, openTasks: [openTask] }),
     );
+    expect(deps.startDecisionRun).toHaveBeenCalledWith(entry.id, NOW);
+  });
+
+  test("未完了のタスクがなければ、判断を始めたと記録せず NoOpenTasks を返す", () => {
+    const deps = { ...depsWith({ kind: "Enabled" }), listTasks: vi.fn(() => []) };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(result).toEqual(Result.fail({ kind: "NoOpenTasks" }));
+    expect(deps.startDecisionRun).not.toHaveBeenCalled();
+  });
+
+  test("今日の判断の回数が上限に達していれば、判断を始めたと記録せず DailyLimitReached を返す", () => {
+    const deps = {
+      ...depsWith({ kind: "Enabled" }),
+      countDecisionRunsSince: vi.fn(() => DAILY_DECISION_LIMIT),
+    };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(result).toEqual(Result.fail({ kind: "DailyLimitReached" }));
+    expect(deps.startDecisionRun).not.toHaveBeenCalled();
+  });
+
+  test("今日の判断の回数が上限に1回足りなければ、まだ判断を始められる", () => {
+    const deps = {
+      ...depsWith({ kind: "Enabled" }),
+      countDecisionRunsSince: vi.fn(() => DAILY_DECISION_LIMIT - 1),
+    };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(Result.isSuccess(result)).toBe(true);
     expect(deps.startDecisionRun).toHaveBeenCalledWith(entry.id, NOW);
   });
 });

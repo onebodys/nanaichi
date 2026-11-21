@@ -1,0 +1,10 @@
+{
+  "16rtpbe5rov": {
+    "reason": "equivalent: v.brand(\"Email\") の名前は型の印だけで、実行時の検証にも出力にも使われない。どんな入力でも結果は変わらない",
+    "where": "src/domain/email.ts:7:86 \"Email\" -> \"\""
+  },
+  "1ij2kly6oi8": {
+    "reason": "equivalent: v.brand(\"Allowlist\") の名前は型の印だけで、実行時の検証にも出力にも使われない。どんな入力でも結果は変わらない",
+    "where": "src/domain/allowlist.ts:18:11 \"Allowlist\" -> \"\""
+  }
+}
