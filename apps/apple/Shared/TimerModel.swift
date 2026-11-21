@@ -38,12 +38,15 @@ final class TimerModel {
     @ObservationIgnored private let notifications: PhaseNotificationScheduler
     @ObservationIgnored private let alertSettings: () -> AlertSettings
     @ObservationIgnored private var watch = PhaseChangeWatch()
+    /// アプリが音を鳴らせず、通知が音で知らせている（`handOverAlertsToNotifications` から `takeBackAlerts` まで）。
+    /// その間に届いたスナップショットで予約し直しても、音の鳴る予約のままにする
+    @ObservationIgnored private var alertsHandedOver = false
     /// 書けなかった記入。同じ本文とタグで送り直すときは同じ ID で送り、二重に書かない（ADR 0010）
     @ObservationIgnored private var failedDraft: (id: JournalEntryId, body: String, tags: [TagName])?
     /// 今日の集中時間を読み込み直すかを決める値。完了セットが増えうるときだけ読み込み直す（ADR 0014）
     @ObservationIgnored private var todayFocusKey: StatsRefreshKey?
     @ObservationIgnored private var countedEndedSession: SessionId?
-    /// セッション中は App Nap で刻みが遅れないようにする（音が遅れて鳴らないように）
+    /// セッション中は App Nap で刻みが遅れないようにする（音が遅れて鳴らないように）。Mac のためのもの
     @ObservationIgnored private var activity: NSObjectProtocol?
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
@@ -111,7 +114,7 @@ final class TimerModel {
         let snapshot = loading.received?.snapshot
         let state: TimerState? =
             switch snapshot {
-            case .session(_, let session, _): session.stateAt(serverNow)
+            case .session(_, _, let session, _): session.stateAt(serverNow)
             case .noSession, nil: nil
             }
         if let to = watch.observe(snapshot, state) {
@@ -151,7 +154,7 @@ final class TimerModel {
         deviceNow = clock.now()
         refreshMenuBarLabel()
         guard let after = loading.received?.snapshot, after != before else { return }
-        scheduleNotifications(for: after, sound: false)
+        scheduleNotifications(for: after)
         holdActivity(during: view.isInSession)
         refreshDerivedCounts()
     }
@@ -226,12 +229,12 @@ final class TimerModel {
 
     // MARK: - 通知
 
-    /// 通知を予約し直す。`sound` が true なら知らせ方の音色で鳴らす（アプリが鳴らせなくなるとき）
-    private func scheduleNotifications(for snapshot: SessionSnapshot, sound: Bool) {
+    /// 通知を予約し直す。通知に知らせを任せている間は知らせ方の音色で鳴らし、それ以外はアプリが鳴らすので鳴らさない
+    private func scheduleNotifications(for snapshot: SessionSnapshot) {
         let settings = alertSettings()
         notifications.reschedule(
             phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings),
-            sound: sound && settings.sound ? settings : nil)
+            sound: alertsHandedOver && settings.sound ? settings : nil)
     }
 
     /// 通知の許可を求める（設定で通知を出すにしたとき）
@@ -241,15 +244,23 @@ final class TimerModel {
 
     /// 知らせ方の設定を変えたら、通知を出すかどうかを予約にも当てる
     func alertSettingsChanged() {
-        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot, sound: false) }
+        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
     }
 
-    /// アプリを終了する前に呼ぶ。アプリが音を鳴らせなくなるので、通知の予約を音の鳴るものに入れ替える
-    func prepareForTermination() async {
-        if let snapshot = loading.received?.snapshot {
-            scheduleNotifications(for: snapshot, sound: true)
-        }
+    /// アプリが音を鳴らせなくなる前に呼ぶ（Mac は終了する前、iPhone は裏に回る前）。
+    /// 通知の予約を音の鳴るものに入れ替え、入れ替え終わるまで待つ
+    func handOverAlertsToNotifications() async {
+        alertsHandedOver = true
+        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
         await notifications.settle()
+    }
+
+    /// アプリがまた音を鳴らせるようになったときに呼ぶ（iPhone が前に戻ったとき）。
+    /// 裏にいた間の切り替わりは通知が音で知らせたので、戻った刻みで鳴らし直さない。通知の予約は音の鳴らないものに戻す
+    func takeBackAlerts() {
+        watch = PhaseChangeWatch()
+        alertsHandedOver = false
+        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
     }
 
     /// 記録先を替えて、このモデルを使わなくなるときに呼ぶ。App Nap を止めたままにしない
