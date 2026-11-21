@@ -111,9 +111,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: apps/web
     # apps/web の tsconfig.json は参照だけを並べるので、ミュータントの型チェックは tsconfig.app.json で行う
     # （patches/ の @mizchi/mutator-typecheck、package.json の mutation と同じ）
     env:
@@ -125,7 +122,7 @@ jobs:
           fetch-depth: 2
       - id: diff
         run: |
-          if git diff --quiet HEAD^1 HEAD -- src/domain src/workflows; then
+          if git diff --quiet HEAD^1 HEAD -- apps/web/src/domain apps/web/src/workflows; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "domain / workflows を変えていないので、ミューテーションテストを飛ばしました。" >> "$GITHUB_STEP_SUMMARY"
           else
@@ -137,10 +134,13 @@ jobs:
           node-version: "24"
           cache: true
       - if: steps.diff.outputs.changed == 'true'
+        working-directory: apps/web
         run: |
           mkdir -p .mutator
           vp exec mutator --since HEAD^1 --reporter agent > .mutator/agent.json
-          node scripts/mutation-summary.ts .mutator/agent.json >> "$GITHUB_STEP_SUMMARY"
+      - if: steps.diff.outputs.changed == 'true'
+        working-directory: apps/web
+        run: node scripts/mutation-summary.ts .mutator/agent.json >> "$GITHUB_STEP_SUMMARY"
 
   # Apple のネイティブアプリ（apps/apple、ADR 0028）。ドメインがゴールデンケースで TS と一致することを確かめる。
   # macOS のランナーは Linux より遅く高いので、Swift のコードかゴールデンケースが変わったときだけ走らせる
