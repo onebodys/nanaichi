@@ -78,4 +78,8 @@ pnpm -s mutation accept <key> --reason "equivalent: <どの入力でも見分け
 
 ## 全体の測定
 
-（Issue #60 で測った。数字は PR を見る）
+Issue #60 で、domain と workflows の全体を手元（Apple Silicon、4 セッション）で1回測った。
+
+- ミュータントは 2545。うち 1726 は型が通らず走らせない。走らせるのは約 600 で、全体で約 7 分（カバレッジ 20 秒、型チェックを含む）。
+- 差分だけなら、変えた関数のミュータントだけが走るので、たいてい1分以内。
+- workflows の多くは `*.workers.test.ts` でだけ確かめているので、「届かない（NoCoverage）」と出る。これは Issue #66 で片付ける。それまでは、workflows の `notReached` は報告に「#66」と書けばよい。
