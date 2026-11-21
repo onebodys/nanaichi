@@ -9,7 +9,7 @@ Windows のネイティブアプリは、オーナーの手元に Windows がな
 ## Consequences
 
 - ドメインのロジック（タイマー状態の計算など）を TS と Swift の2つで持つ。2つが同じ振る舞いをすることは、TS のテストケースを JSON の入力と期待する出力（ゴールデンケース）として書き出し、Swift 側でも同じケースを通すことで確かめる。片方だけを変えると、もう片方のテストが落ちるようにする。
-- 初版の Watch は iPhone を経由した同期で動けばよい。Watch が iPhone もネットもない状態で単体で動くこと（オフラインでのイベントのマージ）は、そのあとに作る。
+- 初版の Watch は iPhone を経由した同期で動けばよい。Watch が iPhone もネットもない状態で単体で動くこと（オフラインでのイベントのマージ）は、そのあとに作る。iPhone と Watch の範囲、WatchConnectivity でのつなぎ方、音声入力の流れは ADR 0031 で決めた。
 - 作る順番は、ドメインの Swift Package（ゴールデンケースで TS と一致）→ iPhone + Watch → Mac（メニューバー常駐）→ Watch 単体での動作、としていた。ADR 0028 で、Mac を iPhone + Watch より先にした。
 - ネイティブは Bearer トークンで認証し、App Store の審査に向けて Sign in with Apple を併設する見込み。Sign in with Apple は App Store に出すときに足す（ADR 0028）。
 - API は Web とネイティブの両方が使う。レスポンスの形（ADR 0009）や同期のメッセージ（ADR 0012）を変えるときは、ネイティブ側への影響も考える。
