@@ -9,5 +9,5 @@ const FOCUS_MS = phaseDurationMsOf({ kind: "Focus", round: 1, setNumber: 1 });
  * 完了セットの集中の長さは決まっているので、完了セット数から決まる。
  */
 export const FocusTime = {
-  ofCompletedSets: (completedSets: number): number => completedSets * FOCUS_MS,
+  ofCompletedSets: (completedSets: number): number => Math.max(0, completedSets) * FOCUS_MS,
 } as const;

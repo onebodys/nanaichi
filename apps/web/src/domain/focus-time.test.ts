@@ -1,3 +1,4 @@
+import { expect, test } from "vite-plus/test";
 import { goldenCases } from "../testing/golden.ts";
 import { FocusTime } from "./focus-time.ts";
 
@@ -17,3 +18,8 @@ goldenCases(
     },
   ],
 );
+
+// 検証用（Issue #60）: わざと弱いテスト。結果が数であることしか確かめないので、ミュータントが生き残る
+test("集中時間は数になる", () => {
+  expect(typeof FocusTime.ofCompletedSets(-1)).toBe("number");
+});
