@@ -1,5 +1,6 @@
 import AVFoundation
 import NanaichiDevice
+import NanaichiDomain
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -32,7 +33,7 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         let alertSettings = AlertSettingsStore()
         backend = DeviceBackend(location: launch.database, clock: launch.clock.now)
         timer = TimerModel(
-            backend: backend, clock: launch.clock,
+            backend: debugBackend(backend), clock: launch.clock,
             alert: PhaseAlertPlayer(), notifications: PhaseNotificationScheduler(clock: launch.clock),
             alertSettings: { alertSettings.settings })
         super.init()
@@ -104,6 +105,15 @@ private func currentDeviceLaunch() -> DeviceLaunch {
         if let debug = DeviceLaunch.debug(ProcessInfo.processInfo.environment) { return debug }
     #endif
     return .standard
+}
+
+/// 画面が使う記録先。デバッグのビルドでは、XCUITest のためにジャーナル記入を送れなかったことにできる（`DebugFailingJournalWrites`）
+private func debugBackend(_ backend: DeviceBackend) -> any Backend {
+    #if DEBUG
+        return DebugFailingJournalWrites.wrapping(backend, ProcessInfo.processInfo.environment)
+    #else
+        return backend
+    #endif
 }
 
 /// XCUITest がダークの見た目を撮るための明るさ（`NANAICHI_APPEARANCE`）。デバッグのビルドにだけある
