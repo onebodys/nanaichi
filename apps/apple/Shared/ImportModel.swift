@@ -14,15 +14,15 @@ enum LastImport {
 
 /// 取り込みの様子
 enum ImportState {
-    /// この Mac の記録を読んでいる
+    /// この端末の記録を読んでいる
     case checking
-    /// この Mac の記録を読めなかった。画面に出す文言
+    /// この端末の記録を読めなかった。画面に出す文言
     case unreadable(String)
     case idle(ImportableRecords, last: LastImport)
     case running(ImportProgress)
 }
 
-/// ログインしているあいだの、この Mac の記録の取り込み（ADR 0020）。ログインするたびに作り直す。
+/// ログインしているあいだの、この端末の記録の取り込み（ADR 0020）。ログインするたびに作り直す。
 ///
 /// 判断（どのセッションを送り、どれを消すか）は `runImport` に任せ、ここは画面に出す様子を持つだけ
 @Observable
@@ -32,12 +32,17 @@ final class ImportModel {
     /// ログインした直後の確かめを出すか。閉じたら（あとでにしても、取り込み終えても）出さない
     var prompting: Bool
 
+    /// 文言でこの端末を呼ぶ名前
+    let thisDevice: ThisDevice
     @ObservationIgnored private let device: DeviceBackend
     @ObservationIgnored private let account: SignedIn
+    /// 取り込みを始めた回数。読み直している間に取り込みが始まった（終わった）かを見分ける
+    @ObservationIgnored private var importsStarted = 0
 
-    /// - Parameter askNow: ログインした直後なら true。起動したときにログインしていたなら、設定から取り込む
-    init(device: DeviceBackend, account: SignedIn, askNow: Bool) {
+    /// - Parameter askNow: ログインした直後なら true。起動したときにログインしていたなら、アカウントの欄から取り込む
+    init(device: DeviceBackend, account: SignedIn, thisDevice: ThisDevice, askNow: Bool) {
         self.device = device
+        self.thisDevice = thisDevice
         self.account = account
         prompting = askNow
     }
@@ -58,22 +63,29 @@ final class ImportModel {
         return false
     }
 
-    /// この Mac の記録を読み直す。最後の結果は残す
+    /// この端末の記録を読み直す。最後の結果は残す。
+    /// 取り込んでいる間は読み直さない（取り込みの様子を上書きすると、もう一度取り込めてしまう）
     func check() async {
+        guard !isRunning else { return }
+        let started = importsStarted
         let last: LastImport =
             switch state {
             case .idle(_, let last): last
             case .checking, .unreadable, .running: .notRun
             }
-        switch await device.loadImportable() {
+        let loaded = await device.loadImportable()
+        // 読んでいる間に取り込みを始めていたら（もう終えていても）、その様子と結果を残す
+        guard importsStarted == started else { return }
+        switch loaded {
         case .success(let records): state = .idle(records, last: last)
-        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error))
+        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
         }
     }
 
     /// 取り込む。途中で止まっても、やり直せば残りだけを送る
     func start() async {
         guard !isRunning else { return }
+        importsStarted += 1
         state = .running(ImportProgress(done: 0, total: 0))
         let device = device
         let account = account
@@ -91,7 +103,7 @@ final class ImportModel {
             }
         switch await device.loadImportable() {
         case .success(let records): state = .idle(records, last: last)
-        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error))
+        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
         }
     }
 

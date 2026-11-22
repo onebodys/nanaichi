@@ -2,17 +2,17 @@ import NanaichiDomain
 
 // 取り込み（ADR 0020）の文言。判断はせず、取り込みの様子を言葉にするだけ（Web の import-text.ts）
 
-/// この Mac に残っている記録の数（`3セッション・記入 12件`）
+/// この端末に残っている記録の数（`3セッション・記入 12件`）
 public func deviceRecordsLabelOf(_ summary: ImportSummary) -> String {
     "\(summary.sessions)セッション・記入 \(summary.entries)件"
 }
 
 /// ログインした直後の確かめの本文
-public func importPromptTextOf(_ summary: ImportSummary) -> String {
-    "ログインする前にこの Mac で記録した\(deviceRecordsLabelOf(summary))があります。アカウントに取り込むと、ほかの端末からも見られます。"
+public func importPromptTextOf(_ summary: ImportSummary, on device: ThisDevice) -> String {
+    "ログインする前に\(device.name) で記録した\(deviceRecordsLabelOf(summary))があります。アカウントに取り込むと、ほかの端末からも見られます。"
 }
 
-/// 設定のアカウントの欄に出す、この Mac に残っている記録
+/// アカウントの欄に出す、この端末に残っている記録
 public func remainingRecordsTextOf(_ summary: ImportSummary) -> String {
     summary.sessions == 0
         ? "アカウントに取り込んでいない記録はありません"
@@ -23,22 +23,22 @@ public func importProgressLabelOf(_ progress: ImportProgress) -> String {
     "取り込んでいます… \(progress.done) / \(progress.total) セッション"
 }
 
-public func openSessionLinesOf(_ open: OpenSessionLeft) -> [String] {
+public func openSessionLinesOf(_ open: OpenSessionLeft, on device: ThisDevice) -> [String] {
     switch open {
     case .noOpenSession: []
-    case .openSessionLeft: ["この Mac で開いたままのセッションは、終えてから取り込めます。"]
+    case .openSessionLeft: ["\(device.name) で開いたままのセッションは、終えてから取り込めます。"]
     }
 }
 
 /// 取り込みを終えたときに出す文。重なったもの・開いたままのもの・タグの上限は、あるときだけ
-public func importResultLinesOf(_ result: ImportResult, tagKindsOverLimit: Bool) -> [String] {
+public func importResultLinesOf(_ result: ImportResult, tagKindsOverLimit: Bool, on device: ThisDevice) -> [String] {
     ["\(result.imported)セッションをアカウントに取り込みました。"]
         + (result.overlapping == 0
             ? []
-            : ["\(result.overlapping)セッションは、アカウントの記録と時間が重なるため取り込めませんでした。この Mac に残しています。"])
-        + openSessionLinesOf(result.open)
+            : ["\(result.overlapping)セッションは、アカウントの記録と時間が重なるため取り込めませんでした。\(device.name) に残しています。"])
+        + openSessionLinesOf(result.open, on: device)
         + (tagKindsOverLimit
-            ? ["使っているタグが \(Tag.kindsMax) 種類を超えました。新しいタグをつけるには、設定の「タグ」で使わないタグを削除してください。"]
+            ? ["使っているタグが \(Tag.kindsMax) 種類を超えました。新しいタグをつけるには、\(device.tagSettings)で使わないタグを削除してください。"]
             : [])
 }
 
@@ -50,7 +50,7 @@ private func backendFailureMessageOf(_ error: BackendError) -> String {
     }
 }
 
-/// 途中で止まったときの文言。取り込めた分はこの Mac から消えているので、やり直すと残りだけを送る
+/// 途中で止まったときの文言。取り込めた分はこの端末から消えているので、やり直すと残りだけを送る
 public func importFailureMessageOf(_ failure: ImportFailure) -> String {
     switch failure {
     case .rateLimitedTooLong:
@@ -59,10 +59,10 @@ public func importFailureMessageOf(_ failure: ImportFailure) -> String {
     }
 }
 
-/// この Mac の記録を読めなかったとき
-public func deviceUnreadableMessageOf(_ error: BackendError) -> String {
+/// この端末の記録を読めなかったとき
+public func deviceUnreadableMessageOf(_ error: BackendError, on device: ThisDevice) -> String {
     switch error {
     case .storageFailed(let failure): storageFailedMessageOf(failure)
-    case .unreachable, .rejected, .broken: "この Mac の記録を読めませんでした。"
+    case .unreachable, .rejected, .broken: "\(device.name) の記録を読めませんでした。"
     }
 }

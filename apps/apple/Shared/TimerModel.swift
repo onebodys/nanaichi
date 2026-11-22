@@ -20,6 +20,8 @@ final class TimerModel {
     private(set) var countingNow: Instant
     /// 操作を送っている途中。ボタンを押せなくして、二重に送らないようにする
     private(set) var pending = false
+    /// 記録先を替えて、もう使わない（`release()`）。遅れて届いた応答で状態を変えたり通知を予約したりしない
+    private var released = false
     /// 直前の操作の失敗
     private(set) var errorMessage: String?
     /// 直前の記入の失敗
@@ -147,6 +149,7 @@ final class TimerModel {
 
     /// 届いたスナップショットに置き換え、スナップショットが替わったら通知を予約し直す
     private func apply(_ received: Received) {
+        guard !released else { return }
         let before = loading.received?.snapshot
         loading = loading.applying(received)
         deviceNow = clock.now()
@@ -259,8 +262,10 @@ final class TimerModel {
         if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
     }
 
-    /// 記録先を替えて、このモデルを使わなくなるときに呼ぶ。App Nap を止めたままにしない
+    /// 記録先を替えて、このモデルを使わなくなるときに呼ぶ。App Nap を止めたままにせず、
+    /// 前の記録先から遅れて届いた応答を捨てる
     func release() {
+        released = true
         holdActivity(during: false)
     }
 

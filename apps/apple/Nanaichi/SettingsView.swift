@@ -6,12 +6,13 @@ import SwiftUI
 /// 設定（⌘,、Web の settings-screen.tsx）。Mac の設定のウィンドウと同じく、まとまりごとのタブに分ける。
 /// 端末ごとの設定（知らせ方・送信キー・テーマ）には「この Mac」と添え、記録先の設定（進め方・タグ）と見分ける
 struct SettingsView: View {
-    @Bindable var model: AppModel
+    let model: AppModel
+    @Bindable var navigation: SettingsNavigation
     /// 記録先が替わると、そのときの画面の状態を指す
     private var app: AppServices { model.services }
 
     var body: some View {
-        TabView(selection: $model.settingsTab) {
+        TabView(selection: $navigation.tab) {
             Tab("タイマー", systemImage: "timer", value: .timer) {
                 TimerSettings(advanceMode: app.advanceMode, tasks: app.tasks, recordStore: model.recordStoreName)
             }
@@ -289,63 +290,13 @@ private struct LookSettings: View {
 
 // MARK: - アカウント
 
-/// アカウント（GLOSSARY の「記録先」）。ログインしていなければこの Mac の記録先で動き、ログインすると
-/// アカウントの記録先に替わってほかの端末と同期する（Web の settings-screen.tsx の AccountSection）
+/// アカウントのタブ。ログインとログアウト、この Mac に残っている記録の取り込み（iPhone のアカウントの画面と同じ欄）
 private struct AccountSettings: View {
     let model: AppModel
 
     var body: some View {
         Form {
-            Section {
-                switch model.account {
-                case .signedOut:
-                    LabeledContent {
-                        Button("ログインして同期") { Task { await model.signIn() } }
-                            .accessibilityIdentifier("account.signIn")
-                    } label: {
-                        Text("ログインしていません")
-                        Text("記録はこの Mac に保存されています。ログインすると、他の端末とも同期できます。")
-                    }
-                case .signingIn:
-                    LabeledContent {
-                        ProgressView().controlSize(.small)
-                    } label: {
-                        Text("ログインしています")
-                        Text("ブラウザの画面で Google のアカウントを選んでください。")
-                    }
-                case .signedIn(let user):
-                    LabeledContent {
-                        Button("ログアウト") { Task { await model.signOut() } }
-                            .accessibilityIdentifier("account.signOut")
-                    } label: {
-                        switch user {
-                        case .loading, .loadFailed: Text("ログインしています")
-                        case .loaded(let user):
-                            Text(user.name)
-                            Text(user.email.unwrap())
-                                .accessibilityIdentifier("account.email")
-                        }
-                        Text("記録はアカウントに保存され、他の端末と同期します。")
-                    }
-                case .signingOut:
-                    LabeledContent {
-                        ProgressView().controlSize(.small)
-                    } label: {
-                        Text("ログアウトしています")
-                    }
-                }
-                if let message = model.accountMessage {
-                    Text(message)
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("account.message")
-                }
-            } header: {
-                Text("アカウント")
-            } footer: {
-                Text("この Mac の記録は、取り込むまでログインしても消えずに残ります。ログアウトすると、また使えます。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            AccountSection(model: model)
             if let importer = model.importer { DeviceRecordsSection(importer: importer) }
         }
         .formStyle(.grouped)

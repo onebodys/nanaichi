@@ -25,7 +25,7 @@ targets:
   Nanaichi:
     type: application
     platform: macOS
-    # Shared は Mac と iPhone で同じタイマーの画面とモデル、音と通知の予約
+    # Shared は Mac と iPhone で同じタイマーの画面とモデル、音と通知の予約、ログインと記録先の切り替え、取り込み
     sources: [Nanaichi, Shared]
     dependencies:
       - package: NanaichiKit
@@ -58,7 +58,7 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Nanaichi
-  # iPhone（と iPad）のアプリ。タイマーとジャーナル記入だけを、この端末の記録先で使う（ADR 0031）
+  # iPhone（と iPad）のアプリ。タイマーとジャーナル記入だけを使う（ADR 0031）。ログインするとアカウントの記録先で同期する
   NanaichiPhone:
     type: application
     platform: iOS
@@ -70,6 +70,8 @@ targets:
         product: NanaichiPresentation
       - package: NanaichiKit
         product: NanaichiDevice
+      - package: NanaichiKit
+        product: NanaichiAccount
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.ios
