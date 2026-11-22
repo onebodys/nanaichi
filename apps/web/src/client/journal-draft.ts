@@ -27,7 +27,7 @@ export type UnsentEntry =
  *
  * どれでも本文はコピーでき、送り直している間のほかは捨てられる
  */
-type UnsentEntryStanding =
+export type UnsentEntryStanding =
   | Readonly<{ kind: "Resending" }>
   | Readonly<{ kind: "CurrentSession" }>
   | Readonly<{ kind: "PreviousSession" }>
@@ -58,6 +58,23 @@ const isSameContent = (
   submission.body === body &&
   submission.tags.length === tags.length &&
   submission.tags.every((tag, i) => tag === tags[i]);
+
+/** 入力欄に戻した記入を、送ろうとしたのと同じセッションで本文もタグも変えずに送るなら、その記入の ID */
+const reusableIdOf = (
+  draft: JournalDraft,
+  tags: ReadonlyArray<TagName>,
+  sessionId: SessionId,
+): JournalEntryId | undefined => {
+  const { origin } = draft;
+  switch (origin.kind) {
+    case "Typed":
+      return undefined;
+    case "Returned":
+      return origin.sessionId === sessionId && isSameContent(origin.submission, draft.body, tags)
+        ? origin.submission.id
+        : undefined;
+  }
+};
 
 const idOf = (entry: UnsentEntry): JournalEntryId => entry.submission.id;
 
@@ -112,12 +129,7 @@ export const JournalDraft = {
     sessionId: SessionId,
     newId: () => JournalEntryId,
   ): Readonly<{ draft: JournalDraft; submission: JournalSubmission }> => {
-    const id =
-      draft.origin.kind === "Returned" &&
-      draft.origin.sessionId === sessionId &&
-      isSameContent(draft.origin.submission, draft.body, tags)
-        ? draft.origin.submission.id
-        : newId();
+    const id = reusableIdOf(draft, tags, sessionId) ?? newId();
     return {
       draft: { ...draft, body: "", origin: typed },
       submission: { id, body: draft.body, tags },

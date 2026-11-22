@@ -20,7 +20,12 @@ import {
   submitKeyLabelOf,
 } from "./submit-key.ts";
 import { TagInput } from "./tag-input.tsx";
-import { JournalDraft, type JournalSubmission, type UnsentEntry } from "./journal-draft.ts";
+import {
+  JournalDraft,
+  type JournalSubmission,
+  type UnsentEntry,
+  type UnsentEntryStanding,
+} from "./journal-draft.ts";
 import type { AttachedTagsKey } from "./attached-tags.ts";
 import { useAttachedTags } from "./use-attached-tags.ts";
 import { useSubmitKey } from "./use-submit-key.ts";
@@ -240,13 +245,10 @@ const UnsentEntries = ({
         const { id, body, tags } = entry.submission;
         const standing = JournalDraft.standingOf(entry, sessionId);
         const { canResend, canReturnToInput, canDiscard } = JournalDraft.actionsOf(standing);
+        const { note, resendLabel } = labelsOf(standing);
         return (
           <li key={id} className="flex flex-col gap-1.5">
-            {standing.kind === "PreviousSession" && (
-              <p className="text-xs text-muted-foreground">
-                前のセッションの記入です。送り直すと今のセッションの記入になるので、送り直せません。入力欄に戻すと、今のセッションの記入として書けます。
-              </p>
-            )}
+            {note !== undefined && <p className="text-xs text-muted-foreground">{note}</p>}
             <p className="text-sm leading-[1.7] break-words whitespace-pre-wrap select-text">
               {body}
             </p>
@@ -273,7 +275,7 @@ const UnsentEntries = ({
                 入力欄に戻す
               </Button>
               <Button type="button" size="sm" disabled={!canResend} onClick={() => onResend(id)}>
-                {standing.kind === "Resending" ? "送り直し中…" : "送り直す"}
+                {resendLabel}
               </Button>
             </div>
           </li>
@@ -282,3 +284,21 @@ const UnsentEntries = ({
     </ul>
   </section>
 );
+
+/** 帯の記入に添える説明（前のセッションの記入なら、送り直せない理由）と、送り直すボタンの文言 */
+const labelsOf = (
+  standing: UnsentEntryStanding,
+): Readonly<{ note: string | undefined; resendLabel: string }> => {
+  switch (standing.kind) {
+    case "Resending":
+      return { note: undefined, resendLabel: "送り直し中…" };
+    case "PreviousSession":
+      return {
+        note: "前のセッションの記入です。送り直すと今のセッションの記入になるので、送り直せません。入力欄に戻すと、今のセッションの記入として書けます。",
+        resendLabel: "送り直す",
+      };
+    case "CurrentSession":
+    case "OutsideSession":
+      return { note: undefined, resendLabel: "送り直す" };
+  }
+};
