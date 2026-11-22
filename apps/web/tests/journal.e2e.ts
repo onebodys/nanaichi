@@ -189,6 +189,94 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 
+  test("送っている間に書き足して送れなかった記入は帯に残り、同じ ID で送り直せ、入力欄に戻せ、セッションの外ではコピーだけできる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    const input = screen.getByLabel("ジャーナル記入の本文");
+    await expect(input).toBeEnabled();
+    await chooseSubmitKey(screen, /\+Enter で送信$/);
+
+    // 記入を書く要求を、合図があるまで止めてから落とす（送っている間に書き足すため）。`pass` の間は通す
+    const posted: Array<string | undefined> = [];
+    let mode: "fail" | "pass" = "fail";
+    let release: () => void = () => undefined;
+    const held = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    let gate = held();
+    await browser.route(/\/api\/journal-entries$/, async (route) => {
+      if (route.request.method !== "POST") {
+        await route.fallback();
+        return;
+      }
+      posted.push(route.request.postData);
+      if (mode === "pass") {
+        await route.continue();
+        return;
+      }
+      await gate;
+      gate = held();
+      await route.abort();
+    });
+
+    const band = screen.getByRole("region", { name: "送れなかった記入" });
+    const unsent = band.getByRole("listitem");
+
+    // A を送っている間に B を書き、A が送れないと、入力欄に B が残り帯に A が出る
+    await input.pressSequentially("送れない記入A");
+    await input.press("Control+Enter");
+    await expect(input).toHaveValue("");
+    await input.pressSequentially("書き足したB");
+    release();
+    await expect(unsent).toHaveCount(1);
+    await expect(unsent.first()).toContainText("送れない記入A");
+    await expect(input).toHaveValue("書き足したB");
+
+    // 帯に A を残したまま B を送り、送っている間に C を書くと、帯に2件並ぶ
+    await input.press("Control+Enter");
+    await input.pressSequentially("書き足したC");
+    release();
+    await expect(unsent).toHaveCount(2);
+    await expect(unsent.nth(1)).toContainText("書き足したB");
+    await expect(input).toHaveValue("書き足したC");
+
+    // A を送り直すと、最初に送ったときと同じ ID・本文・タグで送り、帯から消える。B は残る
+    mode = "pass";
+    await unsent.first().getByRole("button", { name: "送り直す" }).tap();
+    await expect(unsent).toHaveCount(1);
+    await expect(unsent.first()).toContainText("書き足したB");
+    expect(posted).toHaveLength(3);
+    expect(JSON.parse(posted[2] ?? "")).toEqual(JSON.parse(posted[0] ?? ""));
+    const entries = screen
+      .getByRole("region", { name: /からのセッション$/ })
+      .first()
+      .getByRole("listitem", { name: "ジャーナル記入" });
+    await expect(entries).toHaveCount(1);
+    await expect(entries.first()).toContainText("送れない記入A");
+
+    // セッションが終わると送り直すことも入力欄に戻すこともできないが、本文は帯に残る
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(input).toBeDisabled();
+    await expect(unsent.first().getByRole("button", { name: "送り直す" })).toBeDisabled();
+    await expect(unsent.first().getByRole("button", { name: "入力欄に戻す" })).toBeDisabled();
+    await expect(unsent.first()).toContainText("書き足したB");
+
+    // 次のセッションで B を入力欄に戻すと、書き足した C の前に改行をはさんでつながり、帯が消える
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    await expect(input).toBeEnabled();
+    await unsent.first().getByRole("button", { name: "入力欄に戻す" }).tap();
+    await expect(input).toHaveValue("書き足したB\n書き足したC");
+    await expect(band).toBeHidden();
+    await browser.unroute(/\/api\/journal-entries$/);
+    await input.fill("");
+    await screen.getByRole("button", { name: "終了" }).tap();
+  });
+
   test("記入を編集・削除できる", async ({ app, browser, screen }) => {
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: START_BUTTON }).tap();
