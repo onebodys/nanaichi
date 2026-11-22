@@ -48,11 +48,14 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// 替わった先の今の様子を返す。Watch が、もう使っていない記録先の様子を出し続けないように
     @MainActor
     private func answer(_ message: WatchMessage) async -> PhoneMessage {
-        let (backend, tag) = recordStore()
-        let answer = await replyTo(message, using: backend, recordStore: tag)
-        let (currentBackend, currentTag) = recordStore()
-        guard currentTag != tag else { return answer }
-        return await replyTo(.current, using: currentBackend, recordStore: currentTag)
+        var (backend, tag) = recordStore()
+        var answer = await replyTo(message, using: backend, recordStore: tag)
+        // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始・中断はやり直さない
+        while case let (current, currentTag) = recordStore(), currentTag != tag {
+            (backend, tag) = (current, currentTag)
+            answer = await replyTo(.current, using: backend, recordStore: tag)
+        }
+        return answer
     }
 
     // MARK: - WCSessionDelegate
