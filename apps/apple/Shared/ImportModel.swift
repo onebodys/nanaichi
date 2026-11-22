@@ -36,6 +36,8 @@ final class ImportModel {
     let thisDevice: ThisDevice
     @ObservationIgnored private let device: DeviceBackend
     @ObservationIgnored private let account: SignedIn
+    /// 取り込みを始めた回数。読み直している間に取り込みが始まった（終わった）かを見分ける
+    @ObservationIgnored private var importsStarted = 0
 
     /// - Parameter askNow: ログインした直後なら true。起動したときにログインしていたなら、アカウントの欄から取り込む
     init(device: DeviceBackend, account: SignedIn, thisDevice: ThisDevice, askNow: Bool) {
@@ -61,18 +63,19 @@ final class ImportModel {
         return false
     }
 
-    /// この端末の記録を読み直す。最後の結果は残す
+    /// この端末の記録を読み直す。最後の結果は残す。
     /// 取り込んでいる間は読み直さない（取り込みの様子を上書きすると、もう一度取り込めてしまう）
     func check() async {
         guard !isRunning else { return }
+        let started = importsStarted
         let last: LastImport =
             switch state {
             case .idle(_, let last): last
             case .checking, .unreadable, .running: .notRun
             }
         let loaded = await device.loadImportable()
-        // 読んでいる間に取り込みを始めていたら、その様子を残す
-        guard !isRunning else { return }
+        // 読んでいる間に取り込みを始めていたら（もう終えていても）、その様子と結果を残す
+        guard importsStarted == started else { return }
         switch loaded {
         case .success(let records): state = .idle(records, last: last)
         case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
@@ -82,6 +85,7 @@ final class ImportModel {
     /// 取り込む。途中で止まっても、やり直せば残りだけを送る
     func start() async {
         guard !isRunning else { return }
+        importsStarted += 1
         state = .running(ImportProgress(done: 0, total: 0))
         let device = device
         let account = account
