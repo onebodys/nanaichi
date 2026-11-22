@@ -183,6 +183,9 @@ jobs:
           - platform: iphone
             out: .uitest-iphone
             title: iPhone
+          - platform: watch
+            out: .uitest-watch
+            title: Watch
     steps:
       - uses: actions/checkout@v7.0.1
       - run: |

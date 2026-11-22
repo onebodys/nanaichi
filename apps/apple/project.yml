@@ -8,6 +8,7 @@ options:
     macOS: "26.0"
     # iPhone で文字にするのに使う SpeechAnalyzer が iOS 26 から（ADR 0031）
     iOS: "26.0"
+    watchOS: "26.0"
   bundleIdPrefix: app.nanaichi
 packages:
   NanaichiKit:
@@ -72,6 +73,10 @@ targets:
         product: NanaichiDevice
       - package: NanaichiKit
         product: NanaichiAccount
+      - package: NanaichiKit
+        product: NanaichiWatchLink
+      # Watch のアプリを同梱する（ADR 0031）
+      - target: NanaichiWatch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.ios
@@ -98,6 +103,42 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: NanaichiPhone
+  # Watch のアプリ（ADR 0031）。iPhone のアプリに同梱し、開始と中断は WatchConnectivity で iPhone に頼む。記録先は持たない
+  NanaichiWatch:
+    type: application
+    platform: watchOS
+    # 色と記号は iPhone の画面と同じもの
+    sources: [NanaichiWatch, Shared/PhaseStyle.swift]
+    dependencies:
+      - package: NanaichiKit
+        product: NanaichiDomain
+      - package: NanaichiKit
+        product: NanaichiPresentation
+      - package: NanaichiKit
+        product: NanaichiWatchLink
+      # XCUITest で iPhone の代わりにする記録先（`StubPhoneLink`、デバッグのビルドだけで使う）
+      - package: NanaichiKit
+        product: NanaichiDevice
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.ios.watchkitapp
+        PRODUCT_NAME: nanaichi
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: NanaichiWatch/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: nanaichi
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: app.nanaichi.ios
+        # 初版は iPhone を経由して動く（ADR 0031）
+        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
+  NanaichiWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources: [NanaichiWatchUITests]
+    dependencies:
+      - target: NanaichiWatch
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: NanaichiWatch
 schemes:
   Nanaichi:
     build:
@@ -111,3 +152,9 @@ schemes:
         NanaichiPhone: all
     test:
       targets: [NanaichiPhoneUITests]
+  NanaichiWatch:
+    build:
+      targets:
+        NanaichiWatch: all
+    test:
+      targets: [NanaichiWatchUITests]

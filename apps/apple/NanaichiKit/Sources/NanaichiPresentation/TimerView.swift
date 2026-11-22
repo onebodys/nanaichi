@@ -1,7 +1,8 @@
 import NanaichiDomain
 
-/// 受け取ったスナップショットと、そのときに測った時計のずれ（Web の use-session-timer.ts の `Received`）
-public struct Received: Hashable, Sendable {
+/// 受け取ったスナップショットと、そのときに測った時計のずれ（Web の use-session-timer.ts の `Received`）。
+/// iPhone はこれを Watch に送る（ADR 0031）ので、そのまま送れる形にする
+public struct Received: Hashable, Sendable, Codable {
     public let snapshot: SessionSnapshot
     public let offset: ClockOffset
 

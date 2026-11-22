@@ -48,6 +48,8 @@ final class TimerModel {
     @ObservationIgnored private var countedEndedSession: SessionId?
     /// セッション中は App Nap で刻みが遅れないようにする（音が遅れて鳴らないように）。Mac のためのもの
     @ObservationIgnored private var activity: NSObjectProtocol?
+    /// 手元のスナップショットが替わったときに呼ぶ。iPhone はこれで Watch に知らせる（ADR 0031）
+    @ObservationIgnored var snapshotChanged: (Received) -> Void = { _ in }
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
@@ -154,7 +156,9 @@ final class TimerModel {
         loading = loading.applying(received)
         deviceNow = clock.now()
         refreshMenuBarLabel()
-        guard let after = loading.received?.snapshot, after != before else { return }
+        guard let current = loading.received, current.snapshot != before else { return }
+        let after = current.snapshot
+        snapshotChanged(current)
         scheduleNotifications(for: after)
         holdActivity(during: view.isInSession)
         refreshDerivedCounts()

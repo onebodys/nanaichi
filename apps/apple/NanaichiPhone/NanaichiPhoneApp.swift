@@ -29,22 +29,28 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     let model: PhoneModel
     /// この端末の記録先。ログインしている間も閉じずに持つ
     private let device: DeviceBackend
+    /// Watch とのつなぎ。Watch の頼みは、そのときの記録先に通す
+    private let watch: WatchRelay
 
     override init() {
         let launch = LaunchConfiguration.current()
         let alertSettings = AlertSettingsStore()
         let alert = PhaseAlertPlayer()
         device = DeviceBackend(location: launch.database, clock: launch.clock.now)
+        let watch = WatchRelay()
+        self.watch = watch
         // タスク（ToDo）は iPhone では使わない（ADR 0031）
         model = PhoneModel(device: device, accounts: launch.accounts, thisDevice: launch.thisDevice) { backend, _ in
             let backend = debugBackend(backend)
-            return PhoneServices(
-                backend: backend,
-                timer: TimerModel(
-                    backend: backend, clock: launch.clock,
-                    alert: alert, notifications: PhaseNotificationScheduler(clock: launch.clock),
-                    alertSettings: { alertSettings.settings }))
+            let timer = TimerModel(
+                backend: backend, clock: launch.clock,
+                alert: alert, notifications: PhaseNotificationScheduler(clock: launch.clock),
+                alertSettings: { alertSettings.settings })
+            timer.snapshotChanged = { watch.snapshotChanged($0) }
+            return PhoneServices(backend: backend, timer: timer)
         }
+        // Watch の頼みは、そのときの記録先に通す（ログイン・ログアウトで替わる）
+        watch.activate { [model] in model.services.backend }
         super.init()
         UNUserNotificationCenter.current().delegate = self
         // 切り替わりの音はほかのアプリの音に重ねて鳴らし、消音のスイッチに従う（時計のアラームのように鳴らし分けない）
