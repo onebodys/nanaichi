@@ -196,7 +196,9 @@ final class RecordStoreModel<Services: RecordStoreServices> {
 
     /// この端末の記録でセッションの途中なら、ログインに進ませない理由
     private func signInRefusal() -> String? {
-        switch services.timer.view {
+        // 開始などの操作を送っている途中。応答が届くと、この端末の記録でセッションの途中になりうる
+        if services.timer.pending { return "操作が終わってからログインしてください。" }
+        return switch services.timer.view {
         case .noSession, .ended: nil
         case .inSession: "セッションを終えてからログインしてください。"
         case .loading, .loadFailed: "\(thisDevice.name) の記録を読み込めてからログインしてください。"

@@ -62,13 +62,18 @@ final class ImportModel {
     }
 
     /// この端末の記録を読み直す。最後の結果は残す
+    /// 取り込んでいる間は読み直さない（取り込みの様子を上書きすると、もう一度取り込めてしまう）
     func check() async {
+        guard !isRunning else { return }
         let last: LastImport =
             switch state {
             case .idle(_, let last): last
             case .checking, .unreadable, .running: .notRun
             }
-        switch await device.loadImportable() {
+        let loaded = await device.loadImportable()
+        // 読んでいる間に取り込みを始めていたら、その様子を残す
+        guard !isRunning else { return }
+        switch loaded {
         case .success(let records): state = .idle(records, last: last)
         case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
         }

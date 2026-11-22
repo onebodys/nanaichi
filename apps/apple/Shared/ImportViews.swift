@@ -20,6 +20,25 @@ struct ImportSheet: View {
     private var question: String { "\(importer.thisDevice.name) の記録を取り込みますか？" }
 
     var body: some View {
+        #if os(macOS)
+            content
+                .padding(20)
+                .frame(width: 420)
+                // 取り込んでいる間は閉じさせない（閉じても取り込みは続くが、終わったことがわからなくなる）
+                .interactiveDismissDisabled(importer.isRunning)
+        #else
+            // 文字を大きくしていると半分の高さに収まらないので、広げられて、スクロールできるようにする
+            ScrollView {
+                content
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .presentationDetents([.medium, .large])
+            .interactiveDismissDisabled(importer.isRunning)
+        #endif
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 12) {
             switch importer.prompt {
             case .idle(let records, .notRun):
@@ -57,15 +76,6 @@ struct ImportSheet: View {
                 EmptyView()
             }
         }
-        .padding(20)
-        #if os(macOS)
-            .frame(width: 420)
-        #else
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .presentationDetents([.medium])
-        #endif
-        // 取り込んでいる間は閉じさせない（閉じても取り込みは続くが、終わったことがわからなくなる）
-        .interactiveDismissDisabled(importer.isRunning)
     }
 
     private func buttons(primary: String) -> some View {

@@ -68,9 +68,10 @@ extension AccountGateway {
                 user: { await backend.getMe() },
                 sendImportBatch: { await backend.sendImportBatch($0) },
                 signOut: {
-                    // 届かなくてもトークンは 7 日で切れるので、結果にかかわらず手元のトークンを消す（ADR 0029）
-                    _ = await nativeSignIn.signOut(token)
+                    // 届かなくてもトークンは 7 日で切れるので、結果にかかわらず手元のトークンを消す（ADR 0029）。
+                    // 送る前に消す。送っている間にログインが切れて、もう一度ログインしたときのトークンを、あとから消さない
                     try? tokens.delete()
+                    _ = await nativeSignIn.signOut(token)
                     await backend.close()
                 },
                 forget: {
