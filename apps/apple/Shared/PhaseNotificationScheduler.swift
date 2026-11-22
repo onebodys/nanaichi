@@ -13,7 +13,7 @@ import os
 final class PhaseNotificationScheduler {
     private let center = UNUserNotificationCenter.current()
     private let clock: AppClock
-    private let log = Logger(subsystem: "app.nanaichi.mac", category: "notifications")
+    private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "app.nanaichi", category: "notifications")
     /// 予約し直しを1つずつ順に行う。前の予約し直しの途中で次が始まると、消したあとに古い予約が入りうる
     private var queue: Task<Void, Never>?
 
@@ -43,8 +43,13 @@ final class PhaseNotificationScheduler {
     }
 
     /// 予約し直しが終わるまで待つ。アプリを終了する前に、音を鳴らす予約に入れ替えるのを待つ
+    /// 待っている間に次の予約し直しが入ったら、それも待つ（裏に回る間に届いた変更の予約し直しを途中で止めない）
     func settle() async {
-        await queue?.value
+        var settled: Task<Void, Never>?
+        while let current = queue, current != settled {
+            await current.value
+            settled = current
+        }
     }
 
     private func replace(with plan: [PlannedPhaseNotification], sound: AlertSettings?) async {

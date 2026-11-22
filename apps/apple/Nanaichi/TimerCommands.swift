@@ -46,19 +46,3 @@ private func menuTextOf(_ kind: SessionOperationKind) -> String {
     case .pause, .resume, .abort, .restartFocus, .skipBreak, .advance: operationTextOf(kind)
     }
 }
-
-/// 操作のキーボードショートカット。文字の入力欄と重ならないよう、どれも ⌘ と組み合わせる。
-/// 矢印キーは入力欄のカーソル移動に使うので避ける
-func shortcutOf(_ kind: SessionOperationKind) -> KeyboardShortcut {
-    switch kind {
-    case .pause: KeyboardShortcut("p")
-    case .resume: KeyboardShortcut("r")
-    // ⌘. は macOS で「取り消す」の決まったキー
-    case .abort: KeyboardShortcut(".")
-    case .restartFocus: KeyboardShortcut("r", modifiers: [.command, .shift])
-    case .advance: KeyboardShortcut("]")
-    case .skipBreak: KeyboardShortcut("]", modifiers: [.command, .shift])
-    // 押し間違えて閉じないよう、⇧ も要る
-    case .end: KeyboardShortcut("e", modifiers: [.command, .shift])
-    }
-}

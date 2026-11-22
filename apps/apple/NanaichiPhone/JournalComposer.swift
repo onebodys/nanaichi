@@ -1,0 +1,115 @@
+import NanaichiDomain
+import NanaichiPresentation
+import SwiftUI
+
+/// ジャーナル記入の入力欄（docs/PRODUCT.md「画面」の中央）。
+///
+/// 送信ボタン（書いている間はキーボードの上）で送り、Return は改行にする（iPhone のキーボードには ⌘ がないので、送信キーは選ばせない）。
+/// 送信すると空になり、続けて書ける。セッションの外では書けないので、入力欄を使えなくする。
+/// ジャーナルのフェーズに入ったら、すぐ書けるようカーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする。
+/// タグはつけない（タグをつける欄は Web と Mac で使う。Issue #70）
+struct JournalComposer: View {
+    let model: TimerModel
+    @State private var draft = ""
+    @State private var sending = false
+    /// 送れなかった記入。同じ本文で送り直すときは同じ ID で送り、二重に書かない（ADR 0010）。
+    /// 送れなかった記入を帯に残す作り（`JournalDraft`）は、iPhone には #80 で入れる
+    @State private var failed: JournalSubmission?
+    @FocusState private var focused: Bool
+
+    private var inSession: Bool { model.view.writableSession != nil }
+    private var inJournalPhase: Bool { model.view.journalPhase != nil }
+    private var canSend: Bool {
+        inSession && !sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ジャーナル記入")
+                .font(.headline)
+            editor
+            HStack {
+                if let message = model.writeErrorMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("journal.error")
+                }
+                Spacer()
+                Button("送信", action: submit)
+                    .buttonStyle(.borderedProminent)
+                    .tint(inJournalPhase ? PhaseStyle.journal.color : .accentColor)
+                    .disabled(!canSend)
+                    .accessibilityIdentifier("journal.send")
+            }
+        }
+        .toolbar {
+            // 入力欄の下の送信ボタンはキーボードに隠れるので、書いている間はキーボードの上で送る。
+            // Return は改行なので、キーボードを閉じるボタンも並べる
+            ToolbarItemGroup(placement: .keyboard) {
+                Button("閉じる") { focused = false }
+                    .accessibilityIdentifier("journal.dismissKeyboard")
+                Spacer()
+                Button("送信", action: submit)
+                    .fontWeight(.semibold)
+                    .disabled(!canSend)
+                    .accessibilityIdentifier("journal.sendFromKeyboard")
+            }
+        }
+        .onChange(of: model.view.journalPhase) { _, phase in
+            if phase != nil { focused = true }
+        }
+        .onChange(of: inSession) { _, inSession in
+            if !inSession { focused = false }
+        }
+    }
+
+    private var editor: some View {
+        TextEditor(text: $draft)
+            .focused($focused)
+            .disabled(!inSession)
+            .scrollContentBackground(.hidden)
+            .accessibilityLabel("ジャーナル記入の本文")
+            .accessibilityIdentifier("journal.body")
+            .overlay(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text(inSession ? "やったこと・次にやること・感想など" : "セッションを始めると書けます")
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(8)
+            .frame(minHeight: 140)
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(
+                        inJournalPhase ? AnyShapeStyle(PhaseStyle.journal.color) : AnyShapeStyle(.separator),
+                        style: StrokeStyle(lineWidth: inJournalPhase ? 2 : 1, dash: inSession ? [] : [4, 3]))
+            }
+    }
+
+    private func submit() {
+        guard canSend else { return }
+        let body = draft
+        // UUID の文字列は必ず記入の ID の形なので、読めないのは実装の誤り
+        let submission = JournalSubmission(
+            id: failed.flatMap { $0.body == body ? $0.id : nil } ?? JournalEntryId(UUID().uuidString.lowercased())!,
+            body: body, tags: [])
+        sending = true
+        // 送っている間も続けて書けるよう、先に空にする。書けなかったら、その間に何も書いていなければ戻す
+        draft = ""
+        Task {
+            if await model.write(submission) {
+                failed = nil
+            } else {
+                failed = submission
+                if draft.isEmpty { draft = body }
+            }
+            sending = false
+        }
+    }
+}

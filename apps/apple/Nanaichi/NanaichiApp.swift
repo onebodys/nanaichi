@@ -139,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// 終了する前に、通知の予約を音の鳴るものに入れ替える（動いている間はアプリが自分で鳴らす）
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task {
-            await model.services.timer.prepareForTermination()
+            await model.services.timer.handOverAlertsToNotifications()
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

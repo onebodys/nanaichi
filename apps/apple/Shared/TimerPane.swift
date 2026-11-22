@@ -124,7 +124,7 @@ struct StartButton: View {
         .controlSize(.extraLarge)
         .tint(PhaseStyle.focus.color)
         .disabled(!model.canStart)
-        .help("セッションを開始（⌘N）")
+        .shortcutHelp("セッションを開始（⌘N）")
         .accessibilityIdentifier("timer.start")
     }
 }
@@ -355,12 +355,24 @@ struct OperationButtons: View {
     let identifierPrefix: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            ForEach(operationButtonsOf(operations), id: \.kind) { button in
-                OperationButtonView(model: model, state: state, button: button, identifierPrefix: identifierPrefix)
+        let buttons = operationButtonsOf(operations)
+        // 横に並びきらない幅（iPhone）では、主な操作を1行目に、ほかの操作を2行目に置く
+        ViewThatFits(in: .horizontal) {
+            row(buttons)
+            VStack(spacing: 10) {
+                row(buttons.filter { $0.emphasis == .primary })
+                row(buttons.filter { $0.emphasis != .primary })
             }
         }
         .controlSize(.large)
+    }
+
+    private func row(_ buttons: [OperationButton]) -> some View {
+        HStack(spacing: 10) {
+            ForEach(buttons, id: \.kind) { button in
+                OperationButtonView(model: model, state: state, button: button, identifierPrefix: identifierPrefix)
+            }
+        }
     }
 }
 
@@ -395,7 +407,7 @@ private struct OperationButtonView: View {
             }
         }
         .disabled(model.pending)
-        .help("\(title)（\(shortcutTextOf(button.kind))）")
+        .shortcutHelp("\(title)（\(shortcutTextOf(button.kind))）")
         .accessibilityIdentifier("\(identifierPrefix)operation.\(button.kind.rawValue)")
     }
 
@@ -417,9 +429,38 @@ private struct OperationButtonView: View {
     }
 }
 
+extension View {
+    /// ショートカットを添えたボタンの説明。ショートカットがあるのは Mac のメニュー（`TimerCommands`）だけなので、
+    /// iPhone と iPad では出さない
+    @ViewBuilder
+    fileprivate func shortcutHelp(_ text: String) -> some View {
+        #if os(macOS)
+            help(text)
+        #else
+            self
+        #endif
+    }
+}
+
 /// ボタンの説明に添えるショートカットの表記
 private func shortcutTextOf(_ kind: SessionOperationKind) -> String {
     let shortcut = shortcutOf(kind)
     let shift = shortcut.modifiers.contains(.shift) ? "⇧" : ""
     return "\(shift)⌘\(shortcut.key.character.uppercased())"
+}
+
+/// 操作のキーボードショートカット（Mac のメニューの `TimerCommands`）。文字の入力欄と重ならないよう、どれも ⌘ と組み合わせる。
+/// 矢印キーは入力欄のカーソル移動に使うので避ける
+func shortcutOf(_ kind: SessionOperationKind) -> KeyboardShortcut {
+    switch kind {
+    case .pause: KeyboardShortcut("p")
+    case .resume: KeyboardShortcut("r")
+    // ⌘. は macOS で「取り消す」の決まったキー
+    case .abort: KeyboardShortcut(".")
+    case .restartFocus: KeyboardShortcut("r", modifiers: [.command, .shift])
+    case .advance: KeyboardShortcut("]")
+    case .skipBreak: KeyboardShortcut("]", modifiers: [.command, .shift])
+    // 押し間違えて閉じないよう、⇧ も要る
+    case .end: KeyboardShortcut("e", modifiers: [.command, .shift])
+    }
 }

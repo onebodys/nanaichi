@@ -159,13 +159,13 @@ pnpm dev:portless                            # → https://<ブランチ名>.nan
 `screen` と `expect` だけの決定的なテストを書く。AI ステップが必要になったら、モデルとその認証を
 `e2e.config.ts` の `agents` に足す（スキルの `references/setup.md`）。
 
-## Mac アプリの画面を確かめる（ADR 0028）
+## Mac と iPhone のアプリの画面を確かめる（ADR 0028、ADR 0031）
 
-e2e は macOS のネイティブアプリを動かせないので、Mac アプリ（`apps/apple/`）の画面は XCUITest で確かめる。
+e2e は macOS のネイティブアプリを動かせないので、Mac アプリ（`apps/apple/`）の画面は XCUITest で確かめる。iPhone のアプリ（`apps/apple/NanaichiPhone`）も、いまは同じく XCUITest で iOS のシミュレーターの上で確かめる（e2e の `@e2e-dev/mobile` はまだ入れていない）。
 
-- `sh apps/apple/scripts/ui-test.sh` で、`apps/apple/project.yml` から Xcode のプロジェクトを作り直し、XCUITest を走らせる。XcodeGen（`brew install xcodegen`）と Xcode が要る。Xcode は `DEVELOPER_DIR` か `xcode-select` のものを使う
-- テストで `attachScreenshot(of:named:)` を呼ぶと、その名前で `apps/apple/.uitest/screenshots/<名前>.png` に書き出す。名前の頭に番号を付けると、その順に並ぶ
-- CI の `apple-ui` ジョブも同じスクリプトを走らせ、Web の E2E と同じく画面の一覧（`screenshots.html`）へのリンクを PR にコメントする。macOS のランナーは長くかかり分数も多く数えられるので、**PR に `ui-test` のラベルを付けたとき**（ラベルがある間は push のたびに）か、Actions の画面から手で走らせたときだけ走る。画面に関わる PR では、ラベルを付けて画面を確かめてから外す
-- XCUITest はデバッグのビルドにだけある環境変数でアプリを起動する（`apps/apple/Nanaichi/LaunchConfiguration.swift`）。`NANAICHI_TIME_SCALE` で時計を速め（15倍なら1ラウンドが2分ほど）、`NANAICHI_TIME_ORIGIN` に同じ起点を渡せば開き直しても時刻が続く。`NANAICHI_DATABASE` はアプリのコンテナの中の記録のファイル名で、`NANAICHI_RESET_DATABASE=1` なら開く前に消す。リリースのビルドはこれらを読まない
+- `sh apps/apple/scripts/ui-test.sh` で、`apps/apple/project.yml` から Xcode のプロジェクトを作り直し、Mac のアプリの XCUITest を走らせる。`sh apps/apple/scripts/ui-test.sh iphone` なら iPhone のアプリを、入っている iPhone のシミュレーターのうちいちばん新しい OS のもの（`IPHONE_SIMULATOR` で名前を選べる）で走らせる。XcodeGen（`brew install xcodegen`）と Xcode が要る。Xcode は `DEVELOPER_DIR` か `xcode-select` のものを使う。iOS のシミュレーターがなければ `xcodebuild -downloadPlatform iOS` で入れる
+- テストで `attachScreenshot(of:named:)`（iPhone は `attachScreenshot(named:)`）を呼ぶと、その名前で `apps/apple/.uitest/screenshots/<名前>.png`（iPhone は `apps/apple/.uitest-iphone/screenshots/`）に書き出す。名前の頭に番号を付けると、その順に並ぶ
+- CI の `apple-ui` ジョブも同じスクリプトを Mac と iPhone で走らせ、Web の E2E と同じく画面の一覧（`screenshots-mac.html`・`screenshots-iphone.html`）へのリンクを PR にコメントする。macOS のランナーは長くかかり分数も多く数えられるので、**PR に `ui-test` のラベルを付けたとき**（ラベルがある間は push のたびに）か、Actions の画面から手で走らせたときだけ走る。画面に関わる PR では、ラベルを付けて画面を確かめてから外す
+- XCUITest はデバッグのビルドにだけある環境変数でアプリを起動する（`apps/apple/Shared/DeviceLaunch.swift`。Mac の代わりのアカウントは `apps/apple/Nanaichi/LaunchConfiguration.swift`）。`NANAICHI_TIME_SCALE` で時計を速め（15倍なら1ラウンドが2分ほど）、`NANAICHI_TIME_ORIGIN` に同じ起点を渡せば開き直しても時刻が続く。`NANAICHI_DATABASE` はアプリのコンテナの中の記録のファイル名で、`NANAICHI_RESET_DATABASE=1` なら開く前に消す。リリースのビルドはこれらを読まない
 - ローカルで XCUITest を走らせるには、Mac の開発者モード（`DevToolsSecurity -enable`）か、最初に出る認証のダイアログでの許可が要る。許可していないと `The test runner failed to initialize for UI testing` で落ちる
 - ドメインは `apps/apple/NanaichiKit` の `swift test` で確かめる。TS のテストが書き出したゴールデンケース（`fixtures/golden/`）を通す。CI の `apple` ジョブは、Swift のコードかゴールデンケースが変わったときに走る。手元でも、同じ条件で push 時のフックが `swift test` を走らせる（`scripts/swift-test-if-changed.sh`）。Command Line Tools が選ばれていれば `/Applications` のいちばん新しい Xcode を使う

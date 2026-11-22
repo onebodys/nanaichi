@@ -6,6 +6,8 @@ options:
   developmentLanguage: ja
   deploymentTarget:
     macOS: "26.0"
+    # iPhone で文字にするのに使う SpeechAnalyzer が iOS 26 から（ADR 0031）
+    iOS: "26.0"
   bundleIdPrefix: app.nanaichi
 packages:
   NanaichiKit:
@@ -23,7 +25,8 @@ targets:
   Nanaichi:
     type: application
     platform: macOS
-    sources: [Nanaichi]
+    # Shared は Mac と iPhone で同じタイマーの画面とモデル、音と通知の予約
+    sources: [Nanaichi, Shared]
     dependencies:
       - package: NanaichiKit
         product: NanaichiDomain
@@ -55,6 +58,44 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: Nanaichi
+  # iPhone（と iPad）のアプリ。タイマーとジャーナル記入だけを、この端末の記録先で使う（ADR 0031）
+  NanaichiPhone:
+    type: application
+    platform: iOS
+    sources: [NanaichiPhone, Shared]
+    dependencies:
+      - package: NanaichiKit
+        product: NanaichiDomain
+      - package: NanaichiKit
+        product: NanaichiPresentation
+      - package: NanaichiKit
+        product: NanaichiDevice
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.nanaichi.ios
+        PRODUCT_NAME: nanaichi
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: NanaichiPhone/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: nanaichi
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
+          UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
+          UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        # iPad は iPhone の画面がそのまま動けばよい（Issue #70）
+        TARGETED_DEVICE_FAMILY: "1,2"
+  NanaichiPhoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [NanaichiPhoneUITests]
+    dependencies:
+      - target: NanaichiPhone
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: NanaichiPhone
 schemes:
   Nanaichi:
     build:
@@ -62,3 +103,9 @@ schemes:
         Nanaichi: all
     test:
       targets: [NanaichiUITests]
+  NanaichiPhone:
+    build:
+      targets:
+        NanaichiPhone: all
+    test:
+      targets: [NanaichiPhoneUITests]
