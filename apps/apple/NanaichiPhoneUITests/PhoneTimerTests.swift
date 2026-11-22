@@ -97,8 +97,8 @@ final class PhoneTimerTests: XCTestCase {
         waitFor(app, "timer.phase", toRead: "切り替え待ち")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "ジャーナルに入ってもキーボードが出ない")
         let body = app.textViews["journal.body"]
-        body.typeText("1セット目の振り返り\n次は見出しを直す")
-        XCTAssertEqual(body.value as? String, "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
+        type("1セット目の振り返り", into: body, of: app, toRead: "1セット目の振り返り")
+        type("\n次は見出しを直す", into: body, of: app, toRead: "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
         attachScreenshot(named: "04-ジャーナルを書いている")
         app.buttons["journal.sendFromKeyboard"].tap()
         expectation(for: NSPredicate(format: "value == ''"), evaluatedWith: body)
@@ -168,6 +168,31 @@ final class PhoneTimerTests: XCTestCase {
             XCTAssertTrue(notification.waitForExistence(timeout: 10), "ジャーナルに切り替わった通知が届かない")
         }
         attachScreenshot(named: "11-閉じている間に届いた通知")
+    }
+
+    /// 入力欄 `body` に `text` を書き、本文が `expected` になるまで待つ。
+    ///
+    /// ジャーナルが終わった直後は画面がタイマーへ戻る途中で、キーボードが出たあとに閉じ、入力欄からカーソルが
+    /// 外れることがある。そこへ `typeText` すると、途中から文字が届かない（Issue #82）。そこで、書く前に
+    /// カーソルが入力欄にあるのを確かめ、外れていたら入力欄を押して置き直す。`typeText` は文字を送り終えても
+    /// 画面が描き直す前に戻ることがあるので、本文はすぐ読まず、そろうまで待つ
+    @MainActor
+    private func type(
+        _ text: String, into body: XCUIElement, of app: XCUIApplication, toRead expected: String,
+        _ message: String = "", file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let focused = app.textViews.matching(
+            NSPredicate(format: "identifier == %@ AND hasKeyboardFocus == true", body.identifier)
+        ).firstMatch
+        if !focused.waitForExistence(timeout: 2) {
+            body.tap()
+            XCTAssertTrue(focused.waitForExistence(timeout: 5), "入力欄にカーソルが置けない", file: file, line: line)
+        }
+        body.typeText(text)
+        let read = NSPredicate(format: "value == %@", expected)
+        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: read, object: body)], timeout: 10) != .completed {
+            XCTAssertEqual(body.value as? String, expected, message, file: file, line: line)
+        }
     }
 
     @MainActor
