@@ -14,15 +14,15 @@ enum LastImport {
 
 /// 取り込みの様子
 enum ImportState {
-    /// この Mac の記録を読んでいる
+    /// この端末の記録を読んでいる
     case checking
-    /// この Mac の記録を読めなかった。画面に出す文言
+    /// この端末の記録を読めなかった。画面に出す文言
     case unreadable(String)
     case idle(ImportableRecords, last: LastImport)
     case running(ImportProgress)
 }
 
-/// ログインしているあいだの、この Mac の記録の取り込み（ADR 0020）。ログインするたびに作り直す。
+/// ログインしているあいだの、この端末の記録の取り込み（ADR 0020）。ログインするたびに作り直す。
 ///
 /// 判断（どのセッションを送り、どれを消すか）は `runImport` に任せ、ここは画面に出す様子を持つだけ
 @Observable
@@ -32,12 +32,15 @@ final class ImportModel {
     /// ログインした直後の確かめを出すか。閉じたら（あとでにしても、取り込み終えても）出さない
     var prompting: Bool
 
+    /// 文言でこの端末を呼ぶ名前
+    let thisDevice: ThisDevice
     @ObservationIgnored private let device: DeviceBackend
     @ObservationIgnored private let account: SignedIn
 
-    /// - Parameter askNow: ログインした直後なら true。起動したときにログインしていたなら、設定から取り込む
-    init(device: DeviceBackend, account: SignedIn, askNow: Bool) {
+    /// - Parameter askNow: ログインした直後なら true。起動したときにログインしていたなら、アカウントの欄から取り込む
+    init(device: DeviceBackend, account: SignedIn, thisDevice: ThisDevice, askNow: Bool) {
         self.device = device
+        self.thisDevice = thisDevice
         self.account = account
         prompting = askNow
     }
@@ -58,7 +61,7 @@ final class ImportModel {
         return false
     }
 
-    /// この Mac の記録を読み直す。最後の結果は残す
+    /// この端末の記録を読み直す。最後の結果は残す
     func check() async {
         let last: LastImport =
             switch state {
@@ -67,7 +70,7 @@ final class ImportModel {
             }
         switch await device.loadImportable() {
         case .success(let records): state = .idle(records, last: last)
-        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error))
+        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
         }
     }
 
@@ -91,7 +94,7 @@ final class ImportModel {
             }
         switch await device.loadImportable() {
         case .success(let records): state = .idle(records, last: last)
-        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error))
+        case .failure(let error): state = .unreadable(deviceUnreadableMessageOf(error, on: thisDevice))
         }
     }
 

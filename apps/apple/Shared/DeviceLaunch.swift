@@ -49,7 +49,7 @@ struct DeviceLaunch {
     ///   （`DebugFailingJournalWrites`）
     extension DeviceLaunch {
         /// 環境変数から起動のしかたを読む。時計の速さも記録のファイル名もなく、`requested` でもなければ nil
-        /// （ふつうに起動する）。`requested` は、ほかの理由（Mac の代わりのアカウント）でテスト用に起動するとき
+        /// （ふつうに起動する）。`requested` は、ほかの理由（サーバーの代わりのアカウント）でテスト用に起動するとき
         static func debug(_ environment: [String: String], requested: Bool = false) -> DeviceLaunch? {
             let scale = environment["NANAICHI_TIME_SCALE"].flatMap(Double.init)
             let name = environment["NANAICHI_DATABASE"]

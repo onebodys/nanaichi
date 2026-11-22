@@ -20,7 +20,7 @@ struct NanaichiApp: App {
         .commands {
             TimerCommands(model: appDelegate.model)
             ReviewCommands()
-            AccountCommands(model: appDelegate.model)
+            AccountCommands(settings: appDelegate.settings)
         }
 
         // スタッツは振り返るときに開く補助のウィンドウ。タイマーの隣に並べて見られる
@@ -30,7 +30,7 @@ struct NanaichiApp: App {
         .defaultSize(width: 1000, height: 720)
 
         Settings {
-            SettingsView(model: appDelegate.model)
+            SettingsView(model: appDelegate.model, navigation: appDelegate.settings)
         }
 
         // ウィンドウを閉じていても、残り時間を見て操作できるようにする（ADR 0015「メニューバー常駐」）。
@@ -71,13 +71,13 @@ private struct RecordStoreScope<Content: View>: View {
 /// メニューバーの nanaichi のメニューに、設定のアカウントのタブを開く項目を足す。
 /// ログイン・ログアウトとその失敗の知らせは、そのタブにまとめる
 private struct AccountCommands: Commands {
-    let model: AppModel
+    let settings: SettingsNavigation
     @Environment(\.openSettings) private var openSettings
 
     var body: some Commands {
         CommandGroup(after: .appSettings) {
             Button("アカウント…") {
-                model.settingsTab = .account
+                settings.tab = .account
                 openSettings()
             }
         }
@@ -88,6 +88,7 @@ private struct AccountCommands: Commands {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     let model: AppModel
+    let settings = SettingsNavigation()
     #if DEBUG
         private var menuBarPanelWindow: NSWindow?
     #endif

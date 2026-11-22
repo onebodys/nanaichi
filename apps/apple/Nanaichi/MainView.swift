@@ -34,13 +34,7 @@ struct MainView: View {
             }
         }
         // ログインした直後に、この Mac の記録を取り込むかを確かめる（ADR 0020）
-        .sheet(
-            isPresented: Binding(
-                get: { model.importer?.prompt != nil },
-                set: { shown in if !shown, model.importer?.isRunning == false { model.importer?.prompting = false } })
-        ) {
-            if let importer = model.importer { ImportSheet(importer: importer) }
-        }
+        .importPrompt(model.importer)
         .alert("ログインが切れました", isPresented: $model.signedOutByExpiry) {
             Button("OK") {}
         } message: {

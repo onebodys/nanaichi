@@ -1,7 +1,13 @@
-import AppKit
 import AuthenticationServices
 import NanaichiAccount
 import NanaichiDomain
+import NanaichiPresentation
+
+#if os(macOS)
+    import AppKit
+#else
+    import UIKit
+#endif
 
 /// ログインしているときの記録先（GLOSSARY の「アカウント」）と、その後始末
 struct SignedIn {
@@ -9,7 +15,7 @@ struct SignedIn {
     /// タスクと ToDo の設定。アカウントの記録先にだけある（ADR 0026）
     let tasks: any TaskBackend
     let user: @Sendable () async -> Result<AccountUser, BackendError>
-    /// この Mac の記録の束をアカウントへ取り込む（ADR 0020）
+    /// この端末の記録の束をアカウントへ取り込む（ADR 0020）
     let sendImportBatch: @Sendable (ImportBatch) async -> Result<ImportReceipt, ImportCallError>
     /// ログアウトする。サーバーのセッションを消し（届かなくても）、手元のトークンを消し、同期を閉じる
     let signOut: @Sendable () async -> Void
@@ -43,11 +49,15 @@ struct AccountGateway {
 
 extension AccountGateway {
     /// Keychain の項目の名前（ADR 0029 の「アプリはトークンを Keychain に置く」）
-    static let keychainService = "app.nanaichi.mac"
+    #if os(macOS)
+        static let keychainService = "app.nanaichi.mac"
+    #else
+        static let keychainService = "app.nanaichi.ios"
+    #endif
 
     /// 本番のサーバーにログインし、トークンを `tokens` に置く。
-    /// 記録先の時計のずれは、画面と同じ時計 `clock` で測る
-    static func live(clock: AppClock, tokens: any TokenStore) -> AccountGateway {
+    /// 記録先の時計のずれは、画面と同じ時計 `clock` で測る。`device` は文言でこの端末を呼ぶ名前
+    static func live(clock: AppClock, tokens: any TokenStore, device: ThisDevice) -> AccountGateway {
         let nativeSignIn = NativeSignIn()
 
         @Sendable func signedIn(_ token: SessionToken, onExpired: @escaping @Sendable () -> Void) -> SignedIn {
@@ -74,7 +84,7 @@ extension AccountGateway {
                 do {
                     return try tokens.load().map { .signedIn(signedIn($0, onExpired: onExpired)) } ?? .signedOut
                 } catch {
-                    return .unreadable("ログインの情報を Keychain から読めなかったので、この Mac の記録で開きました。")
+                    return .unreadable("ログインの情報を Keychain から読めなかったので、\(device.name) の記録で開きました。")
                 }
             },
             signIn: { onExpired in
@@ -135,7 +145,7 @@ private final class WebAuthentication: NSObject, ASWebAuthenticationPresentation
             let session = ASWebAuthenticationSession(
                 url: url, callback: .customScheme(NativeSignIn.callbackScheme)
             ) { @Sendable callback, error in
-                // macOS はこの完了の処理をメインスレッドの外で呼ぶ。@Sendable を外すと、Swift 6 は
+                // macOS はこの完了の処理をメインスレッドの外で呼ぶ（iOS でも決まっていない）。@Sendable を外すと、Swift 6 は
                 // @MainActor の中で書いたこのクロージャをメインスレッドのものとみなし、呼ばれた瞬間に落ちる
                 if let callback {
                     continuation.resume(returning: .returned(callback))
@@ -154,6 +164,16 @@ private final class WebAuthentication: NSObject, ASWebAuthenticationPresentation
     }
 
     nonisolated func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        MainActor.assumeIsolated { NSApp.keyWindow ?? NSApp.mainWindow ?? ASPresentationAnchor() }
+        MainActor.assumeIsolated {
+            #if os(macOS)
+                NSApp.keyWindow ?? NSApp.mainWindow ?? ASPresentationAnchor()
+            #else
+                let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+                if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) { return window }
+                // ログインのボタンを押せたなら、画面（シーン）はある
+                guard let scene = scenes.first else { preconditionFailure("ログインの画面を重ねる画面がない") }
+                return ASPresentationAnchor(windowScene: scene)
+            #endif
+        }
     }
 }

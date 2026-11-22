@@ -2,24 +2,52 @@ import Foundation
 import NanaichiAccount
 import NanaichiDevice
 import NanaichiDomain
+import NanaichiPresentation
 
-/// 起動のしかた。リリースのビルドでは、いつも実際の時計とアプリのコンテナの記録と、本番のアカウントを使う
+#if os(iOS)
+    import UIKit
+#endif
+
+/// 起動のしかた。Mac と iPhone で同じ決め方をする。
+/// リリースのビルドでは、いつも実際の時計とアプリのコンテナの記録と、本番のアカウントを使う
 struct LaunchConfiguration {
     let clock: AppClock
     let database: DeviceDatabaseLocation
     let accounts: AccountGateway
+    /// 文言でこの端末を呼ぶ名前
+    let thisDevice: ThisDevice
 
+    @MainActor
     static func current() -> LaunchConfiguration {
+        let thisDevice = ThisDevice.running
         #if DEBUG
-            if let debug = debugConfiguration(ProcessInfo.processInfo.environment) { return debug }
+            if let debug = debugConfiguration(ProcessInfo.processInfo.environment, thisDevice: thisDevice) { return debug }
         #endif
         let device = DeviceLaunch.standard
         return LaunchConfiguration(
-            clock: device.clock, database: device.database, accounts: .live(clock: device.clock, tokens: keychain))
+            clock: device.clock, database: device.database,
+            accounts: .live(clock: device.clock, tokens: keychain, device: thisDevice), thisDevice: thisDevice)
     }
 
-    /// トークンはログインの Keychain に置く。チームのない署名（ADR 0028）では Data Protection Keychain を使えないため
-    static let keychain = KeychainTokenStore(service: AccountGateway.keychainService, keychain: .fileBased)
+    #if os(macOS)
+        /// トークンはログインの Keychain に置く。チームのない署名（ADR 0028）では Data Protection Keychain を使えないため
+        static let keychain = KeychainTokenStore(service: AccountGateway.keychainService, keychain: .fileBased)
+    #else
+        /// iOS の Keychain はアプリごとに分かれていて、チームのない署名でも使える
+        static let keychain = KeychainTokenStore(service: AccountGateway.keychainService, keychain: .dataProtection)
+    #endif
+}
+
+extension ThisDevice {
+    /// このアプリが動いている端末。iPhone のアプリは iPad でも動く
+    @MainActor
+    static var running: ThisDevice {
+        #if os(macOS)
+            .mac
+        #else
+            UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
+        #endif
+    }
 }
 
 #if DEBUG
@@ -29,12 +57,17 @@ struct LaunchConfiguration {
     ///   ログインもブラウザを開かずにすぐ通る。そうでなければ本番にログインするが、トークンはメモリにだけ置き、
     ///   開発者の Keychain のトークンでテストを動かさない
     extension LaunchConfiguration {
-        fileprivate static func debugConfiguration(_ environment: [String: String]) -> LaunchConfiguration? {
+        fileprivate static func debugConfiguration(_ environment: [String: String], thisDevice: ThisDevice)
+            -> LaunchConfiguration?
+        {
             let stub = environment["NANAICHI_ACCOUNT_STUB"] == "1"
             guard let device = DeviceLaunch.debug(environment, requested: stub) else { return nil }
             let accounts: AccountGateway =
-                stub ? .stub(clock: device.clock) : .live(clock: device.clock, tokens: InMemoryTokenStore())
-            return LaunchConfiguration(clock: device.clock, database: device.database, accounts: accounts)
+                stub
+                ? .stub(clock: device.clock)
+                : .live(clock: device.clock, tokens: InMemoryTokenStore(), device: thisDevice)
+            return LaunchConfiguration(
+                clock: device.clock, database: device.database, accounts: accounts, thisDevice: thisDevice)
         }
     }
 
@@ -137,10 +170,18 @@ struct LaunchConfiguration {
     func runSelfCheckIfAsked() async {
         guard ProcessInfo.processInfo.environment["NANAICHI_SELF_CHECK"] == "1" else { return }
         let token = SessionToken("self-check-token")!
-        let stores: [(String, KeychainTokenStore)] = [
-            ("fileBased", KeychainTokenStore(service: "app.nanaichi.mac.self-check", keychain: .fileBased)),
-            ("dataProtection", KeychainTokenStore(service: "app.nanaichi.mac.self-check", keychain: .dataProtection)),
-        ]
+        let service = "\(AccountGateway.keychainService).self-check"
+        #if os(macOS)
+            let stores: [(String, KeychainTokenStore)] = [
+                ("fileBased", KeychainTokenStore(service: service, keychain: .fileBased)),
+                ("dataProtection", KeychainTokenStore(service: service, keychain: .dataProtection)),
+            ]
+        #else
+            // iOS の Keychain は1つだけ（ファイルの Keychain はない）
+            let stores: [(String, KeychainTokenStore)] = [
+                ("dataProtection", KeychainTokenStore(service: service, keychain: .dataProtection))
+            ]
+        #endif
         for (name, store) in stores {
             do {
                 try store.save(token)

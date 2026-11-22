@@ -1,11 +1,13 @@
 import AVFoundation
+import NanaichiAccount
 import NanaichiDevice
 import NanaichiDomain
 import SwiftUI
 import UIKit
 import UserNotifications
 
-/// iPhone のアプリ（ADR 0031）。タイマーとジャーナル記入だけを、この端末の記録先で使う。
+/// iPhone のアプリ（ADR 0031）。タイマーとジャーナル記入だけを使う。ログインしていなければこの端末の記録先、
+/// していればアカウントの記録先で動き、Mac・Web と同期する（Issue #71）。
 /// スタッツ・タスク・タグの管理・設定の画面は Web と Mac で使う
 @main
 struct NanaichiPhoneApp: App {
@@ -14,7 +16,7 @@ struct NanaichiPhoneApp: App {
 
     var body: some Scene {
         WindowGroup {
-            HomeView(timer: appDelegate.timer)
+            PhoneRootView(model: appDelegate.model)
                 .preferredColorScheme(debugColorScheme())
         }
         .onChange(of: scenePhase) { _, phase in appDelegate.scenePhaseChanged(phase) }
@@ -24,18 +26,25 @@ struct NanaichiPhoneApp: App {
 /// アプリの間ずっと生きている部品を持つ。裏に回るときは、音を鳴らせなくなるので通知に知らせを任せる
 @MainActor
 final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    let timer: TimerModel
-    private let backend: DeviceBackend
-    private var running: Task<Void, Never>?
+    let model: PhoneModel
+    /// この端末の記録先。ログインしている間も閉じずに持つ
+    private let device: DeviceBackend
 
     override init() {
-        let launch = currentDeviceLaunch()
+        let launch = LaunchConfiguration.current()
         let alertSettings = AlertSettingsStore()
-        backend = DeviceBackend(location: launch.database, clock: launch.clock.now)
-        timer = TimerModel(
-            backend: debugBackend(backend), clock: launch.clock,
-            alert: PhaseAlertPlayer(), notifications: PhaseNotificationScheduler(clock: launch.clock),
-            alertSettings: { alertSettings.settings })
+        let alert = PhaseAlertPlayer()
+        device = DeviceBackend(location: launch.database, clock: launch.clock.now)
+        // タスク（ToDo）は iPhone では使わない（ADR 0031）
+        model = PhoneModel(device: device, accounts: launch.accounts, thisDevice: launch.thisDevice) { backend, _ in
+            let backend = debugBackend(backend)
+            return PhoneServices(
+                backend: backend,
+                timer: TimerModel(
+                    backend: backend, clock: launch.clock,
+                    alert: alert, notifications: PhaseNotificationScheduler(clock: launch.clock),
+                    alertSettings: { alertSettings.settings }))
+        }
         super.init()
         UNUserNotificationCenter.current().delegate = self
         // 切り替わりの音はほかのアプリの音に重ねて鳴らし、消音のスイッチに従う（時計のアラームのように鳴らし分けない）
@@ -45,11 +54,12 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     func application(
         _ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        running = Task { [timer, backend] in
+        Task { [model, device] in
             #if DEBUG
-                await applyDebugAdvanceMode(ProcessInfo.processInfo.environment, to: backend)
+                await runSelfCheckIfAsked()
+                await applyDebugAdvanceMode(ProcessInfo.processInfo.environment, to: device)
             #endif
-            await timer.run()
+            model.start()
         }
         return true
     }
@@ -60,12 +70,14 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         switch phase {
         case .background:
             let handOver = BackgroundHandOver()
-            Task { [timer] in
+            Task { [timer = model.services.timer] in
                 await timer.handOverAlertsToNotifications()
                 handOver.finish()
             }
         case .active:
-            timer.takeBackAlerts()
+            model.services.timer.takeBackAlerts()
+            // 裏にいる間に同期の接続が切れていることがある
+            Task { [model] in await model.checkSyncConnection() }
         case .inactive:
             break
         @unknown default:
@@ -100,15 +112,25 @@ private final class BackgroundHandOver {
     }
 }
 
-private func currentDeviceLaunch() -> DeviceLaunch {
-    #if DEBUG
-        if let debug = DeviceLaunch.debug(ProcessInfo.processInfo.environment) { return debug }
-    #endif
-    return .standard
+/// アプリの間ずっと生きている部品（記録先を決め、替わるたびに `PhoneServices` を作り直す）。Mac と同じもの
+typealias PhoneModel = RecordStoreModel<PhoneServices>
+
+/// 1つの記録先につないだ画面の状態。iPhone にはタイマー（とジャーナル記入）だけがある（ADR 0031）
+@MainActor
+final class PhoneServices: RecordStoreServices {
+    let backend: any Backend
+    let timer: TimerModel
+
+    init(backend: any Backend, timer: TimerModel) {
+        self.backend = backend
+        self.timer = timer
+    }
+
+    func run() async { await timer.run() }
 }
 
 /// 画面が使う記録先。デバッグのビルドでは、XCUITest のためにジャーナル記入を送れなかったことにできる（`DebugFailingJournalWrites`）
-private func debugBackend(_ backend: DeviceBackend) -> any Backend {
+private func debugBackend(_ backend: any Backend) -> any Backend {
     #if DEBUG
         return DebugFailingJournalWrites.wrapping(backend, ProcessInfo.processInfo.environment)
     #else
