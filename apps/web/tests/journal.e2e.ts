@@ -277,6 +277,103 @@ describe("ジャーナル記入とタイムライン", { serial: true, session: 
     await screen.getByRole("button", { name: "終了" }).tap();
   });
 
+  test("前のセッションで送れなかった記入は次のセッションで送り直せず、入力欄に戻すか捨てられ、今のセッションで送れなかった記入は送り直せる", async ({
+    app,
+    browser,
+    screen,
+  }) => {
+    await openWithoutSession(app, browser);
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    const input = screen.getByLabel("ジャーナル記入の本文");
+    await expect(input).toBeEnabled();
+    await chooseSubmitKey(screen, /\+Enter で送信$/);
+
+    // 記入を書く要求を、合図があるまで止めてから落とす（送っている間に書き足すため）。`pass` の間は通す
+    const posted: Array<string | undefined> = [];
+    let mode: "fail" | "pass" = "fail";
+    let release: () => void = () => undefined;
+    const held = () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    let gate = held();
+    await browser.route(/\/api\/journal-entries$/, async (route) => {
+      if (route.request.method !== "POST") {
+        await route.fallback();
+        return;
+      }
+      posted.push(route.request.postData);
+      if (mode === "pass") {
+        await route.continue();
+        return;
+      }
+      await gate;
+      gate = held();
+      await route.abort();
+    });
+    const idOf = (body: string | undefined): unknown => JSON.parse(body ?? "").id;
+
+    const band = screen.getByRole("region", { name: "送れなかった記入" });
+    const unsent = band.getByRole("listitem");
+    const PREVIOUS = "前のセッションの記入です";
+
+    // S1 で A と B が送れず、帯に2件並ぶ
+    await input.pressSequentially("前のA");
+    await input.press("Control+Enter");
+    await input.pressSequentially("前のB");
+    release();
+    await expect(unsent).toHaveCount(1);
+    await input.press("Control+Enter");
+    await input.pressSequentially("今のC");
+    release();
+    await expect(unsent).toHaveCount(2);
+    await expect(unsent.first()).not.toContainText(PREVIOUS);
+
+    // S1 を終えて S2 を始めると、A と B は前のセッションの記入で、送り直せないが、入力欄に戻すことと捨てることはできる
+    await screen.getByRole("button", { name: "終了" }).tap();
+    await expect(input).toBeDisabled();
+    await screen.getByRole("button", { name: START_BUTTON }).tap();
+    await expect(input).toBeEnabled();
+    for (const item of [unsent.nth(0), unsent.nth(1)]) {
+      await expect(item).toContainText(PREVIOUS);
+      await expect(item.getByRole("button", { name: "送り直す" })).toBeDisabled();
+      await expect(item.getByRole("button", { name: "入力欄に戻す" })).toBeEnabled();
+      await expect(item.getByRole("button", { name: "捨てる" })).toBeEnabled();
+    }
+
+    // S2 で C が送れないと帯に並び、A と B があっても C は送り直せる
+    await input.press("Control+Enter");
+    await input.pressSequentially("今のD");
+    release();
+    await expect(unsent).toHaveCount(3);
+    const c = unsent.nth(2);
+    await expect(c).toContainText("今のC");
+    await expect(c).not.toContainText(PREVIOUS);
+    await expect(c.getByRole("button", { name: "送り直す" })).toBeEnabled();
+    mode = "pass";
+    await c.getByRole("button", { name: "送り直す" }).tap();
+    await expect(unsent).toHaveCount(2);
+    expect(posted).toHaveLength(4);
+    expect(JSON.parse(posted[3] ?? "")).toEqual(JSON.parse(posted[2] ?? ""));
+
+    // B を捨てると帯から消える。A を入力欄に戻すと本文が入り、送ると A の ID ではなく新しい記入として S2 に書く
+    await unsent.nth(1).getByRole("button", { name: "捨てる" }).tap();
+    await expect(unsent).toHaveCount(1);
+    await expect(unsent.first()).toContainText("前のA");
+    await unsent.first().getByRole("button", { name: "入力欄に戻す" }).tap();
+    await expect(band).toBeHidden();
+    await expect(input).toHaveValue("前のA\n今のD");
+    await input.press("Control+Enter");
+    await expect(input).toHaveValue("");
+    const current = screen.getByRole("region", { name: /からのセッション$/ }).first();
+    await expect(current.getByRole("listitem", { name: "ジャーナル記入" })).toHaveCount(2);
+    await expect(current).toContainText("前のA");
+    expect(posted).toHaveLength(5);
+    expect(idOf(posted[4])).not.toEqual(idOf(posted[0]));
+    await browser.unroute(/\/api\/journal-entries$/);
+    await screen.getByRole("button", { name: "終了" }).tap();
+  });
+
   test("記入を編集・削除できる", async ({ app, browser, screen }) => {
     await openWithoutSession(app, browser);
     await screen.getByRole("button", { name: START_BUTTON }).tap();

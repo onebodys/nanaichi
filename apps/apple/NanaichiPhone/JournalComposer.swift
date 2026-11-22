@@ -29,7 +29,7 @@ struct JournalComposer: View {
                 .font(.headline)
             if !draft.unsent.isEmpty {
                 UnsentEntries(
-                    entries: draft.unsent, inSession: inSession, onResend: resend,
+                    entries: draft.unsent, session: model.view.writableSession, onResend: resend,
                     onReturnToInput: { draft.returnToInput($0) }, onDiscard: { draft.discard($0) })
             }
             editor
@@ -98,18 +98,18 @@ struct JournalComposer: View {
     }
 
     private func submit() {
-        guard canSend else { return }
+        guard canSend, let session = model.view.writableSession else { return }
         sending = true
         // 送っている間も続けて書けるよう、先に空にする
-        let submission = draft.submit(tags: [], newId: newEntryId)
+        let submission = draft.submit(tags: [], in: session, newId: newEntryId)
         Task {
-            if await !model.write(submission) { draft.failed(submission) }
+            if await !model.write(submission) { draft.failed(submission, in: session) }
             sending = false
         }
     }
 
     private func resend(_ id: JournalEntryId) {
-        guard let submission = draft.resend(id) else { return }
+        guard let session = model.view.writableSession, let submission = draft.resend(id, in: session) else { return }
         Task {
             if await model.write(submission) { draft.resent(id) } else { draft.resendFailed(id) }
         }

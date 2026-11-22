@@ -1,6 +1,6 @@
 import XCTest
 
-/// iPhone で、送れなかったジャーナル記入を失わずに扱う（Issue #80）。
+/// iPhone で、送れなかったジャーナル記入を失わずに扱う（Issue #80）。前のセッションの記入は送り直させない（Issue #88）。
 ///
 /// はじめの数回の記入を、少し待ってから送れなかったことにして起動する（`NANAICHI_FAIL_JOURNAL_WRITES`、
 /// `DebugFailingJournalWrites`）。待っている間に入力欄に書き足す。送り直すときの ID・本文・タグが最初と同じことは、
@@ -8,6 +8,14 @@ import XCTest
 final class PhoneJournalTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
+    }
+
+    @MainActor
+    private func startSession(_ app: XCUIApplication) {
+        let start = app.buttons["timer.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.tap()
+        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10), "セッションが始まらない")
     }
 
     @MainActor
@@ -30,10 +38,15 @@ final class PhoneJournalTests: XCTestCase {
         return app
     }
 
-    /// 帯に並んだ送れなかった記入の本文
+    /// 帯に並んだ送れなかった記入の本文。送り直せて帯が変わる途中に1件ずつ読むと、数えたあとに消えた記入を
+    /// 読めずに落ちるので、画面の階層を一度に写してから読む
     @MainActor
     private func unsentBodies(_ app: XCUIApplication) -> [String] {
-        app.staticTexts.matching(identifier: "journal.unsent.body").allElementsBoundByIndex.map(\.label)
+        guard let root = try? app.snapshot() else { return [] }
+        func bodies(_ element: any XCUIElementSnapshot) -> [String] {
+            (element.identifier == "journal.unsent.body" ? [element.label] : []) + element.children.flatMap(bodies)
+        }
+        return bodies(root)
     }
 
     @MainActor
@@ -134,5 +147,54 @@ final class PhoneJournalTests: XCTestCase {
 
         unsentButton(app, "discard").tap()
         waitForUnsent(app, [])
+    }
+
+    /// S1 で A と B が送れず帯に残る → S1 を終えて S2 を始める → A と B は前のセッションの記入として説明が出て、
+    /// 送り直せないが、入力欄に戻すことと捨てることはできる。S2 で送れなかった C は、A と B があっても送り直せる
+    @MainActor
+    func testUnsentEntriesFromThePreviousSessionCannotBeResent() throws {
+        let app = launchInSession(failingWrites: 3)
+        let body = app.textViews["journal.body"]
+        body.tap()
+        body.typeText("A")
+        app.buttons["journal.sendFromKeyboard"].tap()
+        body.typeText("B")
+        waitForUnsent(app, ["A"])
+        app.buttons["journal.sendFromKeyboard"].tap()
+        body.typeText("C")
+        waitForUnsent(app, ["A", "B"])
+        app.buttons["journal.dismissKeyboard"].tap()
+        XCTAssertFalse(app.staticTexts["journal.unsent.previousSession"].exists, "今のセッションの記入に説明が出る")
+
+        app.buttons["operation.End"].tap()
+        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "セッションが終わらない")
+        startSession(app)
+        waitForUnsent(app, ["A", "B"])
+        XCTAssertEqual(
+            app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2, "前のセッションの記入の説明が出ない")
+        for index in 0..<2 {
+            XCTAssertFalse(unsentButton(app, "resend", at: index).isEnabled, "前のセッションの記入を送り直せる")
+            XCTAssertTrue(unsentButton(app, "returnToInput", at: index).isEnabled, "前のセッションの記入を入力欄に戻せない")
+            XCTAssertTrue(unsentButton(app, "discard", at: index).isEnabled, "前のセッションの記入を捨てられない")
+        }
+        attachScreenshot(named: "21-前のセッションの送れなかった記入")
+
+        // S2 で C が送れないと帯に並び、C は送り直せる（4回目からは送れる）
+        body.tap()
+        app.buttons["journal.sendFromKeyboard"].tap()
+        body.typeText("D")
+        waitForUnsent(app, ["A", "B", "C"])
+        app.buttons["journal.dismissKeyboard"].tap()
+        XCTAssertEqual(app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2)
+        XCTAssertTrue(unsentButton(app, "resend", at: 2).isEnabled, "今のセッションの記入を送り直せない")
+        unsentButton(app, "resend", at: 2).tap()
+        waitForUnsent(app, ["A", "B"])
+
+        // B を捨てると帯から消え、A を入力欄に戻すと書き足した D の前につながる
+        unsentButton(app, "discard", at: 1).tap()
+        waitForUnsent(app, ["A"])
+        unsentButton(app, "returnToInput", at: 0).tap()
+        waitForUnsent(app, [])
+        waitForInput(app, toRead: "A\nD")
     }
 }

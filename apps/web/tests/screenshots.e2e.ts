@@ -41,6 +41,34 @@ const capture = async (
  * 記入を書く要求を、書き足すまで止めてから落とす。撮ったら帯の記入を捨て、入力欄を空に戻す
  */
 const shootUnsentEntry = async (browser: Browser, screen: Screen, shoot: () => Promise<void>) => {
+  await failWhileAppending(browser, screen);
+  await shoot();
+  await discardUnsent(screen);
+};
+
+/**
+ * 前のセッションで送れなかった記入（Issue #88）を撮る。今のセッションで記入を送れずに帯に残し、
+ * 終了して次のセッションを始めてから撮る。撮ったら帯の記入を捨て、入力欄を空に戻して終了する
+ */
+const shootPreviousSessionUnsentEntry = async (
+  browser: Browser,
+  screen: Screen,
+  shoot: () => Promise<void>,
+) => {
+  await screen.getByRole("button", { name: START_BUTTON }).tap();
+  await expect(screen.getByLabel("ジャーナル記入の本文")).toBeEnabled();
+  await failWhileAppending(browser, screen);
+  await screen.getByRole("button", { name: "終了" }).tap();
+  await screen.getByRole("button", { name: START_BUTTON }).tap();
+  await expect(screen.getByText("前のセッションの記入です", { exact: false })).toBeVisible();
+  await shoot();
+  await discardUnsent(screen);
+  await screen.getByRole("button", { name: "終了" }).tap();
+  await expect(screen.getByText("セッションを終了しました")).toBeVisible();
+};
+
+/** 記入を送っている間に書き足し、送れなかったことにして帯に1件残す */
+const failWhileAppending = async (browser: Browser, screen: Screen) => {
   const pattern = /\/api\/journal-entries$/;
   let release: () => void = () => undefined;
   const gate = new Promise<void>((resolve) => {
@@ -62,11 +90,15 @@ const shootUnsentEntry = async (browser: Browser, screen: Screen, shoot: () => P
   release();
   const band = screen.getByRole("region", { name: "送れなかった記入" });
   await expect(band.getByRole("listitem")).toHaveCount(1);
-  await shoot();
   await browser.unroute(pattern);
+};
+
+/** 帯の記入を捨て、入力欄を空に戻す */
+const discardUnsent = async (screen: Screen) => {
+  const band = screen.getByRole("region", { name: "送れなかった記入" });
   await band.getByRole("button", { name: "捨てる" }).tap();
   await expect(band).toBeHidden();
-  await input.fill("");
+  await screen.getByLabel("ジャーナル記入の本文").fill("");
 };
 
 /** 手元の D1 と UserDO は実行のあいだで残るので、途中で止まった実行のセッションが残っていれば終了する */
@@ -166,6 +198,10 @@ describe("主な画面のスクリーンショット", { serial: true, session: 
         .tap();
       await expect(screen.getByText("未完了のタスクはありません")).toBeVisible();
       await setTaskSetting(screen, "Disabled");
+
+      await shootPreviousSessionUnsentEntry(browser, screen, () =>
+        shoot("10-前のセッションの送れなかった記入"),
+      );
     });
   }
 });

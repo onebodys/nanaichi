@@ -1,6 +1,16 @@
-#if DEBUG
-    import NanaichiDomain
+import Foundation
+import NanaichiDomain
 
+/// 画面が使う記録先。デバッグのビルドでは、XCUITest のためにジャーナル記入を送れなかったことにできる（`DebugFailingJournalWrites`）
+func debugBackend(_ backend: any Backend) -> any Backend {
+    #if DEBUG
+        return DebugFailingJournalWrites.wrapping(backend, ProcessInfo.processInfo.environment)
+    #else
+        return backend
+    #endif
+}
+
+#if DEBUG
     /// XCUITest が「送っている間に書き足して、送れなかった」場面を作るための記録先（Issue #80）。デバッグのビルドにだけある。
     ///
     /// 環境変数 `NANAICHI_FAIL_JOURNAL_WRITES` が `n` なら、はじめの n 回のジャーナル記入の書き込みを、
@@ -48,7 +58,8 @@
         func getTimeline(before: Instant?) async -> Result<TimelinePage, BackendError> {
             await base.getTimeline(before: before)
         }
-        func getTags() async -> Result<TagList, BackendError> { await base.getTags() }
+        // Mac のアプリにも画面の `TagList` があるので、記録先の型をモジュールの名前で指す
+        func getTags() async -> Result<NanaichiDomain.TagList, BackendError> { await base.getTags() }
         func getTagUsage() async -> Result<TagUsageList, BackendError> { await base.getTagUsage() }
         func deleteTag(name: TagName, deletion: TagDeletion) async -> Result<DeletedTag, BackendError> {
             await base.deleteTag(name: name, deletion: deletion)

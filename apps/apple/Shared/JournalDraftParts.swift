@@ -7,11 +7,13 @@ import SwiftUI
 /// 新しい記入の ID。UUID の文字列は必ず記入の ID の形なので、読めないのは実装の誤り
 func newEntryId() -> JournalEntryId { JournalEntryId(UUID().uuidString.lowercased())! }
 
-/// 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。
-/// セッションの外では送り直すことも入力欄に戻すこともできないが、本文は選んで（iPhone では長押しで）コピーできる
+/// 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。本文はいつでも選んで（iPhone では長押しで）コピーできる。
+/// セッションの外では送り直すことも入力欄に戻すこともできない。前のセッションの記入は、送り直すと今のセッションの
+/// 記入になってしまうので送り直せないが、入力欄に戻して今のセッションの記入として書ける（Issue #88）
 struct UnsentEntries: View {
     let entries: [UnsentEntry]
-    let inSession: Bool
+    /// 今のセッション。セッションの外なら nil
+    let session: SessionId?
     let onResend: (JournalEntryId) -> Void
     let onReturnToInput: (JournalEntryId) -> Void
     let onDiscard: (JournalEntryId) -> Void
@@ -21,7 +23,7 @@ struct UnsentEntries: View {
             Text("送れなかった記入")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.red)
-            if !inSession {
+            if session == nil {
                 Text("セッションの外では送り直すことも入力欄に戻すこともできません。\(copyHint)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -46,12 +48,14 @@ struct UnsentEntries: View {
 
     private func row(_ entry: UnsentEntry) -> some View {
         let submission = entry.submission
-        let resending: Bool
-        switch entry {
-        case .unsent: resending = false
-        case .resending: resending = true
-        }
+        let standing = entry.standing(in: session)
         return VStack(alignment: .leading, spacing: 6) {
+            if standing == .previousSession {
+                Text("前のセッションの記入です。送り直すと今のセッションの記入になるので、送り直せません。入力欄に戻すと、今のセッションの記入として書けます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("journal.unsent.previousSession")
+            }
             Text(submission.body)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -64,15 +68,14 @@ struct UnsentEntries: View {
             HStack(spacing: 8) {
                 Spacer()
                 Button("捨てる") { onDiscard(submission.id) }
-                    .disabled(resending)
+                    .disabled(!standing.canDiscard)
                     .accessibilityIdentifier("journal.unsent.discard")
-                // セッションの外では入力欄を使えず、戻すと本文を選んでコピーできなくなるので、帯に残す
                 Button("入力欄に戻す") { onReturnToInput(submission.id) }
-                    .disabled(!inSession || resending)
+                    .disabled(!standing.canReturnToInput)
                     .accessibilityIdentifier("journal.unsent.returnToInput")
-                Button(resending ? "送り直し中…" : "送り直す") { onResend(submission.id) }
+                Button(standing == .resending ? "送り直し中…" : "送り直す") { onResend(submission.id) }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!inSession || resending)
+                    .disabled(!standing.canResend)
                     .accessibilityIdentifier("journal.unsent.resend")
             }
             .controlSize(.small)

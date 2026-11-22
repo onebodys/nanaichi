@@ -45,7 +45,7 @@ struct DeviceLaunch {
     /// - `NANAICHI_RESET_DEFAULTS`: `1` なら、端末ごとの設定（知らせ方・テーマ・送信キー・つけたままのタグ）を初期に戻す
     /// - `NANAICHI_MANUAL_ADVANCE`: 手動にするフェーズの切り替わり（`JournalToFocus` などをカンマで区切る）。
     ///   ほかは自動。iPhone の XCUITest が、短いフェーズの終わりと操作の速さを競わずに切り替え待ちで止めるため
-    /// - `NANAICHI_FAIL_JOURNAL_WRITES`: iPhone だけ。はじめの何回のジャーナル記入を送れなかったことにするか
+    /// - `NANAICHI_FAIL_JOURNAL_WRITES`: はじめの何回のジャーナル記入を送れなかったことにするか
     ///   （`DebugFailingJournalWrites`）
     extension DeviceLaunch {
         /// 環境変数から起動のしかたを読む。時計の速さも記録のファイル名もなく、`requested` でもなければ nil

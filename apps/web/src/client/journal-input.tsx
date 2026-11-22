@@ -77,24 +77,32 @@ export const JournalInput = ({
   const canSend = inSession && draft.body.trim().length > 0;
 
   const submit = async () => {
-    if (!canSend) {
+    if (!canSend || sessionId === undefined) {
       return;
     }
     // 送信中も続けて書けるよう、先に空にする
-    const { draft: cleared, submission } = JournalDraft.submit(draft, attachedTags, newEntryId);
+    const { draft: cleared, submission } = JournalDraft.submit(
+      draft,
+      attachedTags,
+      sessionId,
+      newEntryId,
+    );
     setDraft(cleared);
     const written = await write(submission);
     if (!written) {
-      setDraft((current) => JournalDraft.failed(current, submission));
+      setDraft((current) => JournalDraft.failed(current, submission, sessionId));
     }
   };
 
   const resend = async (id: JournalEntryId) => {
-    const started = JournalDraft.resend(draft, id);
+    if (sessionId === undefined) {
+      return;
+    }
+    const started = JournalDraft.resend(draft, id, sessionId);
     if (started === undefined) {
       return;
     }
-    setDraft((current) => JournalDraft.resend(current, id)?.draft ?? current);
+    setDraft((current) => JournalDraft.resend(current, id, sessionId)?.draft ?? current);
     const written = await write(started.submission);
     setDraft((current) =>
       written ? JournalDraft.resent(current, id) : JournalDraft.resendFailed(current, id),
@@ -106,7 +114,7 @@ export const JournalInput = ({
       {draft.unsent.length > 0 && (
         <UnsentEntries
           entries={draft.unsent}
-          inSession={inSession}
+          sessionId={sessionId}
           onResend={(id) => void resend(id)}
           onReturnToInput={(id) => setDraft((current) => JournalDraft.returnToInput(current, id))}
           onDiscard={(id) => setDraft((current) => JournalDraft.discard(current, id))}
@@ -200,18 +208,19 @@ export const JournalInput = ({
 };
 
 /**
- * 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。
- * セッションの外では送り直すことも入力欄に戻すこともできないが、本文は選んでコピーできる
+ * 入力欄の上の「送れなかった記入」の帯。開いている間だけ残す。本文はいつでも選んでコピーできる。
+ * セッションの外では送り直すことも入力欄に戻すこともできない。前のセッションの記入は、送り直すと今のセッションの
+ * 記入になってしまうので送り直せないが、入力欄に戻して今のセッションの記入として書ける（Issue #88）
  */
 const UnsentEntries = ({
   entries,
-  inSession,
+  sessionId,
   onResend,
   onReturnToInput,
   onDiscard,
 }: Readonly<{
   entries: ReadonlyArray<UnsentEntry>;
-  inSession: boolean;
+  sessionId: SessionId | undefined;
   onResend: (id: JournalEntryId) => void;
   onReturnToInput: (id: JournalEntryId) => void;
   onDiscard: (id: JournalEntryId) => void;
@@ -221,7 +230,7 @@ const UnsentEntries = ({
     className="flex flex-col gap-2 rounded-[14px] border border-destructive/40 bg-destructive/5 px-4 py-3"
   >
     <h2 className="text-xs font-medium text-destructive">送れなかった記入</h2>
-    {!inSession && (
+    {sessionId === undefined && (
       <p className="text-xs text-muted-foreground">
         セッションの外では送り直すことも入力欄に戻すこともできません。本文は選んでコピーできます。
       </p>
@@ -229,9 +238,15 @@ const UnsentEntries = ({
     <ul className="flex flex-col gap-2">
       {entries.map((entry) => {
         const { id, body, tags } = entry.submission;
-        const resending = entry.kind === "Resending";
+        const standing = JournalDraft.standingOf(entry, sessionId);
+        const { canResend, canReturnToInput, canDiscard } = JournalDraft.actionsOf(standing);
         return (
           <li key={id} className="flex flex-col gap-1.5">
+            {standing.kind === "PreviousSession" && (
+              <p className="text-xs text-muted-foreground">
+                前のセッションの記入です。送り直すと今のセッションの記入になるので、送り直せません。入力欄に戻すと、今のセッションの記入として書けます。
+              </p>
+            )}
             <p className="text-sm leading-[1.7] break-words whitespace-pre-wrap select-text">
               {body}
             </p>
@@ -243,7 +258,7 @@ const UnsentEntries = ({
                 type="button"
                 size="sm"
                 variant="ghost"
-                disabled={resending}
+                disabled={!canDiscard}
                 onClick={() => onDiscard(id)}
               >
                 捨てる
@@ -252,19 +267,13 @@ const UnsentEntries = ({
                 type="button"
                 size="sm"
                 variant="outline"
-                // セッションの外では入力欄を使えず、戻すと本文を選んでコピーできなくなるので、帯に残す
-                disabled={!inSession || resending}
+                disabled={!canReturnToInput}
                 onClick={() => onReturnToInput(id)}
               >
                 入力欄に戻す
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!inSession || resending}
-                onClick={() => onResend(id)}
-              >
-                {resending ? "送り直し中…" : "送り直す"}
+              <Button type="button" size="sm" disabled={!canResend} onClick={() => onResend(id)}>
+                {standing.kind === "Resending" ? "送り直し中…" : "送り直す"}
               </Button>
             </div>
           </li>

@@ -69,7 +69,7 @@ extension AppModel {
             accounts: configuration.accounts, thisDevice: configuration.thisDevice
         ) { backend, tasks in
             AppServices(
-                backend: backend, tasks: tasks, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
+                backend: debugBackend(backend), tasks: tasks, clock: configuration.clock, alertSettings: alertSettings, alert: alert)
         }
     }
 }
