@@ -41,11 +41,14 @@ func watchAbortDuringFocus() {
         return
     }
     #expect(focus.remainingSeconds == 6 * 60)
-    #expect(abort == .enabled)
+    #expect(abort == .available(.enabled))
     let pending = WatchFace.of(viewOf(started(), at: minutes(1)), reach: .reachable, pending: true)
-    guard case .inSession(_, let pendingAbort) = pending.screen else { return }
-    #expect(pendingAbort == .pending)
-    #expect(pendingAbort?.isEnabled == false)
+    guard case .inSession(.focus, let pendingAbort) = pending.screen else {
+        Issue.record("応答を待つあいだに集中の画面でなくなった: \(pending)")
+        return
+    }
+    #expect(pendingAbort == .available(.pending))
+    #expect(WatchControl.pending.isEnabled == false)
 }
 
 @Test("ジャーナル中は中断できないので Watch に中断を出さず、iPhone に届かなければそれを出す")
@@ -55,6 +58,6 @@ func watchNoAbortDuringJournal() {
         Issue.record("ジャーナルになっていない: \(face)")
         return
     }
-    #expect(abort == nil)
+    #expect(abort == .notNow)
     #expect(face.phoneUnreachableNotice != nil)
 }

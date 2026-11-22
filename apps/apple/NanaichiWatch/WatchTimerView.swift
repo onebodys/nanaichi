@@ -31,9 +31,11 @@ struct WatchTimerView: View {
                         .accessibilityIdentifier("timer.start")
                 case .inSession(let state, let abort):
                     InSession(state: state)
-                    if let abort {
+                    switch abort {
+                    case .notNow: EmptyView()
+                    case .available(let control):
                         Button("中断", role: .destructive, action: model.abort)
-                            .disabled(!abort.isEnabled)
+                            .disabled(!control.isEnabled)
                             .accessibilityIdentifier("operation.Abort")
                     }
                 }

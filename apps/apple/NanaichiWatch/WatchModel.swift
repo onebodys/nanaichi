@@ -12,7 +12,7 @@ import Observation
 @Observable
 @MainActor
 final class WatchModel {
-    private(set) var loading: TimerLoading = .loading
+    private(set) var loading: PhoneSnapshotLoading = .waiting
     private(set) var reach: PhoneReach = .unreachable
     private(set) var deviceNow: Instant
     /// 頼んだ操作の答えを待っている
@@ -32,7 +32,7 @@ final class WatchModel {
         deviceNow = clock()
     }
 
-    var face: WatchFace { .of(.of(loading, deviceNow: deviceNow), reach: reach, pending: pending) }
+    var face: WatchFace { .of(.of(loading.timer, deviceNow: deviceNow), reach: reach, pending: pending) }
 
     /// iPhone からの知らせを受け取り、刻み続ける。アプリが動いている間ずっと呼んだままにする
     func run() async {
@@ -78,25 +78,33 @@ final class WatchModel {
     }
 
     private func ask(_ message: WatchMessage) async {
-        guard let answer = await link.ask(message) else {
-            switch message {
-            case .start, .abort: errorMessage = phoneDidNotAnswerMessage
-            // 今の様子は、届かなくても前に受け取ったものを出し続ける
-            case .current: break
-            }
-            return
+        let answer = await link.ask(message)
+        switch (message, answer) {
+        case (_, .snapshot(let snapshot)?):
+            apply(snapshot)
+        case (.start, .refused(let refusal)?), (.abort, .refused(let refusal)?):
+            errorMessage = refusal
+            // iPhone の様子が、Watch の思っているものと違ったのかもしれない（自動終了したなど）
+            await ask(.current)
+        case (.start, nil), (.abort, nil):
+            errorMessage = phoneDidNotAnswerMessage
+        // 今の様子を読めなくても、操作の失敗ではないので、前に受け取ったものを出し続ける
+        case (.current, .refused?), (.current, nil):
+            break
         }
-        handle(answer)
     }
 
     private func handle(_ message: PhoneMessage) {
         switch message {
-        case .snapshot(let received):
-            loading = loading.applying(received)
-            deviceNow = clock()
-        case .refused(let message):
-            errorMessage = message
+        case .snapshot(let snapshot): apply(snapshot)
+        // 知らせで断られることはない（断るのは頼みへの答えだけ）
+        case .refused: break
         }
+    }
+
+    private func apply(_ snapshot: PhoneSnapshot) {
+        loading = loading.applying(snapshot)
+        deviceNow = clock()
     }
 }
 

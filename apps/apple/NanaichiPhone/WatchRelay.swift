@@ -12,30 +12,36 @@ import WatchConnectivity
 final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     // WCSession は使う側が排他しなくてよい（どのスレッドから呼んでもよい）。記録先はメインアクターで読む
     private let session: WCSession? = WCSession.isSupported() ? .default : nil
-    /// いまの記録先。`activate` で1回だけ決め、そのあとは読むだけ
-    private var backend: @MainActor () -> any Backend = { preconditionFailure("WatchRelay を動かす前に頼みが届いた") }
-    /// 手元の最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す
-    private let latest = Mutex<Received?>(nil)
+    /// いまの記録先とその印。`activate` で1回だけ決め、そのあとは読むだけ
+    private var recordStore: @MainActor () -> (any Backend, RecordStoreTag) = {
+        preconditionFailure("WatchRelay を動かす前に頼みが届いた")
+    }
+    /// Watch に置いておく最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す
+    private let latest = Mutex(PhoneSnapshotLoading.waiting)
 
-    /// Watch とつなぎ始める。`backend` はいまの記録先で、ログイン・ログアウトで替わるので、頼みが届くたびに読む
-    func activate(backend: @escaping @MainActor () -> any Backend) {
-        self.backend = backend
+    /// Watch とつなぎ始める。`recordStore` はいまの記録先とその印で、ログイン・ログアウトで替わるので、頼みが届くたびに読む
+    func activate(recordStore: @escaping @MainActor () -> (any Backend, RecordStoreTag)) {
+        self.recordStore = recordStore
         session?.delegate = self
         session?.activate()
     }
 
     /// 手元のスナップショットが替わった。Watch がいま届かなくても、届くようになったときに最新のものが渡るよう置いておき、
     /// 届くなら今すぐも送る
-    func snapshotChanged(_ received: Received) {
-        latest.withLock { $0 = received }
+    func snapshotChanged(_ snapshot: PhoneSnapshot) {
+        remember(snapshot)
         deliverLatest(sendingNow: true)
     }
 
+    private func remember(_ snapshot: PhoneSnapshot) {
+        latest.withLock { $0 = $0.applying(snapshot) }
+    }
+
     private func deliverLatest(sendingNow: Bool) {
-        guard let session, let received = latest.withLock({ $0 }), session.activationState == .activated,
+        guard let session, case .loaded(let snapshot) = latest.withLock({ $0 }), session.activationState == .activated,
             session.isPaired, session.isWatchAppInstalled
         else { return }
-        let data = WatchLinkCoding.encode(PhoneMessage.snapshot(received))
+        let data = WatchLinkCoding.encode(PhoneMessage.snapshot(snapshot))
         try? session.updateApplicationContext([WatchLinkCoding.latestKey: data])
         if sendingNow, session.isReachable { session.sendMessageData(data, replyHandler: nil) }
     }
@@ -48,9 +54,17 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
             reply.value(WatchLinkCoding.encode(PhoneMessage.refused(message: "iPhone のアプリを新しくしてください。")))
             return
         }
-        Task { @MainActor [backend] in
-            let answer = await replyTo(message, using: backend())
+        Task { @MainActor [self] in
+            let (backend, tag) = recordStore()
+            let answer = await replyTo(message, using: backend, recordStore: tag)
             reply.value(WatchLinkCoding.encode(answer))
+            // 答えたスナップショットも、Watch に置いておく最新にする（答えは Watch に直接届くので、送り直さない）
+            switch answer {
+            case .snapshot(let snapshot):
+                remember(snapshot)
+                deliverLatest(sendingNow: false)
+            case .refused: break
+            }
         }
     }
 

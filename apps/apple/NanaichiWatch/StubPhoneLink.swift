@@ -17,6 +17,7 @@
         private let backend: DeviceBackend
         private let reach: PhoneReach
         private let startsAfter: Duration?
+        private let recordStore = RecordStoreTag("stub")
 
         init?(_ environment: [String: String], clock: @escaping @Sendable () -> Instant) {
             switch environment["NANAICHI_WATCH_PHONE"] {
@@ -30,17 +31,17 @@
 
         func events() -> AsyncStream<PhoneLinkEvent> {
             let (stream, continuation) = AsyncStream<PhoneLinkEvent>.makeStream()
-            Task { [backend, reach, startsAfter] in
+            Task { [backend, reach, startsAfter, recordStore] in
                 // iPhone が前に置いていった最新のスナップショット
-                continuation.yield(.message(await replyTo(.current, using: backend)))
+                continuation.yield(.message(await replyTo(.current, using: backend, recordStore: recordStore)))
                 continuation.yield(.reach(reach))
                 guard let startsAfter else { return }
                 try? await Task.sleep(for: startsAfter)
                 // iPhone の画面で開始すると、iPhone は替わったスナップショットを Watch に知らせる
                 switch await backend.startSession(id: SessionEventId(UUID().uuidString.lowercased())!) {
                 case .success(let snapshot):
-                    continuation.yield(
-                        .message(.snapshot(Received(snapshot: snapshot, offset: await backend.clockOffset()))))
+                    let received = Received(snapshot: snapshot, offset: await backend.clockOffset())
+                    continuation.yield(.message(.snapshot(PhoneSnapshot(received: received, recordStore: recordStore))))
                 case .failure: break
                 }
             }
@@ -49,7 +50,7 @@
 
         func ask(_ message: WatchMessage) async -> PhoneMessage? {
             switch reach {
-            case .reachable: await replyTo(message, using: backend)
+            case .reachable: await replyTo(message, using: backend, recordStore: recordStore)
             case .unreachable: nil
             }
         }

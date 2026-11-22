@@ -44,7 +44,7 @@ public struct WatchFace: Hashable, Sendable {
             case .loading, .loadFailed: .waitingForPhone
             case .noSession, .ended: .outOfSession(start: control)
             case .inSession(_, let state, let operations):
-                .inSession(state: state, abort: operations.contains(.abort) ? control : nil)
+                .inSession(state: state, abort: operations.contains(.abort) ? .available(control) : .notNow)
             }
         return WatchFace(screen: screen, reach: reach)
     }
@@ -63,8 +63,16 @@ public enum WatchScreen: Hashable, Sendable {
     case waitingForPhone
     /// セッションの外（始める前・終了したあと）。開始できる
     case outOfSession(start: WatchControl)
-    /// セッション中。中断は集中中だけできる（GLOSSARY の「中断」）。`abort` が nil ならいまは中断できない
-    case inSession(state: UnendedTimerState, abort: WatchControl?)
+    /// セッション中。中断は集中中だけできる（GLOSSARY の「中断」）
+    case inSession(state: UnendedTimerState, abort: WatchAbort)
+}
+
+/// セッション中の Watch の中断ボタン
+public enum WatchAbort: Hashable, Sendable {
+    /// いまは中断できない（集中中でない）。ボタンを出さない
+    case notNow
+    /// 中断できる状態。押せるかは `WatchControl` で決める
+    case available(WatchControl)
 }
 
 /// Watch が頼んだのに iPhone から答えが返らなかったときの文言

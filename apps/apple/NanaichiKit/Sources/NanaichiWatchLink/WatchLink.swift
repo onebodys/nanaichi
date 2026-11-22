@@ -25,16 +25,65 @@ public enum WatchMessage: Hashable, Sendable, Codable {
 
 /// iPhone から Watch に届くもの。頼みへの答えと、iPhone の側で変わったときの知らせに使う
 public enum PhoneMessage: Hashable, Sendable, Codable {
-    /// iPhone の記録先のスナップショットと、iPhone が記録先と測った時計のずれ。
-    /// Watch の時計は iPhone と揃っているとみなし、Watch の時刻にこのずれを足して記録先の時刻を見積もる
-    case snapshot(Received)
-    /// 頼んだ操作を記録先が断った・記録先に届かなかった。`message` は Watch にそのまま出す文言
+    case snapshot(PhoneSnapshot)
+    /// 頼んだ操作を記録先が断った・記録先に届かなかった。`message` は Watch にそのまま出す文言。
+    /// 断られたときは iPhone の様子が Watch の思っているものと違うかもしれないので、Watch は今の様子を頼み直す
     case refused(message: String)
 }
 
-/// iPhone が Watch の頼み `message` を、いまの記録先 `backend` に通して答える。
-/// 断られても、iPhone の画面の状態は記録先の同期メッセージで変わり、Watch にも知らせとして届く
-public func replyTo(_ message: WatchMessage, using backend: any Backend) async -> PhoneMessage {
+/// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。
+/// 変更の番号（`Revision`）は記録先ごとに数えるので、記録先が違うスナップショットどうしは新旧を比べられない
+public struct RecordStoreTag: Hashable, Sendable, Codable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+
+/// iPhone の記録先のスナップショットと、iPhone が記録先と測った時計のずれ（`received`）、どの記録先のものか。
+/// Watch の時計は iPhone と揃っているとみなし、Watch の時刻にこのずれを足して記録先の時刻を見積もる
+public struct PhoneSnapshot: Hashable, Sendable, Codable {
+    public let received: Received
+    public let recordStore: RecordStoreTag
+
+    public init(received: Received, recordStore: RecordStoreTag) {
+        self.received = received
+        self.recordStore = recordStore
+    }
+}
+
+/// Watch（と、Watch に置いておく最新を決める iPhone）が持つ、iPhone から届いたスナップショット
+public enum PhoneSnapshotLoading: Hashable, Sendable {
+    /// まだ届いていない
+    case waiting
+    case loaded(PhoneSnapshot)
+
+    /// 届いたスナップショットを反映する。同じ記録先で手元より古いものは捨てる（ADR 0012）。
+    /// iPhone が記録先を替えたあとのものは、変更の番号を比べずに置き換える
+    public func applying(_ arrived: PhoneSnapshot) -> PhoneSnapshotLoading {
+        switch self {
+        case .loaded(let current)
+        where current.recordStore == arrived.recordStore
+            && arrived.received.snapshot.isOlder(than: current.received.snapshot):
+            self
+        case .waiting, .loaded: .loaded(arrived)
+        }
+    }
+
+    /// タイマーの様子を計算するための読み込みの状態
+    public var timer: TimerLoading {
+        switch self {
+        case .waiting: .loading
+        case .loaded(let snapshot): .loaded(snapshot.received)
+        }
+    }
+}
+
+/// iPhone が Watch の頼み `message` を、いまの記録先 `backend`（その印が `recordStore`）に通して答える
+public func replyTo(_ message: WatchMessage, using backend: any Backend, recordStore: RecordStoreTag) async
+    -> PhoneMessage
+{
     let result =
         switch message {
         case .current: await backend.getCurrentSession()
@@ -43,7 +92,8 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend) async -
         }
     switch result {
     case .success(let snapshot):
-        return .snapshot(Received(snapshot: snapshot, offset: await backend.clockOffset()))
+        let received = Received(snapshot: snapshot, offset: await backend.clockOffset())
+        return .snapshot(PhoneSnapshot(received: received, recordStore: recordStore))
     case .failure(let error):
         return .refused(message: operationErrorMessageOf(error))
     }
