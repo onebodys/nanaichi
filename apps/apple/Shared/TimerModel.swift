@@ -41,8 +41,6 @@ final class TimerModel {
     /// アプリが音を鳴らせず、通知が音で知らせている（`handOverAlertsToNotifications` から `takeBackAlerts` まで）。
     /// その間に届いたスナップショットで予約し直しても、音の鳴る予約のままにする
     @ObservationIgnored private var alertsHandedOver = false
-    /// 書けなかった記入。同じ本文とタグで送り直すときは同じ ID で送り、二重に書かない（ADR 0010）
-    @ObservationIgnored private var failedDraft: (id: JournalEntryId, body: String, tags: [TagName])?
     /// 今日の集中時間を読み込み直すかを決める値。完了セットが増えうるときだけ読み込み直す（ADR 0014）
     @ObservationIgnored private var todayFocusKey: StatsRefreshKey?
     @ObservationIgnored private var countedEndedSession: SessionId?
@@ -212,16 +210,14 @@ final class TimerModel {
     }
 
     /// ジャーナル記入を書く。書けたら true。書くと自動終了の時刻が延びるので、セッションの変更も同期メッセージで届く。
-    /// 書いた記入は同期メッセージでタイムラインに届く
-    func write(_ body: String, tags: [TagName]) async -> Bool {
+    /// 書いた記入は同期メッセージでタイムラインに届く。ID は入力欄が決め、送れなかった記入を送り直すときは
+    /// 同じ ID で送る（ADR 0010。`JournalDraft`）
+    func write(_ submission: JournalSubmission) async -> Bool {
         writeErrorMessage = nil
-        let id = failedDraft.flatMap { $0.body == body && $0.tags == tags ? $0.id : nil } ?? newEntryId()
-        switch await backend.writeJournalEntry(id: id, body: body, tags: tags) {
+        switch await backend.writeJournalEntry(id: submission.id, body: submission.body, tags: submission.tags) {
         case .success:
-            failedDraft = nil
             return true
         case .failure(let error):
-            failedDraft = (id, body, tags)
             writeErrorMessage = writeErrorMessageOf(error)
             return false
         }
@@ -318,4 +314,3 @@ func deviceTimeZone() -> TimeZoneName {
 
 // UUID の文字列は必ず UUID の形なので、読めないのは実装の誤り
 private func newEventId() -> SessionEventId { SessionEventId(UUID().uuidString.lowercased())! }
-private func newEntryId() -> JournalEntryId { JournalEntryId(UUID().uuidString.lowercased())! }

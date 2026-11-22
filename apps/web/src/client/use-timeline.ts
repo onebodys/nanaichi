@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Result } from "@praha/byethrow";
-import * as v from "valibot";
-import { JournalEntryId, type JournalEntry } from "../domain/journal-entry.ts";
+import type { JournalEntry, JournalEntryId } from "../domain/journal-entry.ts";
 import type { Session } from "../domain/session.ts";
 import { TAG_KINDS_MAX, type DeletedTag, type TagName } from "../domain/tag.ts";
 import {
@@ -15,10 +14,8 @@ import type { ApiErrorCode } from "../domain/api-error.ts";
 import type { BackendError } from "../domain/backend.ts";
 import { storageFailedMessageOf } from "./storage-failed-text.ts";
 import { useBackend } from "./backend.ts";
+import type { JournalSubmission } from "./journal-draft.ts";
 import { mergeLatestPage, type TimelineChange } from "./timeline-changes.ts";
-
-// `crypto.randomUUID()` は必ず UUID を返すので、検証に失敗するのは実装の誤り（例外でよい）
-const newEntryId = (): JournalEntryId => v.parse(JournalEntryId.schema, crypto.randomUUID());
 
 /** 端末のタイムゾーン。日付はこのタイムゾーンの 0:00 で区切る（ADR 0011） */
 const deviceTimeZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -42,14 +39,6 @@ export type TimelineView =
       /** 今日（端末のタイムゾーン）の完了セット数。ヘッダーの今日の集中時間に使う */
       today: DayCompletedSets;
     }>;
-
-/** 送信に失敗した記入。同じ本文とタグを送り直すときは同じ ID を使い、二重に書かないようにする（ADR 0010） */
-type FailedDraft = Readonly<{ id: JournalEntryId; body: string; tags: ReadonlyArray<TagName> }>;
-
-const isSameDraft = (draft: FailedDraft, body: string, tags: ReadonlyArray<TagName>): boolean =>
-  draft.body === body &&
-  draft.tags.length === tags.length &&
-  draft.tags.every((tag, i) => tag === tags[i]);
 
 /** 画面に出す失敗の文言。サーバーの文言はそのまま出さない */
 const messageOf = (error: BackendError): string => {
@@ -98,8 +87,10 @@ export const useTimeline = (
   view: TimelineView;
   loadingMore: boolean;
   errorMessage: string | undefined;
-  /** 記入を書く。成功したら true（入力欄を空にする） */
-  write: (body: string, tags: ReadonlyArray<TagName>) => Promise<boolean>;
+  /**
+   * 記入を書く。成功したら true。ID は入力欄が決め、送れなかった記入を送り直すときは同じ ID で送る（ADR 0010）
+   */
+  write: (submission: JournalSubmission) => Promise<boolean>;
   /** 記入の本文とタグを書き直す。成功したら true（編集を閉じる） */
   edit: (id: JournalEntryId, body: string, tags: ReadonlyArray<TagName>) => Promise<boolean>;
   remove: (id: JournalEntryId) => Promise<void>;
@@ -118,7 +109,6 @@ export const useTimeline = (
   const [loading, setLoading] = useState<Loading>({ kind: "Loading" });
   const [loadingMore, setLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
-  const [failedDraft, setFailedDraft] = useState<FailedDraft | undefined>(undefined);
 
   /** 読み込んだ記録を更新する。まだ読み込めていなければ何もしない */
   const update = useCallback((change: (loaded: Loaded) => Loaded) => {
@@ -211,19 +201,13 @@ export const useTimeline = (
     view,
     loadingMore,
     errorMessage,
-    write: async (body, tags) => {
+    write: async ({ id, body, tags }) => {
       setErrorMessage(undefined);
-      const id =
-        failedDraft !== undefined && isSameDraft(failedDraft, body, tags)
-          ? failedDraft.id
-          : newEntryId();
       const result = await backend.writeJournalEntry(id, body, tags);
       if (Result.isFailure(result)) {
-        setFailedDraft({ id, body, tags });
         fail(result.error);
         return false;
       }
-      setFailedDraft(undefined);
       const entry = result.value;
       apply((sessions) => Timeline.putEntry(sessions, entry));
       onWritten();

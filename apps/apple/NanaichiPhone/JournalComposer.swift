@@ -1,3 +1,4 @@
+import NanaichiDomain
 import NanaichiPresentation
 import SwiftUI
 
@@ -11,6 +12,9 @@ struct JournalComposer: View {
     let model: TimerModel
     @State private var draft = ""
     @State private var sending = false
+    /// 送れなかった記入。同じ本文で送り直すときは同じ ID で送り、二重に書かない（ADR 0010）。
+    /// 送れなかった記入を帯に残す作り（`JournalDraft`）は、iPhone には #80 で入れる
+    @State private var failed: JournalSubmission?
     @FocusState private var focused: Bool
 
     private var inSession: Bool { model.view.writableSession != nil }
@@ -91,11 +95,20 @@ struct JournalComposer: View {
     private func submit() {
         guard canSend else { return }
         let body = draft
+        // UUID の文字列は必ず記入の ID の形なので、読めないのは実装の誤り
+        let submission = JournalSubmission(
+            id: failed.flatMap { $0.body == body ? $0.id : nil } ?? JournalEntryId(UUID().uuidString.lowercased())!,
+            body: body, tags: [])
         sending = true
         // 送っている間も続けて書けるよう、先に空にする。書けなかったら、その間に何も書いていなければ戻す
         draft = ""
         Task {
-            if await !model.write(body, tags: []), draft.isEmpty { draft = body }
+            if await model.write(submission) {
+                failed = nil
+            } else {
+                failed = submission
+                if draft.isEmpty { draft = body }
+            }
             sending = false
         }
     }
