@@ -8,25 +8,30 @@ import SwiftUI
 /// 送信すると空になり、続けて書ける。セッションの外では書けないので、入力欄を使えなくする。
 /// ジャーナルのフェーズに入ったら、すぐ書けるようカーソルを置き、書く時間だとわかるよう枠をジャーナルの色にする。
 /// タグはつけない（タグをつける欄は Web と Mac で使う。Issue #70）
+///
+/// 送れなかったとき、入力欄が空なら本文を戻す。送っている間に書き足していれば、送れなかった記入を
+/// 入力欄の上の帯に残し、送り直す・入力欄に戻す・捨てるを選べるようにする（Issue #80、`JournalDraft`。Mac と同じ）
 struct JournalComposer: View {
     let model: TimerModel
-    @State private var draft = ""
+    @State private var draft = JournalDraft()
     @State private var sending = false
-    /// 送れなかった記入。同じ本文で送り直すときは同じ ID で送り、二重に書かない（ADR 0010）。
-    /// 送れなかった記入を帯に残す作り（`JournalDraft`）は、iPhone には #80 で入れる
-    @State private var failed: JournalSubmission?
     @FocusState private var focused: Bool
 
     private var inSession: Bool { model.view.writableSession != nil }
     private var inJournalPhase: Bool { model.view.journalPhase != nil }
     private var canSend: Bool {
-        inSession && !sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        inSession && !sending && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ジャーナル記入")
                 .font(.headline)
+            if !draft.unsent.isEmpty {
+                UnsentEntries(
+                    entries: draft.unsent, inSession: inSession, onResend: resend,
+                    onReturnToInput: { draft.returnToInput($0) }, onDiscard: { draft.discard($0) })
+            }
             editor
             HStack {
                 if let message = model.writeErrorMessage {
@@ -65,14 +70,14 @@ struct JournalComposer: View {
     }
 
     private var editor: some View {
-        TextEditor(text: $draft)
+        TextEditor(text: $draft.body)
             .focused($focused)
             .disabled(!inSession)
             .scrollContentBackground(.hidden)
             .accessibilityLabel("ジャーナル記入の本文")
             .accessibilityIdentifier("journal.body")
             .overlay(alignment: .topLeading) {
-                if draft.isEmpty {
+                if draft.body.isEmpty {
                     Text(inSession ? "やったこと・次にやること・感想など" : "セッションを始めると書けます")
                         .foregroundStyle(.tertiary)
                         .padding(.top, 8)
@@ -94,22 +99,19 @@ struct JournalComposer: View {
 
     private func submit() {
         guard canSend else { return }
-        let body = draft
-        // UUID の文字列は必ず記入の ID の形なので、読めないのは実装の誤り
-        let submission = JournalSubmission(
-            id: failed.flatMap { $0.body == body ? $0.id : nil } ?? JournalEntryId(UUID().uuidString.lowercased())!,
-            body: body, tags: [])
         sending = true
-        // 送っている間も続けて書けるよう、先に空にする。書けなかったら、その間に何も書いていなければ戻す
-        draft = ""
+        // 送っている間も続けて書けるよう、先に空にする
+        let submission = draft.submit(tags: [], newId: newEntryId)
         Task {
-            if await model.write(submission) {
-                failed = nil
-            } else {
-                failed = submission
-                if draft.isEmpty { draft = body }
-            }
+            if await !model.write(submission) { draft.failed(submission) }
             sending = false
+        }
+    }
+
+    private func resend(_ id: JournalEntryId) {
+        guard let submission = draft.resend(id) else { return }
+        Task {
+            if await model.write(submission) { draft.resent(id) } else { draft.resendFailed(id) }
         }
     }
 }
