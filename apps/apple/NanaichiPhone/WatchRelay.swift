@@ -1,6 +1,7 @@
 import NanaichiDomain
 import NanaichiPresentation
 import NanaichiWatchLink
+import Synchronization
 import WatchConnectivity
 
 /// Watch とのつなぎ（ADR 0031）。記録を書くのは iPhone だけなので、Watch の頼みはいまの記録先に通して答え、
@@ -13,6 +14,8 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     private let session: WCSession? = WCSession.isSupported() ? .default : nil
     /// いまの記録先。`activate` で1回だけ決め、そのあとは読むだけ
     private var backend: @MainActor () -> any Backend = { preconditionFailure("WatchRelay を動かす前に頼みが届いた") }
+    /// 手元の最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す
+    private let latest = Mutex<Received?>(nil)
 
     /// Watch とつなぎ始める。`backend` はいまの記録先で、ログイン・ログアウトで替わるので、頼みが届くたびに読む
     func activate(backend: @escaping @MainActor () -> any Backend) {
@@ -24,11 +27,17 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// 手元のスナップショットが替わった。Watch がいま届かなくても、届くようになったときに最新のものが渡るよう置いておき、
     /// 届くなら今すぐも送る
     func snapshotChanged(_ received: Received) {
-        guard let session, session.activationState == .activated, session.isPaired, session.isWatchAppInstalled
+        latest.withLock { $0 = received }
+        deliverLatest(sendingNow: true)
+    }
+
+    private func deliverLatest(sendingNow: Bool) {
+        guard let session, let received = latest.withLock({ $0 }), session.activationState == .activated,
+            session.isPaired, session.isWatchAppInstalled
         else { return }
         let data = WatchLinkCoding.encode(PhoneMessage.snapshot(received))
         try? session.updateApplicationContext([WatchLinkCoding.latestKey: data])
-        if session.isReachable { session.sendMessageData(data, replyHandler: nil) }
+        if sendingNow, session.isReachable { session.sendMessageData(data, replyHandler: nil) }
     }
 
     // MARK: - WCSessionDelegate
@@ -46,7 +55,14 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     }
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: (any Error)?)
-    {}
+    {
+        deliverLatest(sendingNow: false)
+    }
+
+    /// Watch にアプリが入った・ペアの Watch が替わった
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        deliverLatest(sendingNow: false)
+    }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}
 
