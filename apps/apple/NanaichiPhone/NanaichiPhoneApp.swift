@@ -129,15 +129,6 @@ final class PhoneServices: RecordStoreServices {
     func run() async { await timer.run() }
 }
 
-/// 画面が使う記録先。デバッグのビルドでは、XCUITest のためにジャーナル記入を送れなかったことにできる（`DebugFailingJournalWrites`）
-private func debugBackend(_ backend: any Backend) -> any Backend {
-    #if DEBUG
-        return DebugFailingJournalWrites.wrapping(backend, ProcessInfo.processInfo.environment)
-    #else
-        return backend
-    #endif
-}
-
 /// XCUITest がダークの見た目を撮るための明るさ（`NANAICHI_APPEARANCE`）。デバッグのビルドにだけある
 private func debugColorScheme() -> ColorScheme? {
     #if DEBUG
