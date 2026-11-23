@@ -81,7 +81,7 @@ pnpm -s mutation accept <key> --reason "equivalent: <どの入力でも見分け
 Issue #66 で、domain と workflows の全体を手元（Apple Silicon、2 セッション。ほかのワーカーも並列で動いていて load average は約 300）で1回測った。
 
 - ミュータントは 2545。うち 1903 は型が通らず走らせない（テストのファイルも型チェックに入るので、テストが使う型を壊すミュータントはここに入る）。走らせるのは 641 で、全体で約 18 分（カバレッジ 73 秒、型チェック 5 分 24 秒を含む）。負荷が低ければもっと短い。
-- 結果は Killed 614、Timeout 2、RuntimeError 3、Ignored 21（等価として記録済み）、生き残り 2（等価として記録した）、届かない（NoCoverage）0。
+- 結果は Killed 614、Timeout 2、RuntimeError 3、Ignored 21（等価として記録済み）、生き残り 2、届かない（NoCoverage）0。生き残りの1件はテストを足して殺し、1件は等価として記録したので、いまは生き残りはない。
 - 負荷が高いと、ミュータントを入れる前の dry run で server の Node テストが落ちて止まる（終了コード 4、Issue #102）。`--concurrency` を下げて回し直す。負荷のせいの Timeout と RuntimeError は殺したものとして数えられるので、等価として記録済みのものが `acceptance.killed` に出ても、そのミュータントを手で入れて `vp test` が通るなら記録は消さない。
 - 差分だけなら、変えた関数のミュータントだけが走るので、たいてい1分以内。
 - `*.workers.test.ts` は測れない（mutator は workerd の上でカバレッジを取れない）。workflows は、メモリ上の記録先を渡して Node のテストで確かめる（`workflows/user-commands.test.ts` のように command から呼び、結果と同期メッセージを一緒に確かめる。Issue #66）。workflows にワークフローを足したら、workers テストだけでなく Node のテストも足す。`notReached` は §2 のとおりテストを足して片付ける。

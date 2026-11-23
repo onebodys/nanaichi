@@ -48,6 +48,13 @@ describe("JSON にした日付", () => {
   test("key が年月日と合わない日付は通さない", () => {
     expect(parse({ ...dateOf(2026, 10, 20), key: "2026-10-21" }).success).toBe(false);
   });
+
+  test("key のあとに余分な文字がある日付は、key の形が違うとして通さない", () => {
+    const result = parse({ ...dateOf(2026, 10, 20), key: "2026-10-20x" });
+
+    expect(result.success).toBe(false);
+    expect(result.issues?.map((issue) => v.getDotPath(issue))).toContain("key");
+  });
 });
 
 describe("日付のクエリ", () => {
