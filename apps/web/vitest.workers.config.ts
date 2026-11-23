@@ -15,13 +15,8 @@ export default defineConfig({
       // テストでは決してつながない（ADR 0026）。判断モデルは偽物に差し替えて確かめる
       remoteBindings: false,
       miniflare: {
-        // レート制限の窓は実時間の区切りで、テストから動かせない。区切りをまたぐと「使い切ったあとは弾かれる」を
-        // 確かめられないので、選べる中で長い 60 秒にする（workers-test-harness.ts の exhaustRateLimit）
-        ratelimits: {
-          USER_RATE_LIMITER: { namespace_id: "1001", simple: { limit: 100, period: 60 } },
-          // 本番は 60 秒 10 回。ログインの流れを歩くテストが同じ IP（cf-connecting-ip なし）で重なるので緩める
-          NATIVE_AUTH_RATE_LIMITER: { namespace_id: "1002", simple: { limit: 100, period: 60 } },
-        },
+        // レート制限（wrangler.jsonc の `ratelimits`）は、テストでは時刻を見ない偽物に差し替える
+        // （workers-test-harness.ts。miniflare の窓は実時間の区切りで、負荷しだいで結果が変わる。Issue #92）
         // secret は wrangler.jsonc に書かないので、テスト用の値をここで渡す
         bindings: {
           BETTER_AUTH_SECRET: "test-secret-value-that-is-long-enough",

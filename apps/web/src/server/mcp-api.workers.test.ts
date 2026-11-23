@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import * as v from "valibot";
 import {
   exhaustRateLimit,
+  limitRequestsTo,
   prepareDatabase,
   request,
   resetStorage,
@@ -536,6 +537,7 @@ describe("レート制限（ADR 0018）", () => {
   test("画面からのリクエストで制限に達したユーザーは、MCP からも 429 になる", async () => {
     const { headers } = await signInAs("me@example.com");
     const accessToken = await connectClient(headers.get("cookie") ?? "");
+    limitRequestsTo(3);
     await exhaustRateLimit(headers);
 
     const res = await rpc(accessToken, "tools/list");

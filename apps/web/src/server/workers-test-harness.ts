@@ -1,6 +1,7 @@
-import { applyD1Migrations, reset } from "cloudflare:test";
-import { env, exports } from "cloudflare:workers";
+import { applyD1Migrations, createExecutionContext, reset } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { vi } from "vite-plus/test";
+import { app } from "./app.ts";
 import { createTestAuth } from "./test-auth.ts";
 
 /**
@@ -16,6 +17,11 @@ declare global {
     interface Env {
       /** vitest.workers.config.ts が渡す D1 のマイグレーション */
       readonly TEST_MIGRATIONS: ReadonlyArray<{ name: string; queries: string[] }>;
+      // secret（env.ts）。vitest.workers.config.ts の `bindings` が渡す
+      readonly BETTER_AUTH_SECRET: string;
+      readonly GOOGLE_CLIENT_ID: string;
+      readonly GOOGLE_CLIENT_SECRET: string;
+      readonly ALLOWED_EMAILS: string;
     }
   }
 }
@@ -27,9 +33,6 @@ const ORIGIN = "http://localhost:5173";
 export const prepareDatabase = async (): Promise<void> => {
   await applyD1Migrations(env.DB, [...env.TEST_MIGRATIONS]);
 };
-
-/** D1 と UserDO の中身を消す。テスト同士でユーザーやセッションが混ざらないよう `afterEach` で呼ぶ */
-export const resetStorage = (): Promise<void> => reset();
 
 /**
  * 指定したメールアドレスのユーザーを作り、ログイン済みのセッションの cookie とユーザー ID を返す。
@@ -47,40 +50,81 @@ export const signInAs = async (
   return { headers, userId };
 };
 
-/** アプリ（Worker の default export）にリクエストする。`origin` を変えれば本番などのホストからとして送れる */
-export const request = (path: string, init?: RequestInit, origin = ORIGIN): Promise<Response> =>
-  exports.default.fetch(new Request(`${origin}${path}`, init));
+/**
+ * テストでのレート制限（ADR 0018）。miniflare の本物のレート制限は、窓が実時間の区切りで、テストから時計を動かせない。
+ * マシンが混むと、使い切るまでのあいだに区切りをまたいで数が 0 に戻ったり、使い切るのが時間の上限に間に合わなかったりして、
+ * 負荷しだいで結果が変わる（Issue #92）。そこで、時刻を見ずに数だけで決める偽物に差し替える。
+ * 上限はテストが `limitRequestsTo` で決め、決めていないテストでは常に通す（auth-test-harness.ts と同じ）。
+ * 本番の上限と窓（wrangler.jsonc の `ratelimits`）は Cloudflare が数えるもので、ここでは確かめない。
+ * 確かめるのは、アプリがリクエストごとに正しいキーで数えさせ、断られたら UserDO を呼ばずに 429 を返すこと。
+ */
+const rateLimit = {
+  limit: Number.POSITIVE_INFINITY,
+  /** 制限の種類とキーごとの、通した回数 */
+  counts: new Map<string, number>(),
+};
 
-/** テストでのレート制限の窓の長さ（vitest.workers.config.ts の `ratelimits`） */
-const RATE_LIMIT_WINDOW_MS = 60_000;
-/** 使い切ったあとの確認まで同じ窓に収めるために、窓に残っていてほしい時間 */
-const RATE_LIMIT_WINDOW_ROOM_MS = 40_000;
+const fakeRateLimiter = (name: string): RateLimit => ({
+  limit: async ({ key }) => {
+    const counted = `${name}:${key}`;
+    const passed = rateLimit.counts.get(counted) ?? 0;
+    if (passed >= rateLimit.limit) {
+      return { success: false };
+    }
+    rateLimit.counts.set(counted, passed + 1);
+    return { success: true };
+  },
+});
+
+const testEnv: Env = {
+  ...env,
+  USER_RATE_LIMITER: fakeRateLimiter("user"),
+  NATIVE_AUTH_RATE_LIMITER: fakeRateLimiter("native-auth"),
+};
+
+/** このテストのあいだ、レート制限の上限を、制限の種類とキーごとに `limit` 回にする。`afterEach` の `resetStorage` で戻る */
+export const limitRequestsTo = (limit: number): void => {
+  rateLimit.limit = limit;
+};
+
+/**
+ * D1 と UserDO の中身を消し、レート制限の上限と数を戻す。
+ * テスト同士でユーザーやセッションが混ざらないよう `afterEach` で呼ぶ
+ */
+export const resetStorage = (): Promise<void> => {
+  rateLimit.limit = Number.POSITIVE_INFINITY;
+  rateLimit.counts.clear();
+  return reset();
+};
+
+/**
+ * アプリにリクエストする。`origin` を変えれば本番などのホストからとして送れる。
+ * レート制限を偽物にした `testEnv` で呼ぶので、Worker の default export（index.ts）ではなく `app` を直接呼ぶ
+ */
+export const request = (path: string, init?: RequestInit, origin = ORIGIN): Promise<Response> =>
+  Promise.resolve(
+    app.fetch(new Request(`${origin}${path}`, init), testEnv, createExecutionContext()),
+  );
 
 /**
  * `headers` で数えられるレート制限を使い切る。通った回数と、弾かれた応答を返す。
  * 既定はログイン中のユーザーの制限（ADR 0018）で、`path` を変えればほかの制限も使い切れる。
- *
- * miniflare の窓は実時間の区切りで、区切りをまたぐと数が 0 に戻り、続く確認のリクエストが通ってしまう。
- * そこで窓の残りが少なければ次の窓を待つ。1回ずつ送るとマシンが混んだときに上限に届かないので、
- * 上限より多くを同時に送る。
+ * 上限は先に `limitRequestsTo` で決めておく。1回ずつ送り、弾かれるまで続ける
  */
 export const exhaustRateLimit = async (
   headers: Headers,
   path = "/api/session/current",
 ): Promise<Readonly<{ passed: number; rejected: Response }>> => {
-  // `Date` を偽物にしているテストからも呼ぶので、本当の時刻を読む
-  const left = RATE_LIMIT_WINDOW_MS - (vi.getRealSystemTime() % RATE_LIMIT_WINDOW_MS);
-  if (left < RATE_LIMIT_WINDOW_ROOM_MS) {
-    await new Promise((resolve) => setTimeout(resolve, left));
+  if (rateLimit.limit === Number.POSITIVE_INFINITY) {
+    throw new Error("先に limitRequestsTo で上限を決める");
   }
-  const responses = await Promise.all(
-    Array.from({ length: 150 }, () => request(path, { headers, redirect: "manual" })),
-  );
-  const rejected = responses.find((res) => res.status === 429);
-  if (rejected === undefined) {
-    throw new Error("レート制限に達しなかった");
+  for (let passed = 0; passed <= rateLimit.limit; passed++) {
+    const res = await request(path, { headers, redirect: "manual" });
+    if (res.status === 429) {
+      return { passed, rejected: res };
+    }
   }
-  return { passed: responses.filter((res) => res.status !== 429).length, rejected };
+  throw new Error("レート制限に達しなかった");
 };
 
 /**

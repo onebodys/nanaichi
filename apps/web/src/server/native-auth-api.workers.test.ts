@@ -6,6 +6,7 @@ import { bearer, signInNatively } from "./native-auth-test-flow.ts";
 import {
   eventually,
   exhaustRateLimit,
+  limitRequestsTo,
   prepareDatabase,
   request,
   resetStorage,
@@ -98,10 +99,11 @@ describe("Bearer トークンでの UserDO の API", () => {
 
   test("トークンでも、ユーザーごとのレート制限が画面と同じに効く", async () => {
     const token = await signIn();
+    limitRequestsTo(3);
 
     const { passed, rejected } = await exhaustRateLimit(bearer(token));
 
-    expect(passed).toBe(100);
+    expect(passed).toBe(3);
     expect(v.parse(ApiErrorBodyJsonSchema, await rejected.json()).error).toBe("RATE_LIMITED");
   });
 });
@@ -111,6 +113,7 @@ describe("ネイティブアプリのログインの制限", () => {
   const from = (ip: string) => new Headers({ "cf-connecting-ip": ip });
 
   test("同じ IP からのログインのリクエストは上限を超えると 429 と RATE_LIMITED を返し、Google へ送らない", async () => {
+    limitRequestsTo(3);
     const { passed, rejected } = await exhaustRateLimit(
       from("203.0.113.1"),
       "/api/native-auth/callback",
@@ -120,13 +123,14 @@ describe("ネイティブアプリのログインの制限", () => {
       { headers: from("203.0.113.1"), redirect: "manual" },
     );
 
-    expect(passed).toBe(100);
+    expect(passed).toBe(3);
     expect(rejected.headers.get("retry-after")).toBe("60");
     expect(v.parse(ApiErrorBodyJsonSchema, await rejected.json()).error).toBe("RATE_LIMITED");
     expect(start.status).toBe(429);
   });
 
   test("制限は IP ごとに数え、ほかの IP からのログインには影響しない", async () => {
+    limitRequestsTo(3);
     await exhaustRateLimit(from("203.0.113.2"), "/api/native-auth/callback");
 
     const res = await request("/api/native-auth/callback", {
