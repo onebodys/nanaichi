@@ -59,6 +59,10 @@
     "reason": "equivalent: 今日と週の前の期間の終わり to は、これを含む日でも index が fullDays（今日の期間の何日目か、週は最大6）以上になる今の期間の日しか増えないので、isUpToSamePoint の結果が変わらない",
     "where": "src/domain/stats.ts:212:13 range.from - 1 -> range.from + 1"
   },
+  "2ck2f4fv3yp": {
+    "reason": "equivalent: v.brand の名前は型だけに効き、実行時の検証結果は名前によらず同じ（どの入力でも見分けられない）",
+    "where": "src/domain/task.ts:35:84 \"Probability\" -> \"\""
+  },
   "2g4yi51tlez": {
     "reason": "equivalent: Ended になったあとは lastActivityAt はどこからも読まれない（自動終了の判定は progress が Ended でないときだけ lastActivityAt を見る）ので、Ended のときに更新しても結果は変わらない",
     "where": "src/domain/timer-state.ts:459:9 current.progress.kind === \"Ended\" -> false"

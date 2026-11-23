@@ -90,4 +90,46 @@ describe("ジャーナルからの完了を始める前の判断", () => {
     expect(Result.isSuccess(result)).toBe(true);
     expect(deps.startDecisionRun).toHaveBeenCalledWith(entry.id, NOW);
   });
+
+  test("すでに判断を始めた記入なら、タスクを読まず、判断を始めたと記録し直さず AlreadyDecided を返す", () => {
+    const deps = { ...depsWith({ kind: "Enabled" }), hasDecisionRun: vi.fn(() => true) };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(result).toEqual(Result.fail({ kind: "AlreadyDecided", entryId: entry.id }));
+    expect(deps.hasDecisionRun).toHaveBeenCalledWith(entry.id);
+    expect(deps.listTasks).not.toHaveBeenCalled();
+    expect(deps.startDecisionRun).not.toHaveBeenCalled();
+  });
+
+  test("判断モデルには未完了のタスクだけを、新しく作った順に渡す", () => {
+    const newer = Task.create(
+      v.parse(TaskId.schema, uuid(4)),
+      v.parse(TaskTitle.schema, "請求書を送る"),
+      NOW,
+    );
+    const completed = Task.complete(
+      Task.create(v.parse(TaskId.schema, uuid(5)), v.parse(TaskTitle.schema, "牛乳を買う"), NOW),
+      { kind: "Manual" },
+      NOW,
+    );
+    const deps = {
+      ...depsWith({ kind: "Enabled" }),
+      listTasks: vi.fn(() => [openTask, completed, newer]),
+    };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(Result.unwrap(result).openTasks).toEqual([newer, openTask]);
+  });
+
+  test("完了したタスクしかなければ、判断を始めたと記録せず NoOpenTasks を返す", () => {
+    const completed = Task.complete(openTask, { kind: "Manual" }, NOW);
+    const deps = { ...depsWith({ kind: "Enabled" }), listTasks: vi.fn(() => [completed]) };
+
+    const result = prepareCompletionFromJournal(deps)(entry, NOW);
+
+    expect(result).toEqual(Result.fail({ kind: "NoOpenTasks" }));
+    expect(deps.startDecisionRun).not.toHaveBeenCalled();
+  });
 });
