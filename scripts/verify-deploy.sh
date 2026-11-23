@@ -43,9 +43,12 @@ check_health() {
 
 check_assets() {
   local body status served
-  body=$(curl -sS --max-time 10 -H 'Cache-Control: no-cache' -w '\n%{http_code}' "$site_url/" 2>/dev/null)
-  status=${body##*$'\n'}
-  # エラーの応答の本文に古い参照が残っていても、通ったことにしない
+  # 途中で切れた本文や、エラーの応答の本文に古い参照が残っていても、通ったことにしない
+  if body=$(curl -sS --max-time 10 -H 'Cache-Control: no-cache' -w '\n%{http_code}' "$site_url/" 2>/dev/null); then
+    status=${body##*$'\n'}
+  else
+    status="取得失敗（curl $?）"
+  fi
   served=$([ "$status" = 200 ] && printf '%s' "${body%$'\n'*}" | entry_script)
   detail="HTTP $status, 配信: \`${served:-（見つからず）}\` / ビルド: \`$expected_script\`"
   [ "$status" = 200 ] && [ "$served" = "$expected_script" ]
