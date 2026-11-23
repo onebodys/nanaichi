@@ -420,5 +420,15 @@ jobs:
         working-directory: apps/web
         run: vp exec wrangler d1 migrations apply nanaichi --remote
       - name: wrangler deploy
+        id: deploy
         working-directory: apps/web
-        run: vp exec wrangler deploy
+        # Summary に出すため、出力から Version ID を拾う（pipefail で wrangler の失敗はそのまま落ちる）
+        run: |
+          vp exec wrangler deploy | tee "$RUNNER_TEMP/wrangler-deploy.log"
+          version_id=$(sed -n 's/.*Current Version ID: *\([0-9a-f-]*\).*/\1/p' "$RUNNER_TEMP/wrangler-deploy.log" | head -n 1)
+          echo "version-id=$version_id" >> "$GITHUB_OUTPUT"
+      # wrangler deploy が 0 で終わっても、本番が新しいコードを配っているとは限らない（Issue #10）
+      - name: 本番の確認
+        env:
+          VERSION_ID: ${{ steps.deploy.outputs.version-id }}
+        run: scripts/verify-deploy.sh apps/web/dist/client/index.html
