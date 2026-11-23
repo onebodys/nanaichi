@@ -42,10 +42,13 @@ check_health() {
 }
 
 check_assets() {
-  local served
-  served=$(curl -sS --max-time 10 -H 'Cache-Control: no-cache' "$site_url/" 2>/dev/null | entry_script)
-  detail="配信: \`${served:-（見つからず）}\` / ビルド: \`$expected_script\`"
-  [ "$served" = "$expected_script" ]
+  local body status served
+  body=$(curl -sS --max-time 10 -H 'Cache-Control: no-cache' -w '\n%{http_code}' "$site_url/" 2>/dev/null)
+  status=${body##*$'\n'}
+  # エラーの応答の本文に古い参照が残っていても、通ったことにしない
+  served=$([ "$status" = 200 ] && printf '%s' "${body%$'\n'*}" | entry_script)
+  detail="HTTP $status, 配信: \`${served:-（見つからず）}\` / ビルド: \`$expected_script\`"
+  [ "$status" = 200 ] && [ "$served" = "$expected_script" ]
 }
 
 check_redirect() {
