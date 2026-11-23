@@ -34,12 +34,25 @@ final class AccountTests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "\(identifier) が「\(text)」にならない", file: file, line: line)
     }
 
+    /// 設定を開き、アカウントのタブに替わるまで待つ（Issue #84）。
+    /// 起動の直後の ⌘, はアプリが受け取れずに設定が開かないことがあり、開ききる前に押したタブはウィンドウが
+    /// 「タイマー」のまま替わらないことがある。どちらも押し直せば効くので、設定のウィンドウのタイトルが
+    /// 「アカウント」になるまで、開かなければ ⌘, を、開いていればタブを押し直す。
+    /// 最初の ⌘, は、設定のウィンドウがすでにあっても送る。ほかのウィンドウの後ろにあると、前に出さないと押せない
     @MainActor
-    private func openAccountSettings(_ app: XCUIApplication) {
-        app.typeKey(",", modifierFlags: .command)
+    private func openAccountSettings(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         let tab = app.toolbars.buttons["アカウント"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 5), "設定が開かない")
-        tab.click()
+        let accountWindow = app.windows.matching(NSPredicate(format: "title == %@", "アカウント")).firstMatch
+        app.typeKey(",", modifierFlags: .command)
+        for _ in 0..<3 {
+            guard tab.waitForExistence(timeout: 5) else {
+                app.typeKey(",", modifierFlags: .command)
+                continue
+            }
+            tab.click()
+            if accountWindow.waitForExistence(timeout: 3) { return }
+        }
+        XCTFail(tab.exists ? "設定のアカウントのタブが開かない" : "設定が開かない", file: file, line: line)
     }
 
     /// ログインしていなければこの Mac の記録先で動き、セッションの途中ではログインに進ませない（ADR 0020）
