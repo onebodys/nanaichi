@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { convertV4MiniflareOptions, Miniflare } from "miniflare";
+import { convertV4MiniflareOptions, type DispatchFetch, Miniflare, Request } from "miniflare";
 import { app } from "./app.ts";
 import { createTestAuth } from "./test-auth.ts";
 
@@ -19,6 +19,48 @@ const ORIGIN = "http://localhost:5173";
 
 // Worker 用の型（worker-configuration.d.ts）の URL は Node の URL と別物なので、パスは文字列で扱う
 const MIGRATIONS_DIR = `${import.meta.dirname}/../../migrations`;
+
+/**
+ * workerd がもう閉じた keep-alive の接続に要求を書き込み、断られたか（Issue #102）。
+ *
+ * miniflare は Node から workerd への要求（D1 の呼び出しなど）を undici の Pool で送り、使い終わった
+ * 接続を keep-alive で残す。workerd は 5 秒使われなかった接続を閉じるので、miniflare は 1 秒で
+ * 自分から閉じるタイマーを掛けている。ところが CPU を取り合う高負荷では Node の処理が 5 秒以上
+ * 進まないことがあり、そのタイマーより先に次の要求が同じ接続に書き込まれる。workerd は閉じた接続の
+ * 要求を読まずに RST を返し、undici は `fetch failed`（cause が ECONNRESET。FIN を先に読めば
+ * UND_ERR_SOCKET）で失敗する。
+ */
+const isStaleConnection = (error: unknown): boolean => {
+  if (!(error instanceof TypeError) || !(error.cause instanceof Error)) {
+    return false;
+  }
+  const code: unknown = Reflect.get(error.cause, "code");
+  return code === "ECONNRESET" || code === "UND_ERR_SOCKET";
+};
+
+/**
+ * 閉じた接続で断られた要求を、1度だけ送り直す。
+ *
+ * 断られた要求は workerd が読んでいないので、送り直しても D1 の書き込みが2回にはならない。
+ * workerd が落ちた・止めたなど本当に通じないときは送り直しも失敗し、テストはそのエラーで落ちる。
+ * 接続の使い回しを止める設定は miniflare になく（Pool は内部で作られ、fetch は `Connection: close` を
+ * 送らない）、送り直すほかに手がない。
+ */
+export const retryOnStaleConnection =
+  (dispatchFetch: DispatchFetch, onDispatch: () => void): DispatchFetch =>
+  async (input, init) => {
+    onDispatch();
+    // 本文は1度しか読めないので、送り直す分を先に複製しておく
+    const request = new Request(input, init);
+    try {
+      return await dispatchFetch(request.clone());
+    } catch (error) {
+      if (!isStaleConnection(error)) {
+        throw error;
+      }
+      return dispatchFetch(request);
+    }
+  };
 
 /** `migrations/*.sql` をファイル名の順に当てる。`wrangler d1 migrations apply` と同じ順序 */
 const applyMigrations = async (db: D1Database): Promise<void> => {
@@ -72,8 +114,28 @@ export const startAuthHarness = async (
       d1Databases: ["DB"],
     }),
   );
-  const db = await miniflare.getD1Database("DB");
-  await applyMigrations(db);
+  // D1 などの呼び出しは、miniflare が起動の途中で受け取った dispatchFetch を通る。
+  // 起動を待つ前に差し替えれば、その呼び出しにも送り直しが効く
+  let dispatched = false;
+  miniflare.dispatchFetch = retryOnStaleConnection(miniflare.dispatchFetch, () => {
+    dispatched = true;
+  });
+  const openDatabase = async (): Promise<D1Database> => {
+    const opened = await miniflare.getD1Database("DB");
+    await applyMigrations(opened);
+    if (!dispatched) {
+      // miniflare の作りが変わって差し替えが効かなくなったら、黙って flaky に戻さずここで知らせる
+      throw new Error(
+        "miniflare の dispatchFetch の差し替えが D1 の呼び出しに効いていない（Issue #102）",
+      );
+    }
+    return opened;
+  };
+  // 準備で失敗すると呼び出し元は dispose を受け取れないので、ここで workerd を止めてから投げ直す
+  const db = await openDatabase().catch(async (error: unknown) => {
+    await miniflare.dispose();
+    throw error;
+  });
 
   const env = {
     DB: db,
