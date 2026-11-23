@@ -157,50 +157,36 @@ const syntheticRecords = (): DeviceRecords => {
   return { ...DeviceRecords.empty, closed };
 };
 
-const measure = <T>(work: () => T): Readonly<{ ms: number; value: T }> => {
-  const started = performance.now();
-  const value = work();
-  return { ms: performance.now() - started, value };
-};
-
 describe("3年分の記録", () => {
+  // 保存し直す件数が書いたセッションと進め方の2件で済むことを、数と同一性で確かめる。
+  // 経過時間はマシンの負荷で変わるので比べない（#90）。
   test("記入を1件書いたときに保存し直すのは、書いたセッションと進め方の1件だけで済む", () => {
     const records = syntheticRecords();
     const draft: Draft = { base: records, current: records, revision: 0 };
     const deps = recordsDeps(draft);
-    const started = startSession(deps)({ id: crypto.randomUUID() }, at(0), newSessionId());
+    const sessionId = newSessionId();
+    const started = startSession(deps)({ id: crypto.randomUUID() }, at(0), sessionId);
     expect(Result.isSuccess(started)).toBe(true);
     const loaded = draft.current;
     const commit: Draft = { base: loaded, current: loaded, revision: 0 };
     const commitDeps = recordsDeps(commit);
 
-    const workflow = measure(() =>
-      writeJournalEntry(commitDeps)({ id: entryId(), body: BODY, tags: ["tag1"] }, at(1)),
-    );
-    const changed = measure(() => [
-      ...changedSessionRecords(commit.base, commit.current).map(encodeSessionRecord),
-      encodeMetaRecord(commit.current),
-    ]);
-    const whole = measure(() => encode(commit.current));
-    const entries = sessionRecordsOf(commit.current).reduce(
-      (sum, { session }) => sum + session.entries.length,
-      0,
-    );
-    const wholeBytes = [whole.value.meta, ...whole.value.sessions].reduce(
-      (sum, record) => sum + record.length,
-      0,
-    );
+    const id = entryId();
+    const written = writeJournalEntry(commitDeps)({ id, body: BODY, tags: ["tag1"] }, at(1));
+    const changed = changedSessionRecords(commit.base, commit.current);
 
-    console.log(
-      [
-        `sessions=${sessionRecordsOf(commit.current).length} entries=${entries}`,
-        `writeJournalEntry=${workflow.ms.toFixed(1)}ms`,
-        `encode changed (${changed.value.length} records, ${changed.value.join("").length} chars)=${changed.ms.toFixed(2)}ms`,
-        `encode whole (${whole.value.sessions.length + 1} records, ${(wholeBytes / 1_048_576).toFixed(1)} Mi chars)=${whole.ms.toFixed(0)}ms`,
-      ].join("\n"),
-    );
-    expect(Result.isSuccess(workflow.value)).toBe(true);
-    expect(changed.value).toHaveLength(2);
-    expect(changed.ms).toBeLessThan(50);
+    expect(Result.isSuccess(written)).toBe(true);
+    expect(sessionRecordsOf(commit.current)).toHaveLength(DAYS * SESSIONS_PER_DAY + 1);
+    expect(changed.map(({ kind, session }) => ({ kind, id: session.id }))).toEqual([
+      { kind: "Open", id: sessionId },
+    ]);
+    expect(changed[0]?.session.entries.map((stored) => stored.kind)).toEqual(["Written"]);
+    // 閉じたセッションは書き込みの前と同じ値のまま残り、保存し直す対象にならない
+    expect(commit.current.closed).toHaveLength(loaded.closed.length);
+    expect(commit.current.closed.every((session, i) => session === loaded.closed[i])).toBe(true);
+    // 保存し直すのは、書いたセッションの記録と進め方（メタ）の記録の2件
+    const saved = [...changed.map(encodeSessionRecord), encodeMetaRecord(commit.current)];
+    expect(saved).toHaveLength(2);
+    expect(saved[0]).toContain(id);
   });
 });
