@@ -10,7 +10,6 @@ import { schemaResult } from "../domain/schema-result.ts";
 import { type SessionSnapshot, SessionSnapshotJsonSchema } from "../domain/session.ts";
 import { SyncMessage } from "../domain/sync-message.ts";
 import {
-  eventually,
   prepareDatabase,
   request,
   resetStorage,
@@ -93,11 +92,43 @@ type OpResponse =
   | Readonly<{ kind: "Ok"; snapshot: SessionSnapshot }>
   | Readonly<{ kind: "Rejected" }>;
 
+/**
+ * WebSocket に届いて、まだ画面に渡していない同期メッセージ。届いた順に取り出し、まだ届いていなければ届くまで待つ。
+ *
+ * `vi.waitFor`（`eventually`）で見に行くと、偽物の `Date` を使っている間は1回見に行くごとに時計が 50ms 進み
+ * （`vi.waitFor` が `vi.advanceTimersByTime` を呼ぶ）、テストが決めたサーバーの時刻がずれる。マシンが混むほど
+ * 見に行く回数が増え、待つ上限（10 秒）にも届きやすい（Issue #101）。そこで時間を区切って見に行かず、
+ * 届いたことを受けて進める。届かないまま止まったときは、テストの時間の上限（`vitest.workers.config.ts`）が見つける
+ */
+const mailbox = () => {
+  const arrived: Array<string> = [];
+  const waiting: Array<(message: string) => void> = [];
+  return {
+    deliver: (message: string) => {
+      const take = waiting.shift();
+      if (take === undefined) {
+        arrived.push(message);
+      } else {
+        take(message);
+      }
+    },
+    take: (): Promise<string> => {
+      const message = arrived.shift();
+      return message === undefined
+        ? new Promise((resolve) => waiting.push(resolve))
+        : Promise.resolve(message);
+    },
+    /** 届いていて、まだ渡していないものを捨てる */
+    discard: () => {
+      arrived.splice(0);
+    },
+  };
+};
+
 type Screen = {
   readonly name: ScreenName;
   loading: Loading;
-  /** WebSocket に届いて、まだ画面に渡していないメッセージ */
-  readonly inbox: Array<string>;
+  readonly inbox: ReturnType<typeof mailbox>;
   socket: WebSocket | undefined;
 };
 
@@ -122,7 +153,7 @@ const recorder = () => {
 
   /** 画面を開く。モデルの初期状態と同じく、読み込みを1つ送り、同期の WebSocket を開き始める */
   const mount = (name: ScreenName): [Screen, LoadRequest] => {
-    const screen: Screen = { name, loading: initialLoading, inbox: [], socket: undefined };
+    const screen: Screen = { name, loading: initialLoading, inbox: mailbox(), socket: undefined };
     return [screen, { cause: "Refresh" }];
   };
 
@@ -202,7 +233,7 @@ const recorder = () => {
     ws.accept();
     ws.addEventListener("message", (event) => {
       if (screen.socket === ws && typeof event.data === "string") {
-        screen.inbox.push(event.data);
+        screen.inbox.deliver(event.data);
       }
     });
     screen.socket = ws;
@@ -218,8 +249,7 @@ const recorder = () => {
 
   /** use-sync.ts の deliver → timer.receive */
   const receiveSync = async (screen: Screen) => {
-    await eventually(() => expect(screen.inbox.length).toBeGreaterThan(0));
-    const message = SyncMessage.deserialize(screen.inbox.shift());
+    const message = SyncMessage.deserialize(await screen.inbox.take());
     if (message?.kind !== "SessionChanged") {
       throw new Error(`SessionChanged ではないメッセージが届いた: ${message?.kind ?? "読めない"}`);
     }
@@ -231,7 +261,7 @@ const recorder = () => {
   const disconnect = (screen: Screen) => {
     screen.socket?.close();
     screen.socket = undefined;
-    screen.inbox.splice(0);
+    screen.inbox.discard();
     record({ action: "Disconnect", screen: screen.name });
   };
 
