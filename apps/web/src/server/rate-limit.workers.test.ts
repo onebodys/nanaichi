@@ -5,14 +5,19 @@ import * as v from "valibot";
 import { ApiErrorBodyJsonSchema } from "../domain/api-error.ts";
 import {
   exhaustRateLimit,
+  limitRequestsTo,
   prepareDatabase,
   request,
   resetStorage,
   signInAs,
 } from "./workers-test-harness.ts";
 
+/** テストでの上限。本番の上限（wrangler.jsonc）は Cloudflare が数えるので、少ない回数で確かめる（workers-test-harness.ts） */
+const LIMIT = 3;
+
 beforeEach(async () => {
   await prepareDatabase();
+  limitRequestsTo(LIMIT);
 });
 
 afterEach(async () => {
@@ -20,12 +25,12 @@ afterEach(async () => {
 });
 
 describe("UserDO へのリクエストの制限", () => {
-  test("上限の 100 回までは通り、超えると 429 と RATE_LIMITED と Retry-After を返す", async () => {
+  test("上限の回数までは通り、超えると 429 と RATE_LIMITED と Retry-After を返す", async () => {
     const { headers } = await signInAs("me@example.com");
 
     const { passed, rejected } = await exhaustRateLimit(headers);
 
-    expect(passed).toBe(100);
+    expect(passed).toBe(LIMIT);
     expect(rejected.headers.get("retry-after")).toBe("10");
     expect(v.parse(ApiErrorBodyJsonSchema, await rejected.json()).error).toBe("RATE_LIMITED");
   });
