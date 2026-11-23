@@ -120,14 +120,22 @@ export const startAuthHarness = async (
   miniflare.dispatchFetch = retryOnStaleConnection(miniflare.dispatchFetch, () => {
     dispatched = true;
   });
-  const db = await miniflare.getD1Database("DB");
-  await applyMigrations(db);
-  if (!dispatched) {
-    // miniflare の作りが変わって差し替えが効かなくなったら、黙って flaky に戻さずここで知らせる
-    throw new Error(
-      "miniflare の dispatchFetch の差し替えが D1 の呼び出しに効いていない（Issue #102）",
-    );
-  }
+  const openDatabase = async (): Promise<D1Database> => {
+    const opened = await miniflare.getD1Database("DB");
+    await applyMigrations(opened);
+    if (!dispatched) {
+      // miniflare の作りが変わって差し替えが効かなくなったら、黙って flaky に戻さずここで知らせる
+      throw new Error(
+        "miniflare の dispatchFetch の差し替えが D1 の呼び出しに効いていない（Issue #102）",
+      );
+    }
+    return opened;
+  };
+  // 準備で失敗すると呼び出し元は dispose を受け取れないので、ここで workerd を止めてから投げ直す
+  const db = await openDatabase().catch(async (error: unknown) => {
+    await miniflare.dispose();
+    throw error;
+  });
 
   const env = {
     DB: db,
