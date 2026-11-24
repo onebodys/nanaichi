@@ -3,9 +3,11 @@
 #
 #   sh scripts/ui-test.sh          Mac のアプリ。.uitest/screenshots/<名前>.png に書き出す
 #   sh scripts/ui-test.sh iphone   iPhone のアプリを iOS のシミュレーターで。.uitest-iphone/screenshots/<名前>.png に書き出す
+#   sh scripts/ui-test.sh watch    Watch のアプリを watchOS のシミュレーターで。.uitest-watch/screenshots/<名前>.png に書き出す
 #
 # Xcode のプロジェクトは project.yml から作り直す。Xcode は DEVELOPER_DIR か xcode-select のものを使う。
-# iPhone のシミュレーターは IPHONE_SIMULATOR（名前）で選べる。なければ入っている iPhone のうち、いちばん新しい OS のもの
+# iPhone のシミュレーターは IPHONE_SIMULATOR（名前）で選べる。なければ入っている iPhone のうち、いちばん新しい OS のもの。
+# Watch のシミュレーターも同じく WATCH_SIMULATOR で選べ、なければ名前が Apple Watch で始まるもののうち、いちばん新しい OS のもの
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -36,8 +38,24 @@ case "$platform" in
     xcrun simctl spawn "$udid" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
     destination="platform=iOS Simulator,id=$udid"
     ;;
+  watch)
+    out=.uitest-watch
+    scheme=NanaichiWatch
+    udid=$(xcrun simctl list devices available --json |
+      jq -r --arg name "${WATCH_SIMULATOR:-}" '[.devices | to_entries[]
+        | (.key | capture("watchOS-(?<major>[0-9]+)-(?<minor>[0-9]+)") | [(.major | tonumber), (.minor | tonumber)]) as $version
+        | .value[] | select(if $name == "" then (.name | startswith("Apple Watch")) else .name == $name end)
+        | {version: $version, udid}] | sort_by(.version) | last | .udid // empty')
+    if [ -z "$udid" ]; then
+      echo "Watch のシミュレーターがありません（xcodebuild -downloadPlatform watchOS で入れる）" >&2
+      exit 1
+    fi
+    xcrun simctl boot "$udid" 2>/dev/null || true
+    xcrun simctl bootstatus "$udid" >/dev/null
+    destination="platform=watchOS Simulator,id=$udid"
+    ;;
   *)
-    echo "使い方: sh scripts/ui-test.sh [mac|iphone]" >&2
+    echo "使い方: sh scripts/ui-test.sh [mac|iphone|watch]" >&2
     exit 2
     ;;
 esac
