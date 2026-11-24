@@ -40,3 +40,4 @@ dist-ssr
 
 # ミューテーションテスト（@mizchi/mutator）のキャッシュとレポート。受け入れた等価ミュータントの mutator.accepted.json はコミットする
 .mutator/
+.testflight/

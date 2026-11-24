@@ -46,6 +46,7 @@ watchOS の標準の音声入力（テキスト入力の画面の音声入力）
 
 - Apple Developer Program には、実機の Watch で振動を確かめるときに登録する。それまでは iPhone と Watch のシミュレーターで作る。無料の署名では Watch の実機に入れても7日ごとに入れ直しになり、拡張ランタイムセッションなども配布の準備が要る（ADR 0028）。
 - 配布（TestFlight・App Store）の方法は、この ADR では決めず後回しにする。ADR 0028 は「配布の方法は iPhone を作るときに決める」としていたが、iPhone と Watch を自分で使えるようになってから決める。
+- 追記（Issue #109）: 2026-11-24 に Apple Developer Program に登録し、オーナーの端末へは TestFlight の内部テストで入れることにした（ADR 0032）。App Store への公開はまだ決めない。
 
 ## 確かめ方
 

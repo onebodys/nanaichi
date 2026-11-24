@@ -220,3 +220,37 @@ Actions の画面で main の最新の「CI」を「Re-run all jobs」すれば�
 
 `pnpm test:e2e` で chromium の E2E テストを実行する。詳しくは [`E2E.md`](./E2E.md)。
 CI でも PR と main への push のたびに走り、落ちた main はデプロイしない（4章）。
+
+## 6. iPhone と Watch のアプリを TestFlight で入れる（ADR 0032）
+
+iPhone のアプリ（Watch のアプリを同梱）を App Store Connect に上げ、オーナーの iPhone の TestFlight アプリから入れる。
+TestFlight の内部テストだけで、App Store には出さない。上げるのは手元の Mac からで、CI からは上げない。
+
+### 1度だけの準備（オーナー）
+
+1. Apple Developer Program に登録する（チーム ID `SBJFQKQZVC`。`apps/apple/project.yml` に書いてある）
+2. App Store Connect でアプリを登録する。バンドル ID は `app.nanaichi.ios`、プラットフォームは iOS。Watch のアプリ（`app.nanaichi.ios.watchkitapp`）は同梱なので別に登録しない
+3. App Store Connect の「ユーザとアクセス」→「統合」→「App Store Connect API」で、チームのキーを作る（アクセスは App Manager 以上）。
+   ダウンロードした `AuthKey_<Key ID>.p8` を `~/.appstoreconnect/private_keys/` に置き、権限を 600 にする。**リポジトリには入れない**。
+   Issuer ID は同じ画面の上に出る。毎回 `ASC_ISSUER_ID` で渡すか、`~/.appstoreconnect/issuer_id` に Issuer ID だけを書いて置く
+4. この Mac のキーチェーンに、チームの配布用の証明書（Apple Distribution）を入れる。Xcode の Settings → Accounts でチームにログインし、
+   Manage Certificates の + から Apple Distribution を作れば入る。App Manager の API キーはクラウド管理の配布用の証明書を使えないので、手元に証明書が要る
+5. App Store Connect の TestFlight で、自分を内部テスターのグループに入れる。iPhone に TestFlight アプリを入れる
+
+### 上げる
+
+```sh
+cd apps/apple
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ASC_ISSUER_ID=<Issuer ID> sh scripts/testflight.sh
+```
+
+- XcodeGen（`brew install xcodegen`）と Xcode が要る。`xcode-select` が Command Line Tools を指しているなら `DEVELOPER_DIR` で Xcode を選ぶ
+- アーカイブ（Release）だけチームで自動署名する。プロビジョニングプロファイルは API キーで Xcode が作る
+- ビルド番号は上げた時刻（UTC の `yyyyMMddHHmm`）。`BUILD_NUMBER` で上書きできる。バージョン（`MARKETING_VERSION`）は `project.yml` のもの
+- 作ったものは `apps/apple/.testflight/` に置く（コミットしない）。上げたあと App Store Connect の処理が終わるまで待ち、終わると `altool` が状態を出す
+
+### 入れる
+
+1. 処理が終わると、TestFlight のアプリにビルドが出る（内部テスターには審査なしで配られる）
+2. iPhone の TestFlight アプリで nanaichi を開き、「インストール」を押す。iPhone のアプリが入る
+3. ペアの Watch には Watch のアプリが自動で入る。入らなければ、iPhone の Watch アプリ →「マイウォッチ」→ nanaichi の「インストール」を押す
