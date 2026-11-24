@@ -36,7 +36,7 @@ if [ "$iterations" != 1 ] && [ -z "$only" ]; then
   usage
 fi
 
-# このスクリプトが起動したシミュレーター。終わったら（通っても落ちても、止められても）止める
+# このスクリプトが起動したシミュレーター（起動している途中のものを含む）。終わったら（通っても落ちても、止められても）止める
 booted=
 cleanup() {
   if [ -n "$booted" ]; then
@@ -47,13 +47,12 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# シミュレーターを起動する。前から起動していたものは、終わっても止めない
+# シミュレーターを起動する。前から起動していたものは simctl boot が断るので、終わっても止めない。
+# 状態を読んでから起動すると、その間に別の作業が起動したものまで止めてしまうので、simctl boot の結果で決める。
+# 起動している途中で止められたときも止めるように、起動する前から記録しておき、断られたら消す
 boot() {
-  state=$(xcrun simctl list devices --json | jq -r --arg udid "$1" '.devices[][] | select(.udid == $udid) | .state')
-  if [ "$state" != Booted ]; then
-    booted=$1
-    xcrun simctl boot "$1" 2>/dev/null || true
-  fi
+  booted=$1
+  xcrun simctl boot "$1" 2>/dev/null || booted=
   xcrun simctl bootstatus "$1" >/dev/null
 }
 
