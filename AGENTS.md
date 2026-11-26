@@ -19,6 +19,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
   - オーナーが確かめる手順（どの画面で何をすると何が起きるか）。CI が PR にコメントするプレビューの URL で試せる手順にする。プレビューにないもの（ログイン、同期、MCP）は、マージのあとに本番で確かめる手順として分けて書く（ADR 0025）
   - 検証できなかったこと・未確認のこと
 - **domain / workflows を変えたらミューテーションテストの差分を回す**: `apps/web/src/domain/` か `apps/web/src/workflows/` のコードを変えたら、作業の終わりに `mutation-test` スキル（`.agents/skills/mutation-test`）に従って差分だけを回す。生き残ったミュータントは、テストで殺すか、等価ミュータントとして理由つきで記録する。CI も PR の差分を回して Step Summary に生き残りを出すが、落とさないので、片付けるのはエージェントの仕事。
+- **Apple のアプリの UI テストは、手元では関係するテストだけを流す**: `sh apps/apple/scripts/ui-test.sh <mac|iphone|watch> <クラス>[/<メソッド>]` で絞り、全部は CI（PR の `ui-test` ラベル）で確かめる。不安定なテストを直したら、そのテストを続けて数回流す（3つ目の引数に回数。1回でも落ちれば失敗）。使い方は [`docs/E2E.md`](./docs/E2E.md) の「Mac と iPhone のアプリの画面を確かめる」。
 - **テストを仕様として読めるようにする**: ドメインとワークフローのテスト名は日本語で、`GLOSSARY.md` の用語を使った場面として書く（例: `集中中に中断すると不成立セットになり待機に戻る`）。テスト一覧がそのまま仕様の確認リストになるようにする。
 - **認証が絡む API はローカルの結合テストで確かめる**: `apps/web/src/server/auth-test-harness.ts` が miniflare の D1 と Better Auth の `testUtils` でログイン済みのセッションを作る。Cloudflare や Google に繋がずに `vp test` だけで検証できるので、`/api/*` にエンドポイントを足したら未ログイン（401）とログイン済みの振る舞いをこれでテストする。
   - UserDO（Durable Object）を通る API は Node では動かせないので、`*.workers.test.ts` に書き、`@cloudflare/vitest-plugin` で Workers ランタイムの上で動かす（`vitest.workers.config.ts`、土台は `apps/web/src/server/workers-test-harness.ts`）。時刻は `vi.setSystemTime` で進め、alarm は `runDurableObjectAlarm` で鳴らす。
