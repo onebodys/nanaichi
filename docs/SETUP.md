@@ -234,7 +234,8 @@ TestFlight の内部テストだけで、App Store には出さない。上げ�
    ダウンロードした `AuthKey_<Key ID>.p8` を `~/.appstoreconnect/private_keys/` に置き、権限を 600 にする。**リポジトリには入れない**。
    Issuer ID は同じ画面の上に出る。毎回 `ASC_ISSUER_ID` で渡すか、`~/.appstoreconnect/issuer_id` に Issuer ID だけを書いて置く
 4. この Mac のキーチェーンに、チームの配布用の証明書（Apple Distribution）を入れる。Xcode の Settings → Accounts でチームにログインし、
-   Manage Certificates の + から Apple Distribution を作れば入る。App Manager の API キーはクラウド管理の配布用の証明書を使えないので、手元に証明書が要る
+   Manage Certificates の + から Apple Distribution を作れば入る（2026-11-26 に、この Mac で鍵を作り App Store Connect API で1枚発行して入れた。
+   期限は 2027-11-26）。App Manager の API キーはクラウド管理の配布用の証明書を使えないので、手元に証明書が要る
 5. App Store Connect の TestFlight で、自分を内部テスターのグループに入れる。iPhone に TestFlight アプリを入れる
 
 ### 上げる
@@ -245,7 +246,10 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ASC_ISSUER_ID=<Issuer I
 ```
 
 - XcodeGen（`brew install xcodegen`）と Xcode が要る。`xcode-select` が Command Line Tools を指しているなら `DEVELOPER_DIR` で Xcode を選ぶ
-- アーカイブ（Release）だけチームで自動署名する。プロビジョニングプロファイルは API キーで Xcode が作る
+- アーカイブ（Release）だけチームで自動署名する。開発用のプロビジョニングプロファイルは API キーで Xcode が作る
+- 書き出しは手動の署名にする。App Store 向けのプロファイル（`nanaichi App Store <バンドル ID>`）がなければ、スクリプトが App Store Connect API で作り、
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` に入れる。Watch のバンドル ID が未登録なら、それも登録する。
+  証明書を作り直したら、古い証明書の入ったプロファイルを developer.apple.com の Profiles で消してから走らせる（作り直される）
 - ビルド番号は上げた時刻（UTC の `yyyyMMddHHmm`）。`BUILD_NUMBER` で上書きできる。バージョン（`MARKETING_VERSION`）は `project.yml` のもの
 - 作ったものは `apps/apple/.testflight/` に置く（コミットしない）。上げたあと App Store Connect の処理が終わるまで待ち、終わると `altool` が状態を出す
 
