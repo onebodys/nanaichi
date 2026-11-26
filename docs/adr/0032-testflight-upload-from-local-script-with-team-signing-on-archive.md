@@ -22,7 +22,7 @@ ADR 0031 は、iPhone と Watch の配布の方法を後回しにしていた。
 - 認証は App Store Connect の API キー（App Manager）で行う。`.p8` は `~/.appstoreconnect/private_keys/AuthKey_<Key ID>.p8`（`altool` が探す場所）に置き、Key ID はファイル名から読む。Issuer ID は環境変数 `ASC_ISSUER_ID` か `~/.appstoreconnect/issuer_id` から読む。Xcode にアカウントでログインしなくてよい。
 - アーカイブは `-allowProvisioningUpdates` で、開発用のプロファイルを Xcode に API キーで作らせる。
 - 書き出し（App Store 向けの署名）は手動の署名にする。Xcode の自動署名は、API キーで認証するとクラウド管理の配布用の証明書しか探さず、App Manager のキーはそれを使えない（`You haven't been given access to cloud-managed distribution certificates`）。そこで、この Mac のキーチェーンに Apple Distribution の証明書を置き、App Store 向けのプロファイルはスクリプトが App Store Connect API で用意する（なければ作る。Watch のバンドル ID が未登録なら登録する）。
-- ビルド番号（`CFBundleVersion`）は上げた時刻（UTC の `yyyyMMddHHmm`）にする。上げるたびに増え、同じコミットから上げ直しても重ならない。git のコミット数は、同じコミットから上げ直すと重なるので使わない。iPhone と Watch のアプリは同じ番号になる。
+- ビルド番号（`CFBundleVersion`）は上げた時刻（UTC の `yyyyMMddHHmm`）にする。1分以上あけて上げれば増え、同じコミットから上げ直しても重ならない。同じ分に2回上げると（別の worktree から同時に走らせたときなど）番号が重なり、App Store Connect が後の方を断る。そのときは、前より大きい番号を `BUILD_NUMBER` で渡して上げ直す。git のコミット数は、同じコミットから上げ直すと重なるので使わない。iPhone と Watch のアプリは同じ番号になる。
 - CI からは上げない。上げるのはオーナーが実機で確かめたいときだけで、頻度が低い。CI で上げるには、配布用の証明書の鍵と API キーを secrets に置くことになる。
 
 ## 輸出規制の宣言

@@ -236,7 +236,8 @@ TestFlight の内部テストだけで、App Store には出さない。上げ�
 4. この Mac のキーチェーンに、チームの配布用の証明書（Apple Distribution）を入れる。Xcode の Settings → Accounts でチームにログインし、
    Manage Certificates の + から Apple Distribution を作れば入る（2026-11-26 に、この Mac で鍵を作り App Store Connect API で1枚発行して入れた。
    期限は 2027-11-26）。App Manager の API キーはクラウド管理の配布用の証明書を使えないので、手元に証明書が要る
-5. App Store Connect の TestFlight で、自分を内部テスターのグループに入れる。iPhone に TestFlight アプリを入れる
+5. App Store Connect の TestFlight で内部テスターのグループを作り、自分を入れる。グループの「自動配信」をオンにしておくと、処理が終わったビルドがそのまま配られる。
+   オフなら、上げるたびにグループの「ビルド」に処理が終わったビルドを足す（足すまで TestFlight のアプリに出ない）。iPhone に TestFlight アプリを入れる
 
 ### 上げる
 
@@ -250,11 +251,11 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ASC_ISSUER_ID=<Issuer I
 - 書き出しは手動の署名にする。App Store 向けのプロファイル（`nanaichi App Store <バンドル ID>`）がなければ、スクリプトが App Store Connect API で作り、
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` に入れる。Watch のバンドル ID が未登録なら、それも登録する。
   証明書を作り直したら、古い証明書の入ったプロファイルを developer.apple.com の Profiles で消してから走らせる（作り直される）
-- ビルド番号は上げた時刻（UTC の `yyyyMMddHHmm`）。`BUILD_NUMBER` で上書きできる。バージョン（`MARKETING_VERSION`）は `project.yml` のもの
+- ビルド番号は上げた時刻（UTC の `yyyyMMddHHmm`）。同じ分に2回上げると番号が重なって断られるので、そのときは前より大きい番号を `BUILD_NUMBER` で渡す。バージョン（`MARKETING_VERSION`）は `project.yml` のもの
 - 作ったものは `apps/apple/.testflight/` に置く（コミットしない）。上げたあと App Store Connect の処理が終わるまで待ち、終わると `altool` が状態を出す
 
 ### 入れる
 
-1. 処理が終わると、TestFlight のアプリにビルドが出る（内部テスターには審査なしで配られる）
+1. 処理が終わり、ビルドが内部テスターのグループに入ると（自動配信がオフなら、グループに手で足す）、TestFlight のアプリにビルドが出る（内部テスターには審査なしで配られる）
 2. iPhone の TestFlight アプリで nanaichi を開き、「インストール」を押す。iPhone のアプリが入る
 3. ペアの Watch には Watch のアプリが自動で入る。入らなければ、iPhone の Watch アプリ →「マイウォッチ」→ nanaichi の「インストール」を押す

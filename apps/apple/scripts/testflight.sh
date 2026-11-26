@@ -73,10 +73,20 @@ asc() {
 }
 profiles_dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
 mkdir -p "$profiles_dir"
-certificates=$(asc "$api/certificates?filter%5BcertificateType%5D=DISTRIBUTION&limit=200" |
-  jq -c '[.data[] | {type: "certificates", id}]')
-if [ "$certificates" = "[]" ]; then
-  echo "チームに Apple Distribution の証明書がありません（docs/SETUP.md の6章）" >&2
+# App Store 向けのプロファイルに入れる配布用の証明書は1枚。チームの証明書のうち、このキーチェーンに秘密鍵のある
+# （署名に使える）ものを、SHA-1 のフィンガープリントで選ぶ
+identities=$(security find-identity -v -p codesigning)
+certificate=""
+for entry in $(asc "$api/certificates?filter%5BcertificateType%5D=DISTRIBUTION&limit=200" |
+  jq -r '.data | sort_by(.attributes.expirationDate) | reverse | .[] | "\(.id):\(.attributes.certificateContent)"'); do
+  fingerprint=$(printf '%s' "${entry#*:}" | base64 -d | shasum -a 1 | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')
+  if printf '%s' "$identities" | grep -q "$fingerprint"; then
+    certificate=${entry%%:*}
+    break
+  fi
+done
+if [ -z "$certificate" ]; then
+  echo "このキーチェーンに、チームの Apple Distribution の証明書（と秘密鍵）がありません（docs/SETUP.md の6章）" >&2
   exit 1
 fi
 profile_entries=""
@@ -94,9 +104,10 @@ for bundle in app.nanaichi.ios app.nanaichi.ios.watchkitapp; do
       bundle_id=$(jq -n --arg bundle "$bundle" '{data: {type: "bundleIds", attributes: {identifier: $bundle, name: "nanaichi", platform: "IOS"}}}' |
         asc -X POST --data @- "$api/bundleIds" | jq -r .data.id)
     fi
-    profile=$(jq -n --arg name "$name" --arg bundle_id "$bundle_id" --argjson certificates "$certificates" \
+    profile=$(jq -n --arg name "$name" --arg bundle_id "$bundle_id" --arg certificate "$certificate" \
       '{data: {type: "profiles", attributes: {name: $name, profileType: "IOS_APP_STORE"},
-        relationships: {bundleId: {data: {type: "bundleIds", id: $bundle_id}}, certificates: {data: $certificates}}}}' |
+        relationships: {bundleId: {data: {type: "bundleIds", id: $bundle_id}},
+          certificates: {data: [{type: "certificates", id: $certificate}]}}}}' |
       asc -X POST --data @- "$api/profiles" | jq -r .data.attributes.profileContent)
   fi
   printf '%s' "$profile" | base64 -d >"$out/profile.mobileprovision"
