@@ -6,8 +6,8 @@
 # App Store Connect の API キーの .p8 は ~/.appstoreconnect/private_keys/AuthKey_<Key ID>.p8 に置く（リポジトリには入れない）。
 # Key ID はそのファイル名から読む。キーが複数あるときは ASC_KEY_ID で選ぶ。
 # Issuer ID は ASC_ISSUER_ID か、~/.appstoreconnect/issuer_id（中身が Issuer ID だけのファイル）から読む。
-# ビルド番号は上げた時刻（UTC、yyyyMMddHHmm）にする。上げるたびに増え、同じコミットから上げ直しても重ならない。
-# BUILD_NUMBER で上書きできる。
+# ビルド番号は上げた時刻（UTC、yyyyMMddHHmm）にする。1分以上あけて上げれば増え、同じコミットから上げ直しても重ならない。
+# 同じ分に2回上げると番号が重なって断られるので、そのときは前より大きい番号を BUILD_NUMBER で渡す。
 # 上げたあと、App Store Connect の処理が終わるまで待つ。終わったら iPhone の TestFlight アプリから入れられる。
 # Xcode は DEVELOPER_DIR か xcode-select のものを使う。アーカイブは project.yml の Release の設定（チームの自動署名）で、
 # 書き出しはこの Mac のキーチェーンの Apple Distribution の証明書で署名する（docs/SETUP.md の6章）
