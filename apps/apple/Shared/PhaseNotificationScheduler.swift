@@ -82,8 +82,11 @@ final class PhaseNotificationScheduler {
         for item in plan {
             // 秒より細かくは指定できないので、切り替わりより先に届かないよう秒を切り上げる
             let fireAt = Date(timeIntervalSince1970: clock.wallDate(item.at).timeIntervalSince1970.rounded(.up))
-            // 1秒もないものは入れ直さず、前の予約を残す。入れ直しがその秒を過ぎると、その秒を指す予約はもう届かない
-            guard fireAt.timeIntervalSinceNow > 1 else { continue }
+            let untilFire = fireAt.timeIntervalSinceNow
+            guard untilFire > 0 else { continue }
+            // 前の予約があって1秒もないものは入れ直さず、前の予約を残す。入れ直しがその秒を過ぎると、その秒を指す予約は
+            // もう届かない。前の予約がなければ入れる（入れなければ誰も知らせない）
+            if untilFire <= 1, previous.contains(item.identifier) { continue }
             let content = UNMutableNotificationContent()
             content.title = item.title
             content.body = item.body
