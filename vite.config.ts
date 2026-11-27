@@ -12,6 +12,76 @@ const restrict = (group: string[], message: string): RestrictRule => [
 
 const web = "apps/web/src";
 
+/** domain / workflows / device が共通して使ってよい外部パッケージ */
+const packages = [
+  // Result 型（AGENTS.md §2）
+  "@praha/byethrow",
+  // 境界のスキーマ検証（AGENTS.md §4）
+  "valibot",
+  // schemaResult が受け取る Standard Schema の型（AGENTS.md §4）
+  "@standard-schema/spec",
+];
+
+/**
+ * テストのファイル（*.test.ts）だけで使ってよいもの。
+ * domain はブラウザにも配るので、テストの道具がアプリのコードに入らないようにテストだけに許す
+ */
+const testOnly = [
+  "vite-plus/test",
+  // ゴールデンケースや記録先の契約など、テストどうしで共有する部品
+  "../testing/*",
+];
+
+/**
+ * domain / workflows / device が import してよいもの（AGENTS.md §3）。ここに並べたもの以外の import は落とす。
+ * 足すときはここに足して、理由をコメントに書く。
+ * パターンは gitignore の書き方で、`/` を含むパターンの `*` は `/` をまたがない。
+ * `./*` は同じディレクトリのファイルだけを指し、`../domain/../server/x.ts` は通らない
+ */
+const allowedImports = {
+  domain: {
+    code: ["./*", ...packages],
+    test: [
+      ...testOnly,
+      // Mac アプリの Swift のテストと同じ取り込みの束で、送る形が一致することを確かめる（import.test.ts）
+      "../../../apple/NanaichiKit/Tests/NanaichiDomainTests/Fixtures/*",
+    ],
+    message: "domain は純粋に保つ。外側のディレクトリやフレームワークを import しない",
+  },
+  workflows: {
+    code: ["./*", "../domain/*", ...packages],
+    test: testOnly,
+    message: "workflows は domain だけに依存する",
+  },
+  device: {
+    code: ["./*", "../domain/*", "../workflows/*", ...packages],
+    // IndexedDB を Node のテストで動かす
+    test: [...testOnly, "fake-indexeddb"],
+    message: "device は domain と workflows だけに依存する",
+  },
+};
+
+/** `allowed` に並べたもの以外を落とす。`/` を含まない `*` はすべての import に当たり、`!` で許すものを戻す */
+const allowOnly = (allowed: readonly string[], message: string): RestrictRule =>
+  restrict(
+    ["*", ...allowed.map((pattern) => `!${pattern}`)],
+    `${message}（AGENTS.md §3）。使ってよいものは vite.config.ts の allowedImports に並べる`,
+  );
+
+// テストのファイルの上書きは前の no-restricted-imports を置き換えるので、アプリのコードに許すものも並べ直す
+const allowlistOverrides = Object.entries(allowedImports).flatMap(
+  ([dir, { code, test, message }]) => [
+    {
+      files: [`${web}/${dir}/**`],
+      rules: { "no-restricted-imports": allowOnly(code, message) },
+    },
+    {
+      files: [`${web}/${dir}/**/*.test.ts`],
+      rules: { "no-restricted-imports": allowOnly([...code, ...test], message) },
+    },
+  ],
+);
+
 const clientBannedImports = [
   "**/server/**",
   "**/workflows/**",
@@ -60,50 +130,9 @@ export default defineConfig({
       "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
     },
     // 依存の方向（AGENTS.md「3. Functional Core / Imperative Shell と依存の方向」）を機械的に検査する。
+    // domain / workflows / device は許すものを並べ（allowedImports）、server / client は禁止するものを並べる
     overrides: [
-      {
-        files: [`${web}/domain/**`],
-        rules: {
-          "no-restricted-imports": restrict(
-            [
-              "**/workflows/**",
-              "**/server/**",
-              "**/client/**",
-              "**/device",
-              "**/device/**",
-              "hono",
-              "hono/*",
-              "react",
-              "react-dom",
-              "react-dom/*",
-              "cloudflare:*",
-              "better-auth",
-              "better-auth/*",
-            ],
-            "domain は純粋に保つ。外側のディレクトリやフレームワークを import しない",
-          ),
-        },
-      },
-      {
-        files: [`${web}/workflows/**`],
-        rules: {
-          "no-restricted-imports": restrict(
-            [
-              "**/server/**",
-              "**/client/**",
-              "**/device",
-              "**/device/**",
-              "hono",
-              "hono/*",
-              "react",
-              "react-dom",
-              "react-dom/*",
-              "cloudflare:*",
-            ],
-            "workflows は domain だけに依存する",
-          ),
-        },
-      },
+      ...allowlistOverrides,
       {
         files: [`${web}/server/**`],
         rules: {
@@ -137,28 +166,6 @@ export default defineConfig({
       {
         files: recordStoreReaders.map((file) => `${web}/client/${file}`),
         rules: { "no-restricted-imports": restrict(clientBannedImports, clientBannedMessage) },
-      },
-      {
-        files: [`${web}/device/**`],
-        rules: {
-          "no-restricted-imports": restrict(
-            [
-              "**/client",
-              "**/client/**",
-              "**/server",
-              "**/server/**",
-              "hono",
-              "hono/*",
-              "react",
-              "react-dom",
-              "react-dom/*",
-              "cloudflare:*",
-              "better-auth",
-              "better-auth/*",
-            ],
-            "device は domain と workflows だけに依存する",
-          ),
-        },
       },
       // ここから下は依存の方向ではなく、AGENTS.md のほかの決まり事の検査
       // ドメインでは時刻・乱数・ID を作らない（AGENTS.md §3）。テストはドメインのコードではないので、ID を作ってよい

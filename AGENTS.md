@@ -40,7 +40,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 - **ドメインは純粋**にする。ドメインのコードでは I/O、`Date.now()` / `new Date()`、`crypto.randomUUID()`、`Math.random()` を使わない。時刻と ID は引数で受け取る。
   - この制約は Oxlint の `nanaichi/no-impure-domain` で**機械的に検査**する。
 - **依存は外側から内側への一方向**。ドメインはワークフローやアダプタ、フレームワーク（Hono、React、Cloudflare の型、Better Auth、DB）を import しない。
-  - この制約は Oxlint の `no-restricted-imports` などで**機械的に検査**できるようにする（検証可能性のため）。
+  - この制約は Oxlint の `no-restricted-imports` で**機械的に検査**する。`domain/`・`workflows/`・`device/` は使ってよいものを `vite.config.ts` の `allowedImports` に並べ、それ以外を落とす。足すときは理由をコメントに書く。
 - ワークフローが必要とする読み書きの契約（resolver / store）はドメイン側に、概念の隣に置く（kamae の方針どおり。`ports/` ディレクトリは作らない）。
 - **不要なレイヤーは作らない**。DDD をやりたいわけではない。集約・リポジトリ・アプリケーションサービスなどの層を形式のために増やさない。
 
