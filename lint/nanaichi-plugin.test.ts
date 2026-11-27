@@ -128,6 +128,20 @@ const area = (shape: Shape) => {
 };`,
       errors: [{ message: /判別可能な union の switch に default を書かない/, line: 6 }],
     },
+    // 定数の case でも見る
+    {
+      code: `${shape}
+const CIRCLE = "Circle";
+const area = (shape: Shape) => {
+  switch (shape.kind) {
+    case CIRCLE:
+      return 1;
+    default:
+      return 0;
+  }
+};`,
+      errors: 1,
+    },
     {
       code: `${shape}
 const area = ({ kind }: Shape) => {

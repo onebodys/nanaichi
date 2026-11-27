@@ -66,7 +66,7 @@ kamae の「状態ごとに型を分ける」を、このプロジェクトで�
 
 - optional / nullable なプロパティで状態を表さない。状態ごとに型を定義し、判別可能な union にする（例: タイマーは `Idle | Focus | Journal | Break | Ended` のように分け、「休憩中はセット番号がない」を `setNumber?: number` ではなく型の違いで表す）。
 - 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
-  - この制約は Oxlint で**機械的に検査**する。網羅性は `typescript/switch-exhaustiveness-check`、`default` は自前のルール `nanaichi/no-default-in-kind-switch`（`lint/nanaichi-plugin.ts`）。後者は型を見られないので形で見分け、判別子 `kind` で分けて `case` がすべて文字列の `switch`（`switch (x.kind)` / `switch (kind)`）だけを見る。文字列や数値の `switch` には `default` を書いてよい。
+  - この制約は Oxlint で**機械的に検査**する。網羅性は `typescript/switch-exhaustiveness-check`、`default` は自前のルール `nanaichi/no-default-in-kind-switch`（`lint/nanaichi-plugin.ts`）。後者は型を見られないので形で見分け、判別子 `kind` で分けて数値などの文字列でないリテラルの `case` がない `switch`（`switch (x.kind)` / `switch (kind)`）だけを見る。文字列や数値の `switch` には `default` を書いてよい。
 - 境界（API の入力、DB の行、WebSocket のメッセージ）で受け取った値はスキーマで検証し、その場で状態ごとの型に変換する。DB の行の nullable な列をドメインに持ち込まない。
 - 型アサーション（`as`）は使わない。`as const` と `as const satisfies Type` のみ可。
   - この制約は Oxlint の `typescript/consistent-type-assertions`（`assertionStyle: "never"`。`as const` は対象外）で**機械的に検査**する。

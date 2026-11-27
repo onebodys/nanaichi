@@ -107,12 +107,13 @@ const switchesOnKind = (discriminant: ESTree.Expression): boolean => {
 /**
  * 判別可能な union の switch か。JS のプラグインには型の情報がないので、形で見分ける。
  * 自分で定義する型の判別子は必ず `kind` で、値は文字列（AGENTS.md §2）。`kind` で分けていて、
- * case がすべて文字列リテラルのものを判別可能な union の switch とみなす（`case 0:` のような数値の switch は外す）
+ * 文字列でないリテラルの case（`case 0:` など）がないものを判別可能な union の switch とみなす。
+ * `case CIRCLE:` のような定数は値を辿れないので、判別可能な union の switch のほうに数える
  */
 const isDiscriminatedUnionSwitch = (node: ESTree.SwitchStatement): boolean =>
   switchesOnKind(node.discriminant) &&
   node.cases.every(
-    ({ test }) => test === null || (test.type === "Literal" && typeof test.value === "string"),
+    ({ test }) => test === null || test.type !== "Literal" || typeof test.value === "string",
   );
 
 const noDefaultInKindSwitch = defineRule({
