@@ -7,12 +7,14 @@ import SwiftUI
 @main
 struct NanaichiWatchApp: App {
     @State private var model = WatchModel(link: phoneLink(), clock: systemClock)
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             WatchTimerView(model: model)
                 .task { await model.run() }
         }
+        .onChange(of: scenePhase, initial: true) { _, phase in model.activeChanged(phase == .active) }
     }
 }
 

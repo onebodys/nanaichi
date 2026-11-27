@@ -50,6 +50,8 @@ final class TimerModel {
     @ObservationIgnored private var activity: NSObjectProtocol?
     /// 手元のスナップショットが替わったときに呼ぶ。iPhone はこれで Watch に知らせる（ADR 0031）
     @ObservationIgnored var snapshotChanged: (Received) -> Void = { _ in }
+    /// Watch が振動で知らせる範囲。iPhone はその切り替わりを通知しない（ADR 0033）。Mac は Watch とつながないので、いつも `off`
+    @ObservationIgnored var watchVibration: () -> WatchVibration = { .off }
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
@@ -236,7 +238,7 @@ final class TimerModel {
     private func scheduleNotifications(for snapshot: SessionSnapshot) {
         let settings = alertSettings()
         notifications.reschedule(
-            phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings),
+            phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings, watch: watchVibration()),
             sound: alertsHandedOver && settings.sound ? settings : nil)
     }
 
@@ -248,6 +250,13 @@ final class TimerModel {
     /// 知らせ方の設定を変えたら、通知を出すかどうかを予約にも当てる
     func alertSettingsChanged() {
         if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
+    }
+
+    /// Watch が振動で知らせる範囲が替わったら、通知を予約し直し、終わるまで待つ。
+    /// Watch は iPhone が待ち終えてから振動で知らせ始めるので、同じ切り替わりを通知と振動の両方で知らせない
+    func watchVibrationChanged() async {
+        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
+        await notifications.settle()
     }
 
     /// アプリが音を鳴らせなくなる前に呼ぶ（Mac は終了する前、iPhone は裏に回る前）。

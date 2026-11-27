@@ -21,6 +21,9 @@ public enum WatchMessage: Hashable, Sendable, Codable {
     case start(id: SessionEventId)
     /// 集中を中断する。`id` は中断の操作イベントの ID
     case abort(id: SessionEventId)
+    /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
+    /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
+    case vibration(WatchVibration)
 }
 
 /// iPhone から Watch に届くもの。頼みへの答えと、iPhone の側で変わったときの知らせに使う
@@ -29,6 +32,8 @@ public enum PhoneMessage: Hashable, Sendable, Codable {
     /// 頼んだ操作を記録先が断った・記録先に届かなかった。`message` は Watch にそのまま出す文言。
     /// 断られたときは iPhone の様子が Watch の思っているものと違うかもしれないので、Watch は今の様子を頼み直す
     case refused(message: String)
+    /// 頼みを受け取った。記録先に通さない頼み（`vibration`）への答え
+    case accepted
 }
 
 /// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。
@@ -80,16 +85,18 @@ public enum PhoneSnapshotLoading: Hashable, Sendable {
     }
 }
 
-/// iPhone が Watch の頼み `message` を、いまの記録先 `backend`（その印が `recordStore`）に通して答える
+/// iPhone が Watch の頼み `message` を、いまの記録先 `backend`（その印が `recordStore`）に通して答える。
+/// 振動で知らせる範囲（`vibration`）は記録先に通さず、受け取ったとだけ答える。範囲を覚えて通知を予約し直すのは呼ぶ側
 public func replyTo(_ message: WatchMessage, using backend: any Backend, recordStore: RecordStoreTag) async
     -> PhoneMessage
 {
-    let result =
-        switch message {
-        case .current: await backend.getCurrentSession()
-        case .start(let id): await backend.startSession(id: id)
-        case .abort(let id): await backend.operateSession(id: id, kind: .abort)
-        }
+    let result: Result<SessionSnapshot, BackendError>
+    switch message {
+    case .current: result = await backend.getCurrentSession()
+    case .start(let id): result = await backend.startSession(id: id)
+    case .abort(let id): result = await backend.operateSession(id: id, kind: .abort)
+    case .vibration: return .accepted
+    }
     switch result {
     case .success(let snapshot):
         let received = Received(snapshot: snapshot, offset: await backend.clockOffset())

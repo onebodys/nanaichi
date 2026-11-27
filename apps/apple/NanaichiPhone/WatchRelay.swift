@@ -6,6 +6,8 @@ import WatchConnectivity
 /// Watch とのつなぎ（ADR 0031）。記録を書くのは iPhone だけなので、Watch の頼みはいまの記録先に通して答え、
 /// 手元のスナップショットが替わったら Watch に知らせる。
 ///
+/// Watch が振動で知らせる範囲（ADR 0033）も受け取って覚える。その範囲の切り替わりは、iPhone で通知しない
+///
 /// Watch が頼むと、iPhone のアプリが裏で起こされることがある。起こされたときも頼みに答えられるよう、
 /// アプリの部品を作ったところで WatchConnectivity を動かし始める
 final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
@@ -18,10 +20,19 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// Watch に置いておく最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す。
     /// 読むのも、application context に置くのもメインアクターだけで行い、古いものが新しいものを上書きしないようにする
     @MainActor private var latest = PhoneSnapshotLoading.waiting
+    /// Watch が振動で知らせる範囲。iPhone の通知の予約は、この範囲の切り替わりを除く
+    @MainActor private(set) var vibration = WatchVibration.off
+    /// 範囲が替わったときに、通知を予約し直して終わるまで待つ。`activate` で1回だけ決める
+    private var vibrationChanged: @MainActor () async -> Void = {}
 
-    /// Watch とつなぎ始める。`recordStore` はいまの記録先とその印で、ログイン・ログアウトで替わるので、頼みが届くたびに読む
-    func activate(recordStore: @escaping @MainActor () -> (any Backend, RecordStoreTag)) {
+    /// Watch とつなぎ始める。`recordStore` はいまの記録先とその印で、ログイン・ログアウトで替わるので、頼みが届くたびに読む。
+    /// `vibrationChanged` は、Watch が振動で知らせる範囲が替わったときに、通知を予約し直して終わるまで待つ
+    func activate(
+        recordStore: @escaping @MainActor () -> (any Backend, RecordStoreTag),
+        vibrationChanged: @escaping @MainActor () async -> Void
+    ) {
         self.recordStore = recordStore
+        self.vibrationChanged = vibrationChanged
         session?.delegate = self
         session?.activate()
     }
@@ -48,6 +59,16 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// 替わった先の今の様子を返す。Watch が、もう使っていない記録先の様子を出し続けないように
     @MainActor
     private func answer(_ message: WatchMessage) async -> PhoneMessage {
+        switch message {
+        // 通知を予約し直し終えてから答える。Watch は答えを受け取ってから振動で知らせ始めるので、
+        // その範囲の通知が残ったまま Watch も振動する、ということがない
+        case .vibration(let vibration):
+            self.vibration = vibration
+            await vibrationChanged()
+            return .accepted
+        case .current, .start, .abort:
+            break
+        }
         var (backend, tag) = recordStore()
         var answer = await replyTo(message, using: backend, recordStore: tag)
         // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始・中断はやり直さない
@@ -74,7 +95,7 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
             case .snapshot(let snapshot):
                 latest = latest.applying(snapshot)
                 deliverLatest(sendingNow: false)
-            case .refused: break
+            case .refused, .accepted: break
             }
         }
     }

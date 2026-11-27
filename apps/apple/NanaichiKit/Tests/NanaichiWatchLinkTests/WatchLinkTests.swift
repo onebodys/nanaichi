@@ -115,15 +115,26 @@ func currentSnapshot() async throws {
     #expect(snapshotOf(reply) == (try await backend.getCurrentSession().get()))
 }
 
+@Test("Watch が振動で知らせる範囲を伝えると、記録先に通さずに受け取ったと答える")
+func vibrationIsAcceptedWithoutTouchingRecords() async throws {
+    let backend = phoneBackend(TestClock())
+    let before = try await backend.getCurrentSession().get()
+    #expect(await replyTo(.vibration(.covering(before: t0)), using: backend, recordStore: store) == .accepted)
+    #expect(await replyTo(.vibration(.off), using: backend, recordStore: store) == .accepted)
+    #expect(try await backend.getCurrentSession().get() == before)
+}
+
 @Test("頼みと答えは送る形にして戻しても同じ")
 func codingRoundTrip() async throws {
     let backend = phoneBackend(TestClock())
     let reply = await replyTo(.start(id: eventId()), using: backend, recordStore: store)
-    let messages: [WatchMessage] = [.current, .start(id: eventId()), .abort(id: eventId())]
+    let messages: [WatchMessage] = [
+        .current, .start(id: eventId()), .abort(id: eventId()), .vibration(.off), .vibration(.covering(before: t0)),
+    ]
     for message in messages {
         #expect(WatchLinkCoding.decode(WatchMessage.self, from: WatchLinkCoding.encode(message)) == message)
     }
-    let replies: [PhoneMessage] = [reply, .refused(message: "操作できませんでした。")]
+    let replies: [PhoneMessage] = [reply, .refused(message: "操作できませんでした。"), .accepted]
     for reply in replies {
         #expect(WatchLinkCoding.decode(PhoneMessage.self, from: WatchLinkCoding.encode(reply)) == reply)
     }

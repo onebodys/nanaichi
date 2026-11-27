@@ -13,6 +13,8 @@
     ///   残して届かなくなった iPhone の代わりにする。なければ実際の iPhone につなぐ
     /// - `NANAICHI_WATCH_PHONE_STARTS_AFTER`: 起動してから何秒後に、iPhone の側でセッションを始めたことにするか。
     ///   iPhone で操作した結果が Watch に届くのを確かめる
+    /// - `NANAICHI_WATCH_PHONE_CLOCK_BEHIND`: iPhone の記録先の時計を何秒遅らせるか。Watch で開始すると、その秒数だけ前に
+    ///   始めたセッションになる（集中の 7 分を待たずに、切り替わりの振動を確かめる）
     final class StubPhoneLink: PhoneLink {
         private let backend: DeviceBackend
         private let reach: PhoneReach
@@ -25,7 +27,8 @@
             case "unreachable": reach = .unreachable
             default: return nil
             }
-            backend = DeviceBackend(location: .inMemory, clock: clock)
+            let behindMs = environment["NANAICHI_WATCH_PHONE_CLOCK_BEHIND"].flatMap(Double.init).map { Int64($0 * 1000) } ?? 0
+            backend = DeviceBackend(location: .inMemory, clock: { clock().adding(milliseconds: -behindMs) })
             startsAfter = environment["NANAICHI_WATCH_PHONE_STARTS_AFTER"].flatMap(Double.init).map { .seconds($0) }
         }
 
