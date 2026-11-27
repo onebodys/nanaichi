@@ -20,7 +20,7 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// Watch に置いておく最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す。
     /// 読むのも、application context に置くのもメインアクターだけで行い、古いものが新しいものを上書きしないようにする
     @MainActor private var latest = PhoneSnapshotLoading.waiting
-    /// Watch が振動で知らせる範囲と、Watch がそれを伝えた時刻。iPhone の通知の予約は、この範囲の切り替わりを除く。
+    /// Watch が振動で知らせる範囲と、Watch がそれを伝えた順の番号。iPhone の通知の予約は、この範囲の切り替わりを除く。
     /// iPhone のアプリが裏で止められて起動し直しても範囲を忘れないよう、この端末に残しておく（忘れると、Watch が振動で
     /// 知らせる切り替わりを通知にも予約し直し、二重になる）。範囲には期限があるので、古いものが残っていても害はない
     @MainActor private(set) var vibration = restoredVibration()
@@ -64,9 +64,12 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
         switch message {
         // 通知を予約し直し終えてから答える。Watch は答えを受け取ってから振動で知らせ始めるので、
         // その範囲の通知が残ったまま Watch も振動する、ということがない
-        // 前に伝えられたものより前に伝えたもの（遅れて届いた）は、範囲を替えずに受け取ったとだけ答える
+        // 前に伝えられたものより前に伝えたもの（遅れて届いた）は捨て、受け取ったとは答えない
+        // （Watch がその範囲を iPhone が持っていると思わないように）。同じ頼みの送り直しは、受け取ったと答える
         case .vibration(let told):
-            let applied = vibration.applying(told)
+            guard let applied = vibration.applying(told) else {
+                return .refused(message: "前に届いた頼みより古い頼みです。")
+            }
             guard applied != vibration else { return .accepted }
             vibration = applied
             UserDefaults.standard.set(WatchLinkCoding.encode(applied), forKey: vibrationKey)

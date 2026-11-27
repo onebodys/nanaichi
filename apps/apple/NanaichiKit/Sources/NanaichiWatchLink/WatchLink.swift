@@ -36,26 +36,36 @@ public enum PhoneMessage: Hashable, Sendable, Codable {
     case accepted
 }
 
-/// Watch が伝えた振動で知らせる範囲と、伝えた時刻（Watch が見積もった記録先の時刻）。iPhone はこれを覚えておく（ADR 0033）。
+/// Watch が伝えた振動で知らせる範囲と、伝えた順の番号。iPhone はこれを覚えておく（ADR 0033）。
 ///
 /// Watch は範囲を閉じる（`off`）ときは急ぐので、伸ばす頼みの答えを待たずに送る。WatchConnectivity は送った順に届くとは限らないので、
-/// iPhone は伝えた時刻で新旧を決め、先に伝えた範囲が後から届いても、閉じたままにする
+/// iPhone は番号で新旧を決め、先に伝えた範囲が後から届いても、閉じたままにする。
+/// 番号は Watch が伝えるたびに増やし、Watch に残しておく（アプリを起動し直しても戻らない）。記録先の時刻の見積もりは、
+/// 時計のずれを測り直したり記録先を替えたりすると戻ることがあるので、新旧には使わない
 public struct ToldWatchVibration: Hashable, Sendable, Codable {
     public let vibration: WatchVibration
-    public let toldAt: Instant
+    public let sequence: Int64
 
-    public init(vibration: WatchVibration, toldAt: Instant) {
+    public init(vibration: WatchVibration, sequence: Int64) {
         self.vibration = vibration
-        self.toldAt = toldAt
+        self.sequence = sequence
     }
 
     /// まだ何も伝えられていない
-    public static let none = ToldWatchVibration(vibration: .off, toldAt: Instant(milliseconds: 0))
+    public static let none = ToldWatchVibration(vibration: .off, sequence: 0)
 
-    /// 届いた `arrived` を反映する。いま覚えているものより前に伝えたもの（遅れて届いた）は捨てる
-    public func applying(_ arrived: ToldWatchVibration) -> ToldWatchVibration {
-        arrived.toldAt < toldAt ? self : arrived
+    /// 届いた `arrived` を反映した結果。いま覚えているものより前に伝えたもの（遅れて届いた）なら nil。
+    /// 同じ番号は同じ頼み（届いたか確かめられずに送り直した）なので、いま覚えているままにする
+    public func applying(_ arrived: ToldWatchVibration) -> ToldWatchVibration? {
+        if arrived.sequence < sequence { return nil }
+        return arrived.sequence == sequence ? self : arrived
     }
+}
+
+/// Watch が次に伝える番号。前に伝えた番号 `last` より大きく、Watch の時計のミリ秒 `deviceNow` を下回らない。
+/// 時計を使うのは、Watch のアプリを入れ直して `last` が消えても、前より大きい番号から始めるため
+public func nextWatchVibrationSequence(after last: Int64, deviceNow: Instant) -> Int64 {
+    max(deviceNow.milliseconds, last + 1)
 }
 
 /// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。

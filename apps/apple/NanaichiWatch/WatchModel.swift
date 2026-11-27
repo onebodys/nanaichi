@@ -40,7 +40,7 @@ final class WatchModel {
     /// アプリが前に出た・前から外れた（手首を下ろした・ほかのアプリに移った）
     func activeChanged(_ active: Bool) {
         self.active = active
-        if active { vibrator.appBecameActive() }
+        if active { vibrator.appBecameActive() } else { vibrator.appResignedActive() }
     }
 
     var face: WatchFace { .of(.of(loading.timer, deviceNow: deviceNow), reach: reach, pending: pending) }

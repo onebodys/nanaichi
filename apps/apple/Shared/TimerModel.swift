@@ -257,14 +257,32 @@ final class TimerModel {
 
     /// Watch が振動で知らせる範囲が替わったら、通知を予約し直し、終わるまで待つ。
     /// Watch は iPhone が待ち終えてから振動で知らせ始めるので、同じ切り替わりを通知と振動の両方で知らせない
-    /// まだ読み込んでいなければ、前に予約した通知のうち範囲の中のものだけを消す（読み込めば範囲を除いて予約し直す）
+    ///
+    /// まだ読み込んでいなければ（Watch の頼みで裏で起動した直後）、先に読み込んで予約し直す。範囲を閉じた・縮めたときに、
+    /// 前に消した通知を答える前に戻すため（答えたあとアプリはすぐ止められることがある）。読み込めなければ、前に予約した通知の
+    /// うち範囲の中のものだけを消す（範囲の外になった通知は、次に読み込めたときに戻る）
     func watchVibrationChanged() async {
+        if loading.received == nil { await loadWithin(Self.loadBeforeAnsweringWatch) }
         if let snapshot = loading.received?.snapshot {
             scheduleNotifications(for: snapshot)
         } else {
             notifications.withdraw(coveredBy: watchVibration())
         }
         await notifications.settle()
+    }
+
+    /// Watch に答える前に読み込むのを待つ長さ。WatchConnectivity の答えを待たせすぎない
+    private static let loadBeforeAnsweringWatch = Duration.seconds(3)
+
+    /// 読み込む。`limit` を過ぎたら待たずに戻る（読み込みは続き、終われば反映する）
+    private func loadWithin(_ limit: Duration) async {
+        let reading = Task { await load() }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await reading.value }
+            group.addTask { try? await Task.sleep(for: limit) }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     /// アプリが音を鳴らせなくなる前に呼ぶ（Mac は終了する前、iPhone は裏に回る前）。
