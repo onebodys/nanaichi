@@ -1,0 +1,31 @@
+name: PR body
+
+# PR の本文に、AGENTS.md「1. 最優先: お互いが検証できる状態にする」の4つの見出しと Closes #N があるかを確かめる。
+# ワーカーは gh pr create --body で PR を作り、テンプレートが使われないので、ここで検査する。
+# 本文を直したら検査し直すよう edited でも走らせる。テストやビルドを本文の編集で走らせ直さないよう、ci.yml とは分けている
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-body-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  body:
+    # Dependabot の PR は本文を自動で書くので検査しない
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: |
+            scripts/check-pr-body.sh
+            .github/pull_request_template.md
+          sparse-checkout-cone-mode: false
+      # 本文はシェルに埋め込まず、環境変数で渡す
+      - env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$BODY" | sh scripts/check-pr-body.sh
