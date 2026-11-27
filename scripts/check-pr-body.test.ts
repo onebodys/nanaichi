@@ -116,6 +116,18 @@ describe("PR の本文の検査", () => {
     expect(check(body)).toEqual({ status: 0, stderr: "" });
   });
 
+  test("インラインコードの中の <!-- は HTML コメントとして扱わない", () => {
+    const [first = ""] = headings;
+    const body = complete.replace(`## ${first}\n\n書いた`, `## ${first}\n\n\`<!--\` を書いた`);
+    expect(check(body)).toEqual({ status: 0, stderr: "" });
+  });
+
+  test("インラインコードだけの行も本文として数える", () => {
+    const [first = ""] = headings;
+    const body = complete.replace(`## ${first}\n\n書いた`, `## ${first}\n\n\`vp test\``);
+    expect(check(body).status).toBe(0);
+  });
+
   test("コードブロックの中の見出しは数えない", () => {
     const [first = ""] = headings;
     const body = complete.replace(`## ${first}\n\n書いた`, `\`\`\`\n## ${first}\n書いた\n\`\`\``);

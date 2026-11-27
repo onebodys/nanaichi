@@ -17,8 +17,9 @@ fi
 # Web の画面で直した本文は改行が CRLF になる。
 # awk は Ubuntu の mawk でも動くよう、正規表現の {n,m} を使わない
 missing=$(tr -d '\r' | awk '
-  # インラインコードを除く。同じ数のバッククォートで閉じたところまでがコードで、閉じていなければ文字のまま残す
-  function stripInlineCode(text,    out, ticks, opener, rest, tail, offset, closeAt) {
+  # インラインコードを (code) に置き換える。同じ数のバッククォートで閉じたところまでがコードで、閉じていなければ文字のまま残す。
+  # 中身は Closes や HTML コメントの始まりとして読まないが、本文が書いてあることには数える
+  function replaceInlineCode(text,    out, ticks, opener, rest, tail, offset, closeAt) {
     out = ""
     while (match(text, /`+/)) {
       ticks = RLENGTH
@@ -34,6 +35,7 @@ missing=$(tr -d '\r' | awk '
         tail = substr(tail, RSTART + RLENGTH)
       }
       if (closeAt == 0) { out = out opener; text = rest; continue }
+      out = out "(code)"
       text = substr(rest, closeAt + ticks)
     }
     return out text
@@ -65,7 +67,7 @@ missing=$(tr -d '\r' | awk '
     next
   }
 
-  # HTML コメントを除く（行をまたぐものも）
+  # インラインコードを置き換えてから、HTML コメントを除く（行をまたぐものも）
   {
     line = $0
     if (inComment) {
@@ -73,6 +75,7 @@ missing=$(tr -d '\r' | awk '
       line = substr(line, index(line, "-->") + 3)
       inComment = 0
     }
+    line = replaceInlineCode(line)
     while ((start = index(line, "<!--")) > 0) {
       rest = substr(line, start + 4)
       end = index(rest, "-->")
@@ -98,8 +101,7 @@ missing=$(tr -d '\r' | awk '
 
   line ~ /[^ \t]/ {
     if (current != "") filled[current] = 1
-    code = stripInlineCode(line)
-    if (tolower(code) ~ /(^|[^[:alnum:]])closes:?[ \t]+#[1-9][0-9]*([^[:alnum:]]|$)/) closes = 1
+    if (tolower(line) ~ /(^|[^[:alnum:]])closes:?[ \t]+#[1-9][0-9]*([^[:alnum:]]|$)/) closes = 1
   }
 
   END {
