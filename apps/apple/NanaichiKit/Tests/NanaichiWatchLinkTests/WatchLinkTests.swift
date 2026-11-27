@@ -119,9 +119,20 @@ func currentSnapshot() async throws {
 func vibrationIsAcceptedWithoutTouchingRecords() async throws {
     let backend = phoneBackend(TestClock())
     let before = try await backend.getCurrentSession().get()
-    #expect(await replyTo(.vibration(.covering(before: t0)), using: backend, recordStore: store) == .accepted)
-    #expect(await replyTo(.vibration(.off), using: backend, recordStore: store) == .accepted)
+    let covering = ToldWatchVibration(vibration: .covering(before: t0), toldAt: t0)
+    #expect(await replyTo(.vibration(covering), using: backend, recordStore: store) == .accepted)
+    #expect(await replyTo(.vibration(.none), using: backend, recordStore: store) == .accepted)
     #expect(try await backend.getCurrentSession().get() == before)
+}
+
+@Test("iPhone は Watch が伝えた時刻で範囲の新旧を決め、先に伝えた範囲が閉じたあとに届いても閉じたままにする")
+func laterToldVibrationWins() {
+    let covering = ToldWatchVibration(vibration: .covering(before: t0.adding(milliseconds: 900_000)), toldAt: t0)
+    let closed = ToldWatchVibration(vibration: .off, toldAt: t0.adding(milliseconds: 1000))
+    #expect(ToldWatchVibration.none.applying(covering) == covering)
+    #expect(covering.applying(closed) == closed)
+    // 範囲を伸ばす頼みが、閉じる頼みより遅れて届いた
+    #expect(closed.applying(covering) == closed)
 }
 
 @Test("頼みと答えは送る形にして戻しても同じ")
@@ -129,7 +140,8 @@ func codingRoundTrip() async throws {
     let backend = phoneBackend(TestClock())
     let reply = await replyTo(.start(id: eventId()), using: backend, recordStore: store)
     let messages: [WatchMessage] = [
-        .current, .start(id: eventId()), .abort(id: eventId()), .vibration(.off), .vibration(.covering(before: t0)),
+        .current, .start(id: eventId()), .abort(id: eventId()), .vibration(.none),
+        .vibration(ToldWatchVibration(vibration: .covering(before: t0), toldAt: t0)),
     ]
     for message in messages {
         #expect(WatchLinkCoding.decode(WatchMessage.self, from: WatchLinkCoding.encode(message)) == message)

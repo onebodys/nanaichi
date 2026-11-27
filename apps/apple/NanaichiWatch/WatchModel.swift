@@ -33,7 +33,7 @@ final class WatchModel {
     init(link: any PhoneLink, clock: @escaping @Sendable () -> Instant) {
         self.link = link
         self.clock = clock
-        vibrator = PhaseChangeVibrator(link: link)
+        vibrator = PhaseChangeVibrator(link: link, clock: clock)
         deviceNow = clock()
     }
 
@@ -67,6 +67,7 @@ final class WatchModel {
             switch event {
             case .reach(let reach):
                 self.reach = reach
+                if reach == .reachable { vibrator.phoneReachable() }
                 // 届かなかったあいだの変化は知らせで届くが、届くようになったら今の様子を確かめる
                 if reach == .reachable { Task { await ask(.current) } }
             case .message(let message):

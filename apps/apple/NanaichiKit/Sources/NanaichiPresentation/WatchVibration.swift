@@ -56,10 +56,17 @@ public func watchVibrationToTell(confirmed: WatchVibration, vibratableUntil: Ins
 ///
 /// 知らせるのは、iPhone が通知を予約するのと同じ切り替わり（`upcomingPhaseChanges`）のうち、範囲の中のもの。
 /// iPhone は範囲の外だけを予約するので、1回の切り替わりで知らせは1回になる。
-/// セッションの記録が替わった刻みでは知らせない。人の操作で移ったときは本人が押したのでわかる（GLOSSARY の「フェーズの切り替わり」）。
-/// 記録が同じまま時刻だけが違うスナップショット（読み込み直し）に替わったときは、前の刻みから続けて調べる
+/// 操作の記録が替わった刻みでは知らせない。人の操作で移ったときは本人が押したのでわかる（GLOSSARY の「フェーズの切り替わり」）。
+/// 記入が増えただけ（自動終了が延びるだけ）や、記録が同じまま時刻だけが違うスナップショット（読み込み直し）に替わったときは、
+/// 前の刻みから続けて調べる
 public struct PhaseChangeVibration: Sendable {
-    private var checked: (session: Session, at: Instant)?
+    /// 調べ終えたところ。そのときのセッションの記録と、記録先の時刻
+    public struct Checkpoint: Sendable {
+        let session: Session
+        let at: Instant
+    }
+
+    public private(set) var checkpoint: Checkpoint?
 
     public init() {}
 
@@ -67,25 +74,26 @@ public struct PhaseChangeVibration: Sendable {
     /// 移った先のフェーズを返す。いくつもあれば（刻みが遅れた）、最後のものだけを返して1回だけ知らせる
     public mutating func observe(_ snapshot: SessionSnapshot?, now: Instant, within vibration: WatchVibration) -> Phase? {
         guard case .session(_, _, let session, _) = snapshot else {
-            checked = nil
+            checkpoint = nil
             return nil
         }
-        guard let checked, checked.session == session else {
-            self.checked = (session, now)
+        guard let checked = checkpoint, sameOperations(checked.session, session) else {
+            checkpoint = Checkpoint(session: session, at: now)
             return nil
         }
-        // 同じセッションのあいだは、調べ終えた時刻を戻さない。端末の時計が戻っても、同じ切り替わりを2回知らせない
-        self.checked = (session, max(now, checked.at))
+        // 同じ操作の記録のあいだは、調べ終えた時刻を戻さない。端末の時計が戻っても、同じ切り替わりを2回知らせない
+        checkpoint = Checkpoint(session: session, at: max(now, checked.at))
         return Self.last(of: session, after: checked.at, through: now) { vibration.covers($0) }
     }
 
-    /// iPhone が、範囲を `previous` から `vibration` に替えると受け取ったと答えた。範囲を頼んだ記録先の時刻 `since` から
-    /// 前の刻みまでの切り替わりのうち、前の範囲になく新しい範囲にあるものを返す（最後のものだけ）。
+    /// iPhone が、範囲を `previous` から `vibration` に替えると受け取ったと答えた。範囲を頼んだときに調べ終えていたところ
+    /// `since` から、いま調べ終えたところまでの切り替わりのうち、前の範囲になく新しい範囲にあるものを返す（最後のものだけ）。
     /// iPhone はその通知を答える前に消しているが、答えを待つあいだ Watch は前の範囲で見ていたので、まだ誰も知らせていない。
-    /// 消す前に iPhone の通知が出ていれば二重になるが、抜けるよりよい（ADR 0033）
-    public func widened(from previous: WatchVibration, to vibration: WatchVibration, since: Instant) -> Phase? {
-        guard let checked else { return nil }
-        return Self.last(of: checked.session, after: since, through: checked.at) {
+    /// 消す前に iPhone の通知が出ていれば二重になるが、抜けるよりよい（ADR 0033）。
+    /// 答えを待つあいだに操作の記録が替わった（iPhone で休憩をスキップしたなど）なら、人の操作で移ったので知らせない
+    public func widened(from previous: WatchVibration, to vibration: WatchVibration, since: Checkpoint) -> Phase? {
+        guard let checked = checkpoint, sameOperations(since.session, checked.session) else { return nil }
+        return Self.last(of: checked.session, after: since.at, through: checked.at) {
             vibration.covers($0) && !previous.covers($0)
         }
     }
@@ -96,4 +104,9 @@ public struct PhaseChangeVibration: Sendable {
         session.upcomingPhaseChanges(after: after, limit: maxPlannedPhaseNotifications)
             .last { $0.at <= through && included($0.at) }?.to
     }
+}
+
+/// 人の操作が同じか。記入の時刻は自動終了の時刻を延ばすだけで、人がフェーズを移したのではないので比べない
+private func sameOperations(_ a: Session, _ b: Session) -> Bool {
+    a.id == b.id && a.events == b.events && a.advanceModeChanges == b.advanceModeChanges
 }

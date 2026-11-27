@@ -20,8 +20,10 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     /// Watch に置いておく最新のスナップショット。Watch とつながったとき（動き始めた・Watch にアプリが入った）にも置き直す。
     /// 読むのも、application context に置くのもメインアクターだけで行い、古いものが新しいものを上書きしないようにする
     @MainActor private var latest = PhoneSnapshotLoading.waiting
-    /// Watch が振動で知らせる範囲。iPhone の通知の予約は、この範囲の切り替わりを除く
-    @MainActor private(set) var vibration = WatchVibration.off
+    /// Watch が振動で知らせる範囲と、Watch がそれを伝えた時刻。iPhone の通知の予約は、この範囲の切り替わりを除く。
+    /// iPhone のアプリが裏で止められて起動し直しても範囲を忘れないよう、この端末に残しておく（忘れると、Watch が振動で
+    /// 知らせる切り替わりを通知にも予約し直し、二重になる）。範囲には期限があるので、古いものが残っていても害はない
+    @MainActor private(set) var vibration = restoredVibration()
     /// 範囲が替わったときに、通知を予約し直して終わるまで待つ。`activate` で1回だけ決める
     private var vibrationChanged: @MainActor () async -> Void = {}
 
@@ -62,8 +64,12 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
         switch message {
         // 通知を予約し直し終えてから答える。Watch は答えを受け取ってから振動で知らせ始めるので、
         // その範囲の通知が残ったまま Watch も振動する、ということがない
-        case .vibration(let vibration):
-            self.vibration = vibration
+        // 前に伝えられたものより前に伝えたもの（遅れて届いた）は、範囲を替えずに受け取ったとだけ答える
+        case .vibration(let told):
+            let applied = vibration.applying(told)
+            guard applied != vibration else { return .accepted }
+            vibration = applied
+            UserDefaults.standard.set(WatchLinkCoding.encode(applied), forKey: vibrationKey)
             await vibrationChanged()
             return .accepted
         case .current, .start, .abort:
@@ -116,6 +122,15 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
+}
+
+/// この端末に残しておく、Watch が振動で知らせる範囲のキー
+private let vibrationKey = "watchVibration"
+
+/// 前に起動していたときに受け取った、Watch が振動で知らせる範囲。なければ（読めなければ）何も伝えられていない
+private func restoredVibration() -> ToldWatchVibration {
+    UserDefaults.standard.data(forKey: vibrationKey)
+        .flatMap { WatchLinkCoding.decode(ToldWatchVibration.self, from: $0) } ?? .none
 }
 
 /// WatchConnectivity が渡す返事の関数は Sendable と書かれていないが、どのスレッドから呼んでもよい

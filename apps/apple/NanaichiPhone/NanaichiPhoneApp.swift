@@ -20,7 +20,8 @@ struct NanaichiPhoneApp: App {
             PhoneRootView(model: appDelegate.model)
                 .preferredColorScheme(debugColorScheme())
         }
-        .onChange(of: scenePhase) { _, phase in appDelegate.scenePhaseChanged(phase) }
+        // 起動したときから前にいれば、そのときも呼ぶ（裏で起動したときは音を通知に任せたまま始めるので、前に出たら取り戻す）
+        .onChange(of: scenePhase, initial: true) { _, phase in appDelegate.scenePhaseChanged(phase) }
     }
 }
 
@@ -48,10 +49,13 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
             let timer = TimerModel(
                 backend: backend, clock: launch.clock,
                 alert: alert, notifications: PhaseNotificationScheduler(clock: launch.clock),
-                alertSettings: { alertSettings.settings })
+                alertSettings: { alertSettings.settings },
+                // 前にいないとき（Watch の頼みで裏で起動した、など）は、アプリが音を鳴らせないので通知に任せて始める。
+                // 裏に回る知らせ（scenePhase）は、裏で起動したときには来ない
+                alertsHandedOver: UIApplication.shared.applicationState != .active)
             timer.snapshotChanged = { watch.snapshotChanged(PhoneSnapshot(received: $0, recordStore: recordStore)) }
             // Watch が振動で知らせる切り替わりは通知しない（ADR 0033）
-            timer.watchVibration = { watch.vibration }
+            timer.watchVibration = { watch.vibration.vibration }
             return PhoneServices(backend: backend, timer: timer, recordStore: recordStore)
         }
         // Watch の頼みは、そのときの記録先に通す（ログイン・ログアウトで替わる）

@@ -23,7 +23,7 @@ public enum WatchMessage: Hashable, Sendable, Codable {
     case abort(id: SessionEventId)
     /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
     /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
-    case vibration(WatchVibration)
+    case vibration(ToldWatchVibration)
 }
 
 /// iPhone から Watch に届くもの。頼みへの答えと、iPhone の側で変わったときの知らせに使う
@@ -34,6 +34,28 @@ public enum PhoneMessage: Hashable, Sendable, Codable {
     case refused(message: String)
     /// 頼みを受け取った。記録先に通さない頼み（`vibration`）への答え
     case accepted
+}
+
+/// Watch が伝えた振動で知らせる範囲と、伝えた時刻（Watch が見積もった記録先の時刻）。iPhone はこれを覚えておく（ADR 0033）。
+///
+/// Watch は範囲を閉じる（`off`）ときは急ぐので、伸ばす頼みの答えを待たずに送る。WatchConnectivity は送った順に届くとは限らないので、
+/// iPhone は伝えた時刻で新旧を決め、先に伝えた範囲が後から届いても、閉じたままにする
+public struct ToldWatchVibration: Hashable, Sendable, Codable {
+    public let vibration: WatchVibration
+    public let toldAt: Instant
+
+    public init(vibration: WatchVibration, toldAt: Instant) {
+        self.vibration = vibration
+        self.toldAt = toldAt
+    }
+
+    /// まだ何も伝えられていない
+    public static let none = ToldWatchVibration(vibration: .off, toldAt: Instant(milliseconds: 0))
+
+    /// 届いた `arrived` を反映する。いま覚えているものより前に伝えたもの（遅れて届いた）は捨てる
+    public func applying(_ arrived: ToldWatchVibration) -> ToldWatchVibration {
+        arrived.toldAt < toldAt ? self : arrived
+    }
 }
 
 /// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。

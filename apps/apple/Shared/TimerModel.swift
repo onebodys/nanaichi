@@ -42,7 +42,7 @@ final class TimerModel {
     @ObservationIgnored private var watch = PhaseChangeWatch()
     /// アプリが音を鳴らせず、通知が音で知らせている（`handOverAlertsToNotifications` から `takeBackAlerts` まで）。
     /// その間に届いたスナップショットで予約し直しても、音の鳴る予約のままにする
-    @ObservationIgnored private var alertsHandedOver = false
+    @ObservationIgnored private var alertsHandedOver: Bool
     /// 今日の集中時間を読み込み直すかを決める値。完了セットが増えうるときだけ読み込み直す（ADR 0014）
     @ObservationIgnored private var todayFocusKey: StatsRefreshKey?
     @ObservationIgnored private var countedEndedSession: SessionId?
@@ -58,8 +58,9 @@ final class TimerModel {
 
     init(
         backend: any Backend, clock: AppClock, alert: PhaseAlertPlayer, notifications: PhaseNotificationScheduler,
-        alertSettings: @escaping () -> AlertSettings
+        alertSettings: @escaping () -> AlertSettings, alertsHandedOver: Bool = false
     ) {
+        self.alertsHandedOver = alertsHandedOver
         self.backend = backend
         self.clock = clock
         self.alert = alert
@@ -235,10 +236,12 @@ final class TimerModel {
     // MARK: - 通知
 
     /// 通知を予約し直す。通知に知らせを任せている間は知らせ方の音色で鳴らし、それ以外はアプリが鳴らすので鳴らさない
+    /// 刻みより先に呼ばれることがある（裏で起こされた直後など）ので、今の時刻は刻みの時刻ではなく時計から読む
     private func scheduleNotifications(for snapshot: SessionSnapshot) {
         let settings = alertSettings()
+        let now = loading.received?.serverNow(deviceNow: clock.now()) ?? clock.now()
         notifications.reschedule(
-            phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings, watch: watchVibration()),
+            phaseNotificationPlanOf(snapshot, now: now, settings: settings, watch: watchVibration()),
             sound: alertsHandedOver && settings.sound ? settings : nil)
     }
 

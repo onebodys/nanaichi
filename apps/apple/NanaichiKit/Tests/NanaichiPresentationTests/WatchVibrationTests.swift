@@ -144,17 +144,17 @@ func reloadedSnapshotKeepsVibrating() {
 }
 
 @Test("範囲の答えを待つあいだに過ぎた切り替わりは、新しく任された分だけ答えが来てから振動する")
-func changeWhileAwaitingAcceptanceVibratesOnce() {
+func changeWhileAwaitingAcceptanceVibratesOnce() throws {
     let snapshot = started().snapshot(at: minutes(1), revision: .initial)
     var watch = PhaseChangeVibration()
     // 6:59 に範囲を頼み、答えを待つあいだ（範囲なし）に 7:00 の切り替わりを過ぎた
     #expect(watch.observe(snapshot, now: minutes(6, 59), within: .off) == nil)
+    let since = try #require(watch.checkpoint)
     #expect(watch.observe(snapshot, now: minutes(7, 1), within: .off) == nil)
     let accepted = WatchVibration.covering(before: minutes(21, 59))
-    #expect(watch.widened(from: .off, to: accepted, since: minutes(6, 59)) == .journal(round: 1, setNumber: 1))
+    #expect(watch.widened(from: .off, to: accepted, since: since) == .journal(round: 1, setNumber: 1))
     // 前の範囲で知らせた切り替わり（範囲を伸ばしたとき）は、もう一度は知らせない
-    #expect(
-        watch.widened(from: .covering(before: minutes(10)), to: accepted, since: minutes(6, 59)) == nil)
+    #expect(watch.widened(from: .covering(before: minutes(10)), to: accepted, since: since) == nil)
     // 答えのあとの刻みでは、もう知らせない
     #expect(watch.observe(snapshot, now: minutes(7, 2), within: accepted) == nil)
 }
@@ -168,4 +168,103 @@ func clockGoingBackDoesNotRepeat() {
     #expect(watch.observe(snapshot, now: minutes(7, 1), within: vibration) == .journal(round: 1, setNumber: 1))
     #expect(watch.observe(snapshot, now: minutes(6, 59), within: vibration) == nil)
     #expect(watch.observe(snapshot, now: minutes(7, 1), within: vibration) == nil)
+}
+
+/// 記入の時刻を足したセッション（記録先がジャーナル記入を書いたときと同じく、操作イベントは変わらない）
+private func writingJournal(_ session: Session, at: Instant) -> Session {
+    Session(
+        id: session.id, events: session.events, journalEntryTimes: session.journalEntryTimes + [at],
+        advanceModeChanges: session.advanceModeChanges)
+}
+
+@Test("記入が増えたスナップショットが切り替わりをまたいで届いても、その切り替わりで振動する")
+func journalEntryDoesNotHideTheChange() {
+    let session = started()
+    var watch = PhaseChangeVibration()
+    let vibration = WatchVibration.covering(before: minutes(30))
+    // ジャーナルの終わりぎわ（7:59）に書いた記入が、集中に切り替わった（8:00）あとの刻みで届いた
+    #expect(watch.observe(session.snapshot(at: minutes(7, 58), revision: .initial), now: minutes(7, 59), within: vibration) == nil)
+    let written = writingJournal(session, at: minutes(7, 59)).snapshot(at: minutes(7, 59), revision: .initial)
+    #expect(watch.observe(written, now: minutes(8, 1), within: vibration) == .focus(round: 1, setNumber: 2))
+}
+
+@Test("範囲の答えを待つあいだに iPhone で休憩をスキップしたら、答えが来ても振動しない")
+func skipWhileAwaitingAcceptanceDoesNotVibrate() throws {
+    let session = started()
+    var watch = PhaseChangeVibration()
+    #expect(watch.observe(session.snapshot(at: minutes(28), revision: .initial), now: minutes(28, 59), within: .off) == nil)
+    let since = try #require(watch.checkpoint)
+    // 休憩の終わる直前に iPhone で休憩をスキップした。Watch には人の操作で替わった記録が届く
+    let skipped = try operated(session, .skipBreak, at: minutes(28, 59)).snapshot(at: minutes(28, 59), revision: .initial)
+    #expect(watch.observe(skipped, now: minutes(29, 1), within: .off) == nil)
+    #expect(watch.widened(from: .off, to: .covering(before: minutes(44)), since: since) == nil)
+}
+
+@Test("1ラウンドの切り替わりは、集中→ジャーナル→集中、ジャーナル→休憩、休憩→次のラウンドの集中のどれも1回ずつ振動する")
+func everyChangeOfARoundVibrates() {
+    let snapshot = started().snapshot(at: minutes(1), revision: .initial)
+    let vibrated = vibrations(snapshot, from: minutes(1), to: minutes(30), within: .covering(before: minutes(60)))
+    #expect(vibrated.map(\.at) == [minutes(7), minutes(8), minutes(15), minutes(16), minutes(23), minutes(24), minutes(29)])
+    #expect(
+        vibrated.map(\.to) == [
+            .journal(round: 1, setNumber: 1), .focus(round: 1, setNumber: 2), .journal(round: 1, setNumber: 2),
+            .focus(round: 1, setNumber: 3), .journal(round: 1, setNumber: 3), .breakTime(round: 1),
+            .focus(round: 2, setNumber: 1),
+        ])
+}
+
+@Test("手動の切り替わりでは、切り替え待ちになるときに1回だけ振動し、進めたときには振動しない")
+func manualAdvanceVibratesOnlyWhenAwaiting() throws {
+    let session = started(mode: manualToJournal)
+    let vibration = WatchVibration.covering(before: minutes(60))
+    var watch = PhaseChangeVibration()
+    var played: [Phase] = []
+    var now = minutes(1)
+    while now < minutes(9) {
+        if let to = watch.observe(session.snapshot(at: t0, revision: .initial), now: now, within: vibration) {
+            played.append(to)
+        }
+        now = now.adding(milliseconds: 1000)
+    }
+    #expect(played == [.journal(round: 1, setNumber: 1)])
+    // 9分に進めた（人の操作）。替わった刻みでは振動せず、その先の時間が過ぎた切り替わり（10分）で振動する
+    let advanced = try operated(session, .advance, at: minutes(9)).snapshot(at: minutes(9), revision: .initial)
+    #expect(watch.observe(advanced, now: minutes(9, 1), within: vibration) == nil)
+    #expect(watch.observe(advanced, now: minutes(10, 1), within: vibration) == .focus(round: 1, setNumber: 2))
+}
+
+@Test("15分の範囲を5分ごとに伸ばしながら2ラウンドを通すと、振動できるあいだは Watch、そのあとは iPhone の通知で、どの切り替わりも1回ずつ知らせる")
+func renewingRangeAlertsEachChangeOnce() {
+    let session = started()
+    let snapshot = session.snapshot(at: minutes(1), revision: .initial)
+    // Watch が振動できる（拡張ランタイムセッションが動いている）のは 40 分まで
+    let vibratableUntil = minutes(40)
+    var watch = PhaseChangeVibration()
+    var confirmed = WatchVibration.off
+    // iPhone が予約している通知の時刻。範囲を受け取るたびに、そのときから先を予約し直す
+    var pending = Set(phaseNotificationPlanOf(snapshot, now: minutes(1), settings: .defaults).map(\.at))
+    var vibrated: [Instant] = []
+    var notified: [Instant] = []
+    var told: [Int64] = []
+    var now = minutes(1)
+    while now <= minutes(70) {
+        if pending.contains(now) { notified.append(now) }
+        let until: Instant? = now < vibratableUntil ? vibratableUntil : nil
+        if watch.observe(snapshot, now: now, within: until == nil ? .off : confirmed) != nil { vibrated.append(now) }
+        if let next = watchVibrationToTell(confirmed: confirmed, vibratableUntil: until, now: now) {
+            // iPhone は予約し直してから答える（ここでは答えがすぐ届く）
+            pending = Set(phaseNotificationPlanOf(snapshot, now: now, settings: .defaults, watch: next).map(\.at))
+            confirmed = next
+            told.append(now.milliseconds(since: t0) / 1000)
+        }
+        now = now.adding(milliseconds: 1000)
+    }
+    let all = session.upcomingPhaseChanges(after: minutes(1), limit: 64).map(\.at)
+    #expect(vibrated == [minutes(7), minutes(8), minutes(15), minutes(16), minutes(23), minutes(24), minutes(29), minutes(36), minutes(37)])
+    #expect(!notified.isEmpty)
+    #expect(Set(vibrated).isDisjoint(with: notified))
+    #expect((vibrated + notified).sorted() == all)
+    // 伝えたのは、1分に始めて5分ごとに伸ばした6回（秒）。26分に伸ばした範囲は、振動できるのが終わる30秒前の 39:30 で
+    // 頭打ちになり、そこで範囲が切れるので、閉じる（`off`）と伝えなくても iPhone の通知に戻る
+    #expect(told == [60, 361, 662, 963, 1264, 1565])
 }

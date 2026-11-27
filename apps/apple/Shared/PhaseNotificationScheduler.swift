@@ -78,6 +78,9 @@ final class PhaseNotificationScheduler {
         let previous = await center.pendingNotificationRequests().map(\.identifier)
             .filter { $0.hasPrefix(phaseNotificationIdentifierPrefix) }
         let planned = Set(plan.map(\.identifier))
+        // 計画にない予約は先に消す。入れ直しを待つあいだに、もう知らせない切り替わり（Watch が振動で知らせるもの、
+        // 操作で来なくなったもの）の通知が届かないように。計画にある予約は、入れ直して置き換えるまで残す
+        center.removePendingNotificationRequests(withIdentifiers: previous.filter { !planned.contains($0) })
         var added = 0
         for item in plan {
             // 秒より細かくは指定できないので、切り替わりより先に届かないよう秒を切り上げる
@@ -104,7 +107,6 @@ final class PhaseNotificationScheduler {
                 log.error("通知を予約できなかった: \(error.localizedDescription, privacy: .public)")
             }
         }
-        center.removePendingNotificationRequests(withIdentifiers: previous.filter { !planned.contains($0) })
         let pending = await center.pendingNotificationRequests().count
         let status = await center.notificationSettings().authorizationStatus
         log.info(
