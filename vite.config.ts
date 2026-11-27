@@ -162,6 +162,6 @@ export default defineConfig({
   // テストは実行環境ごとの設定ファイル（apps/web は Node と Workers ランタイム）に分けている。
   // Vitest は入れ子の projects を展開しないので、ルートからは末端の設定ファイルを直接指す。
   test: {
-    projects: ["apps/*/vitest.*.config.ts"],
+    projects: ["apps/*/vitest.*.config.ts", "scripts/vitest.config.ts"],
   },
 });

@@ -1,4 +1,4 @@
-<!-- 見出しは AGENTS.md「1. 最優先: お互いが検証できる状態にする」の4つ。CI（.github/workflows/pr-body.yml）が見出しと Closes #N があるかを検査する -->
+<!-- 見出しは AGENTS.md「1. 最優先: お互いが検証できる状態にする」の4つ。このファイルの「## 」の行を scripts/check-pr-body.sh が必須の見出しとして読み、CI（.github/workflows/pr-body.yml）が、どの見出しの下にも本文があることと Closes #N があることを検査する -->
 
 Closes #
 

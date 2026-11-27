@@ -94,7 +94,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 ## 6. 用語とコードの対応
 
 - コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, Advance, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline, PhaseChange, AdvanceMode, AwaitingAdvance, ClockOffset, Revision, SyncMessage）。
-- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。そのうち太字にした語（ふつうの文章やほかの用語の一部に紛れない語）は `scripts/check-glossary-avoid.sh` が push 時のフックと CI で検査する（`GLOSSARY.md` と ADR は除く）。太字でない語（「ログ」「完了」のように紛れる語）と英語の識別子は検査しないので、人とレビューで見る。
+- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。そのうち太字にした語（ふつうの文章やほかの用語の一部に紛れない語）は `scripts/check-glossary-avoid.sh` が push 時のフックと CI で検査する（`GLOSSARY.md`、ADR、外から取り込んだスキルと、手法の名前の「ポモドーロ・テクニック」などの言い回しは除く。`GLOSSARY.md` の冒頭）。太字でない語（「ログ」「完了」のように紛れる語）と英語の識別子は検査しないので、人とレビューで見る。
 - 新しい概念が出てきたら、コードを書く前に `GLOSSARY.md` を更新する（domain-modeling スキル）。
 
 ## 7. ツールと作業の進め方
