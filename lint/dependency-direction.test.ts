@@ -48,6 +48,7 @@ const probes: Record<string, Probe> = {
       "cloudflare:workers",
       "node:fs",
       "../server/user-do.ts",
+      "../server/valibot",
       "../client/router.tsx",
       "../device/records.ts",
       "../domain/../server/user-do.ts",
@@ -84,6 +85,7 @@ export const load = () => import("better-auth/client");
       "../workflows/start-session.ts",
       "../device/records.ts",
       "../server/user-do.ts",
+      "../server/valibot",
       "better-auth",
       "vite-plus/test",
       "../testing/golden.ts",
@@ -105,6 +107,7 @@ export const load = () => import("better-auth/client");
     rejected: [
       "../client/router.tsx",
       "../server/user-do.ts",
+      "../server/valibot",
       "react",
       "better-auth",
       "fake-indexeddb",
@@ -114,7 +117,7 @@ export const load = () => import("better-auth/client");
   "device のテストは fake-indexeddb も import できる": {
     file: "device/probe.test.ts",
     allowed: ["./records.ts", "vite-plus/test", "../testing/store-contract.ts", "fake-indexeddb"],
-    rejected: ["../client/router.tsx", "react"],
+    rejected: ["../client/router.tsx", "react", "../server/fake-indexeddb"],
   },
 };
 

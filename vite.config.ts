@@ -61,10 +61,17 @@ const allowedImports = {
   },
 };
 
+/**
+ * 許すものを戻すパターン。`/` を含まないパターン（`valibot`）はどの深さの同じ名前にも当たるので、
+ * `!valibot` だけだと `../server/valibot` も戻る。ディレクトリの下にある同じ名前は落とし直す
+ */
+const allowPattern = (pattern: string): string[] =>
+  pattern.includes("/") ? [`!${pattern}`] : [`!${pattern}`, `*/**/${pattern}`];
+
 /** `allowed` に並べたもの以外を落とす。`/` を含まない `*` はすべての import に当たり、`!` で許すものを戻す */
 const allowOnly = (allowed: readonly string[], message: string): RestrictRule =>
   restrict(
-    ["*", ...allowed.map((pattern) => `!${pattern}`)],
+    ["*", ...allowed.flatMap(allowPattern)],
     `${message}（AGENTS.md §3）。使ってよいものは vite.config.ts の allowedImports に並べる`,
   );
 
