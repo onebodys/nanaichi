@@ -11,7 +11,7 @@ import {
   type TaskTitle,
 } from "../domain/task.ts";
 import { TaskSettingJsonSchema, type TaskSetting } from "../domain/task-setting.ts";
-import { browserFetch, requestApi, sendJson, type Fetch } from "./remote-backend.ts";
+import { requestApi, sendJson, type Fetch } from "./remote-backend.ts";
 
 type Call<T> = Result.ResultAsync<T, BackendError>;
 
@@ -38,7 +38,7 @@ export type TaskApiDeps = Readonly<{
   onSignedOut: () => void;
 }>;
 
-export const createTaskApi = ({ fetchApi = browserFetch, onSignedOut }: TaskApiDeps): TaskApi => {
+export const createTaskApi = ({ fetchApi, onSignedOut }: TaskApiDeps): TaskApi => {
   const request = requestApi(fetchApi, onSignedOut);
   return {
     getTaskSetting: () => request("/api/settings/tasks", TaskSettingJsonSchema),

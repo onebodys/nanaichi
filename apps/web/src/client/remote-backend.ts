@@ -20,8 +20,11 @@ import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-conn
 
 export type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
 
-/** ブラウザの fetch。画面で fetch を直接呼んでよいのはこのファイルだけ（AGENTS.md §5、vite.config.ts の lint） */
-export const browserFetch: Fetch = (path, init) => fetch(path, init);
+/**
+ * ブラウザの fetch。画面で fetch を直接呼んでよいのはこのファイルだけ（AGENTS.md §5、vite.config.ts の lint）。
+ * 生の fetch を外に出すと検査をすり抜けられるので export しない。ほかの通信は `requestApi` を通す
+ */
+const browserFetch: Fetch = (path, init) => fetch(path, init);
 
 type ReceivedResponse = Readonly<{ ok: boolean; body: unknown }>;
 
@@ -72,15 +75,16 @@ const noticeSignedOut =
     }
   };
 
+/** 通信層（fetch → スキーマ検証 → Result）。`fetchApi` を省くとブラウザの fetch を使う */
 export const requestApi =
-  (fetchApi: Fetch, onSignedOut: () => void) =>
+  (fetchApi: Fetch | undefined, onSignedOut: () => void) =>
   <T>(
     path: string,
     schema: StandardSchemaV1<unknown, T>,
     init?: RequestInit,
   ): Result.ResultAsync<T, BackendError> =>
     Result.pipe(
-      send(fetchApi)(path, init),
+      send(fetchApi ?? browserFetch)(path, init),
       Result.andThen(receive),
       Result.andThen(decode(schema)),
       Result.inspectError(noticeSignedOut(onSignedOut)),

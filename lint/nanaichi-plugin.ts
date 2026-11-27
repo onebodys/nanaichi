@@ -11,110 +11,166 @@ import {
  * どのファイルに効かせるかは vite.config.ts の `lint` で決める。
  */
 
+/** `(x?.y)`・`x!`・`x satisfies T` の包みを剥がした、中の式 */
+const unwrap = (node: ESTree.Node): ESTree.Node =>
+  node.type === "ChainExpression" ||
+  node.type === "ParenthesizedExpression" ||
+  node.type === "TSNonNullExpression" ||
+  node.type === "TSSatisfiesExpression"
+    ? unwrap(node.expression)
+    : node;
+
+/** 型だけの宣言（`type Date = ...`・`interface Date {}`・`import type { Date }`）か。値の名前を隠さない */
+const isTypeOnlyDefinition = ({ node, parent }: Scope["variables"][number]["defs"][number]) =>
+  node.type === "TSTypeAliasDeclaration" ||
+  node.type === "TSInterfaceDeclaration" ||
+  (node.type === "ImportSpecifier" && node.importKind === "type") ||
+  (parent?.type === "ImportDeclaration" && parent.importKind === "type");
+
 /**
- * 識別子がファイルの中で宣言されたものを指していないか。`crypto` は ES の組み込みではないので、
- * `isGlobalReference` は環境（env）の設定しだいで偽を返す。宣言を探して、見つからなければグローバルとみなす
+ * 識別子がファイルの中で値として宣言されたものを指していないか。`crypto` は ES の組み込みではないので、
+ * `isGlobalReference` は環境（env）の設定しだいで偽を返す。値の宣言を探して、見つからなければグローバルとみなす
  */
 const isUndeclared = (identifier: ESTree.Node, name: string, sourceCode: SourceCode): boolean => {
   for (let scope: Scope | null = sourceCode.getScope(identifier); scope; scope = scope.upper) {
     const variable = scope.set.get(name);
-    if (variable !== undefined && variable.defs.length > 0) return false;
+    if (variable?.defs.some((def) => !isTypeOnlyDefinition(def))) return false;
   }
   return true;
 };
 
-/** `x.name` と `x["name"]` のどちらでも、メンバーの名前を返す。`x[key]` のように静的に決まらないものは undefined */
-const memberName = (node: ESTree.MemberExpression): string | undefined => {
-  if (!node.computed) return node.property.name;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : undefined;
+/** `x.name`・`x["name"]`・``x[`name`]`` のどれでも、メンバーやプロパティのキーの名前を返す。静的に決まらないものは undefined */
+const keyName = (key: ESTree.Node, computed: boolean): string | undefined => {
+  if (!computed) return key.type === "Identifier" ? key.name : undefined;
+  if (key.type === "Literal") return typeof key.value === "string" ? key.value : undefined;
+  if (key.type === "TemplateLiteral" && key.expressions.length === 0) {
+    return key.quasis[0]?.value.cooked ?? undefined;
+  }
+  return undefined;
 };
+
+const memberName = (node: ESTree.MemberExpression): string | undefined =>
+  keyName(node.property, node.computed);
 
 /** グローバルを指すオブジェクトの名前。`globalThis.crypto.randomUUID()` も `crypto.randomUUID()` と同じに扱う */
 const globalObjects = new Set(["globalThis", "self", "window"]);
 
 /** 式がグローバルの `name` か（`name` そのものか、`globalThis.name`） */
-const isGlobal = (node: ESTree.Node, name: string, sourceCode: SourceCode): boolean => {
+const isGlobal = (expression: ESTree.Node, name: string, sourceCode: SourceCode): boolean => {
+  const node = unwrap(expression);
   if (node.type === "Identifier") return node.name === name && isUndeclared(node, name, sourceCode);
+  if (node.type !== "MemberExpression" || memberName(node) !== name) return false;
+  const object = unwrap(node.object);
   return (
-    node.type === "MemberExpression" &&
-    memberName(node) === name &&
-    node.object.type === "Identifier" &&
-    globalObjects.has(node.object.name) &&
-    isUndeclared(node.object, node.object.name, sourceCode)
+    object.type === "Identifier" &&
+    globalObjects.has(object.name) &&
+    isUndeclared(object, object.name, sourceCode)
   );
 };
 
-/** `Date.now()` のように、グローバルの `object` の `property` を読む式か */
-const isGlobalMember = (
-  node: ESTree.Node,
-  object: string,
-  property: string,
-  sourceCode: SourceCode,
-): boolean =>
-  node.type === "MemberExpression" &&
-  memberName(node) === property &&
-  isGlobal(node.object, object, sourceCode);
-
-/** ドメインで呼ばない、時刻・乱数・ID を作る関数（`new Date()` は別に見る） */
-const impureCalls = [
+/** ドメインで使わない、時刻・乱数・ID を作る関数（`Date()` と `new Date()` は別に見る） */
+const impureMembers = [
   { object: "Date", property: "now", instead: "時刻は引数で受け取る" },
   { object: "Math", property: "random", instead: "乱数は引数で受け取る" },
   { object: "crypto", property: "randomUUID", instead: "ID は引数で受け取る" },
 ] as const;
+
+type ImpureMember = (typeof impureMembers)[number];
+
+const impureMessage = ({ object, property, instead }: ImpureMember) =>
+  `ドメインは純粋に保つ。${object}.${property} を使わず、${instead}（AGENTS.md §3）`;
+
+/** `const { now } = Date` のような分割代入で取り出している、ドメインで使わない関数 */
+const destructuredImpure = (
+  pattern: ESTree.Node,
+  value: ESTree.Node | null | undefined,
+  sourceCode: SourceCode,
+): ImpureMember[] => {
+  if (pattern.type !== "ObjectPattern" || value == null) return [];
+  const names = pattern.properties.flatMap((property) => {
+    if (property.type !== "Property") return [];
+    const name = keyName(property.key, property.computed);
+    return name === undefined ? [] : [name];
+  });
+  return impureMembers.filter(
+    ({ object, property }) => names.includes(property) && isGlobal(value, object, sourceCode),
+  );
+};
 
 const noImpureDomain = defineRule({
   meta: {
     type: "problem",
     docs: {
       description:
-        "ドメインでは時刻・乱数・ID を作らない（Date.now() / 引数なしの new Date() / crypto.randomUUID() / Math.random()）",
+        "ドメインでは時刻・乱数・ID を作らない（Date.now / Date() / 引数なしの new Date() / crypto.randomUUID / Math.random）",
     },
   },
-  create: (context) => ({
-    CallExpression: (node) => {
-      const call = impureCalls.find(({ object, property }) =>
-        isGlobalMember(node.callee, object, property, context.sourceCode),
-      );
-      if (call === undefined) return;
-      context.report({
-        node,
-        message: `ドメインは純粋に保つ。${call.object}.${call.property}() を呼ばず、${call.instead}（AGENTS.md §3）`,
-      });
-    },
-    NewExpression: (node) => {
-      if (node.arguments.length === 0 && isGlobal(node.callee, "Date", context.sourceCode)) {
+  create: (context) => {
+    const { sourceCode } = context;
+    const reportDestructured = (pattern: ESTree.Node, value: ESTree.Node | null | undefined) => {
+      for (const member of destructuredImpure(pattern, value, sourceCode)) {
+        context.report({ node: pattern, message: impureMessage(member) });
+      }
+    };
+    return {
+      // 呼び出しだけでなく、`= Date.now` や `Date.now.call(Date)` のような参照も止める
+      MemberExpression: (node) => {
+        const member = impureMembers.find(({ object, property }) =>
+          memberName(node) === property ? isGlobal(node.object, object, sourceCode) : false,
+        );
+        if (member !== undefined) context.report({ node, message: impureMessage(member) });
+      },
+      VariableDeclarator: (node) => reportDestructured(node.id, node.init),
+      AssignmentExpression: (node) => reportDestructured(node.left, node.right),
+      AssignmentPattern: (node) => reportDestructured(node.left, node.right),
+      // `new` なしの `Date()` は、引数があってもなくても今の時刻の文字列を返す
+      CallExpression: (node) => {
+        if (!isGlobal(node.callee, "Date", sourceCode)) return;
+        context.report({
+          node,
+          message:
+            "ドメインは純粋に保つ。Date() で今の時刻を作らず、時刻は引数で受け取る（AGENTS.md §3）",
+        });
+      },
+      NewExpression: (node) => {
+        if (node.arguments.length > 0 || !isGlobal(node.callee, "Date", sourceCode)) return;
         context.report({
           node,
           message:
             "ドメインは純粋に保つ。引数なしの new Date() で今の時刻を作らず、時刻は引数で受け取る（AGENTS.md §3）",
         });
-      }
-    },
-  }),
+      },
+    };
+  },
 });
 
 /** `switch (state.kind)` や `switch (kind)` のように、判別子 `kind` で分けている switch か */
-const switchesOnKind = (discriminant: ESTree.Expression): boolean => {
-  if (discriminant.type === "Identifier") return discriminant.name === "kind";
-  if (discriminant.type === "ChainExpression" || discriminant.type === "TSNonNullExpression") {
-    return switchesOnKind(discriminant.expression);
-  }
-  return discriminant.type === "MemberExpression" && memberName(discriminant) === "kind";
+const switchesOnKind = (discriminant: ESTree.Node): boolean => {
+  const node = unwrap(discriminant);
+  if (node.type === "Identifier") return node.name === "kind";
+  return node.type === "MemberExpression" && memberName(node) === "kind";
+};
+
+/** 文字列でないリテラルの case か（`case 0:`・`case -1:`・`case true:`・`case null:`） */
+const isNonStringLiteral = (test: ESTree.Node): boolean => {
+  if (test.type === "Literal") return typeof test.value !== "string";
+  return (
+    test.type === "UnaryExpression" &&
+    (test.operator === "-" || test.operator === "+") &&
+    test.argument.type === "Literal" &&
+    typeof test.argument.value === "number"
+  );
 };
 
 /**
  * 判別可能な union の switch か。JS のプラグインには型の情報がないので、形で見分ける。
  * 自分で定義する型の判別子は必ず `kind` で、値は文字列（AGENTS.md §2）。`kind` で分けていて、
- * 文字列でないリテラルの case（`case 0:` など）がないものを判別可能な union の switch とみなす。
+ * 文字列でないリテラルの case がないものを判別可能な union の switch とみなす。
  * `case CIRCLE:` のような定数は値を辿れないので、判別可能な union の switch のほうに数える
  */
 const isDiscriminatedUnionSwitch = (node: ESTree.SwitchStatement): boolean =>
   switchesOnKind(node.discriminant) &&
-  node.cases.every(
-    ({ test }) => test === null || test.type !== "Literal" || typeof test.value === "string",
-  );
+  node.cases.every(({ test }) => test === null || !isNonStringLiteral(test));
 
 const noDefaultInKindSwitch = defineRule({
   meta: {

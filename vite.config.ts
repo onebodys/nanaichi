@@ -190,6 +190,7 @@ export default defineConfig({
           ],
         },
       },
+      // 今は fetch だけなので off にしている。no-restricted-globals にほかを足すときは、ここも見る
       {
         files: [`${web}/client/remote-backend.ts`],
         rules: { "no-restricted-globals": "off" },
