@@ -167,7 +167,9 @@ const isNonStringLiteral = (test: ESTree.Node): boolean => {
  * 判別可能な union の switch か。JS のプラグインには型の情報がないので、形で見分ける。
  * 自分で定義する型の判別子は必ず `kind` で、値は文字列（AGENTS.md §2）。`kind` で分けていて、
  * 文字列でないリテラルの case がないものを判別可能な union の switch とみなす。
- * `case CIRCLE:` のような定数は値を辿れないので、判別可能な union の switch のほうに数える
+ * `case CIRCLE:` のような定数は値を辿れないので、判別可能な union の switch のほうに数える。
+ * 型を見ないための限界: `kind` という名前の素の `string` で分ける switch も対象になり、
+ * 別名の変数（`const k = x.kind; switch (k)`）で分ける switch は見逃す
  */
 const isDiscriminatedUnionSwitch = (node: ESTree.SwitchStatement): boolean =>
   switchesOnKind(node.discriminant) &&
