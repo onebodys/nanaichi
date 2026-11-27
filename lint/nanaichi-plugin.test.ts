@@ -34,6 +34,7 @@ tester.run("no-impure-domain", rule("no-impure-domain"), {
     // 引数で受け取った時計や ID の発行は使ってよい
     "const stamp = (clock: { now: () => number }) => clock.now();",
     "const { now } = clock;",
+    "const key = 'now'; const { [key]: now } = Date;",
     // ファイルの中で値として宣言したものはグローバルではない
     "const Date = { now: () => 0 }; const t = Date.now();",
     "const read = (crypto: { randomUUID: () => string }) => crypto.randomUUID();",
@@ -69,6 +70,8 @@ tester.run("no-impure-domain", rule("no-impure-domain"), {
     // 分割代入で取り出す
     reported("const { now } = Date;", dateNow),
     reported("const { random: dice } = Math;", mathRandom),
+    reported('const { "now": now } = Date;', dateNow),
+    reported('const { ["randomUUID"]: id } = crypto;', randomUUID),
     reported("let now; ({ now } = Date);", dateNow),
     reported("const stamp = ({ now } = Date) => now();", dateNow),
     // 型だけの宣言は、グローバルの値を隠さない

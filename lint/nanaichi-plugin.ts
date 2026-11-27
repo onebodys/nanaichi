@@ -41,8 +41,9 @@ const isUndeclared = (identifier: ESTree.Node, name: string, sourceCode: SourceC
 
 /** `x.name`・`x["name"]`・``x[`name`]`` のどれでも、メンバーやプロパティのキーの名前を返す。静的に決まらないものは undefined */
 const keyName = (key: ESTree.Node, computed: boolean): string | undefined => {
-  if (!computed) return key.type === "Identifier" ? key.name : undefined;
+  // 分割代入の `{ "now": now }` は computed でない文字列のキーになる
   if (key.type === "Literal") return typeof key.value === "string" ? key.value : undefined;
+  if (!computed) return key.type === "Identifier" ? key.name : undefined;
   if (key.type === "TemplateLiteral" && key.expressions.length === 0) {
     return key.quasis[0]?.value.cooked ?? undefined;
   }
