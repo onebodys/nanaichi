@@ -13,7 +13,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 したがって「動いた」と主張するだけでなく、オーナーとエージェントの双方が検証できる証拠を残すことを、あらゆる作業で最優先にする。
 
 - **エージェント自身の検証**: 作業を終える前に必ず `vp check` と `vp test` を通す。画面に関わる変更は実際にブラウザで動かして確認する（ログイン済みの画面の開き方は [`docs/E2E.md`](./docs/E2E.md) の「ワーカーが画面を確かめる」）。通っていないものを「完了」と報告しない。
-- **オーナーが検証できる形で報告する**: PR の本文に以下を必ず書く。見出しは `.github/pull_request_template.md` の文言にそろえ、`Closes #N`（§7）も書く。4つの見出しと `Closes #N` があるかは CI（`.github/workflows/pr-body.yml`）が検査し、本文を直すと検査し直す（Dependabot の PR は除く）。
+- **オーナーが検証できる形で報告する**: PR の本文に以下を必ず書く。見出しは `.github/pull_request_template.md` の文言にそろえ、`Closes #N`（§7）も書く。CI（`.github/workflows/pr-body.yml`）が検査する。
   - 何ができるようになったか（ユースケースの言葉で、`GLOSSARY.md` の用語を使う）
   - エージェントがどう検証したか（実行したコマンドと結果、画面ならスクリーンショット。CI が PR にコメントするリンクで見られる。撮る画面を足すのは `tests/screenshots.e2e.ts`、[`docs/E2E.md`](./docs/E2E.md) の「スクリーンショットを残す」）
   - オーナーが確かめる手順（どの画面で何をすると何が起きるか）。CI が PR にコメントするプレビューの URL で試せる手順にする。プレビューにないもの（ログイン、同期、MCP）は、マージのあとに本番で確かめる手順として分けて書く（ADR 0025）
@@ -94,7 +94,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 ## 6. 用語とコードの対応
 
 - コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, Advance, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline, PhaseChange, AdvanceMode, AwaitingAdvance, ClockOffset, Revision, SyncMessage）。
-- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。そのうち太字にした語（ふつうの文章やほかの用語の一部に紛れない語）は `scripts/check-glossary-avoid.sh` が push 時のフックと CI で検査する（`GLOSSARY.md`、ADR、外から取り込んだスキルと、手法の名前の「ポモドーロ・テクニック」などの言い回しは除く。`GLOSSARY.md` の冒頭）。太字でない語（「ログ」「完了」のように紛れる語）と英語の識別子は検査しないので、人とレビューで見る。
+- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。そのうち太字の語は `scripts/check-glossary-avoid.sh` が push 時と CI で検査する（除外は `GLOSSARY.md` の冒頭）。太字でない語は人とレビューで見る。
 - 新しい概念が出てきたら、コードを書く前に `GLOSSARY.md` を更新する（domain-modeling スキル）。
 
 ## 7. ツールと作業の進め方
@@ -105,7 +105,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - チェックはフックで自動化している。`pnpm install` で Git フックが入り（Orca の worktree では、フックがその worktree の `vp` で動くよう `orca.yaml` の Setup Script が worktree ごとの `core.hooksPath` を置く。`docs/SETUP.md`）、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と言い換えの検査（`scripts/check-glossary-avoid.sh`、§6）と `vp check` と `vp test` と `knip` が走り、Swift のコード（`apps/apple/`）かゴールデンケース（`fixtures/golden/`）が main から変わっていれば `swift test` も走る（`scripts/swift-test-if-changed.sh`。Swift のない環境では飛ばす）。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。エージェントのセッションの終わりには走らせない（質問に答えるだけのターンでも毎回走り、時間がかかるため）。エージェントは §1 のとおり、作業を終える前に自分で `vp check` と `vp test` を走らせる。フックを `--no-verify` などで飛ばさない。
 - 依存は正確なバージョンで固定し（`pnpm-workspace.yaml` の `savePrefix: ""`）、GitHub Actions は `.github/workflows/actions.lock` でコミットに固定している。更新は Dependabot の PR で受け取る（`.github/dependabot.yml`）。ワークフローに Action を足したり版を変えたりしたら `gh actions-lock`（`gh extension install github/gh-actions-lock`）で lockfile を更新する。更新しないと CI がジョブを始める前に `startup_failure` で落ちる。
 - CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、ADR の番号の検査と言い換えの検査と `vp check` だけを走らせる。
-- Issue ごとにブランチを切り、PR で `Closes #N` を書く。書いたかは CI が PR の本文で検査する（§1）。main に直接 push しない。
+- Issue ごとにブランチを切り、PR で `Closes #N` を書く。main に直接 push しない。
 - ドキュメント、コードコメント、PR の本文、テスト名は日本語。識別子とコミットメッセージは英語。
 - 覆しにくい判断をしたら `docs/adr/` に ADR を書く（domain-modeling スキルの基準に従う）。
 - ADR の番号は、並行するワークツリーで同じ番号を取りやすい。PR をマージする直前に `git fetch origin main` で main の最大番号を見て、重なっていれば次の番号へ振り直す（ファイル名と、その ADR への参照）。
