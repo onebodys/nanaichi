@@ -132,3 +132,29 @@ func closesWhenNoLongerVibratable() {
     #expect(watchVibrationToTell(confirmed: .covering(before: minutes(16)), vibratableUntil: nil, now: minutes(16)) == nil)
     #expect(watchVibrationToTell(confirmed: .off, vibratableUntil: nil, now: minutes(5)) == nil)
 }
+
+@Test("記録が同じまま時刻だけ違うスナップショットに読み込み直しても、その刻みの切り替わりで振動する")
+func reloadedSnapshotKeepsVibrating() {
+    let session = started()
+    var watch = PhaseChangeVibration()
+    let vibration = WatchVibration.covering(before: minutes(30))
+    #expect(watch.observe(session.snapshot(at: minutes(1), revision: .initial), now: minutes(6, 59), within: vibration) == nil)
+    let reloaded = session.snapshot(at: minutes(7), revision: .initial)
+    #expect(watch.observe(reloaded, now: minutes(7, 1), within: vibration) == .journal(round: 1, setNumber: 1))
+}
+
+@Test("範囲の答えを待つあいだに過ぎた切り替わりは、新しく任された分だけ答えが来てから振動する")
+func changeWhileAwaitingAcceptanceVibratesOnce() {
+    let snapshot = started().snapshot(at: minutes(1), revision: .initial)
+    var watch = PhaseChangeVibration()
+    // 6:59 に範囲を頼み、答えを待つあいだ（範囲なし）に 7:00 の切り替わりを過ぎた
+    #expect(watch.observe(snapshot, now: minutes(6, 59), within: .off) == nil)
+    #expect(watch.observe(snapshot, now: minutes(7, 1), within: .off) == nil)
+    let accepted = WatchVibration.covering(before: minutes(21, 59))
+    #expect(watch.widened(from: .off, to: accepted, since: minutes(6, 59)) == .journal(round: 1, setNumber: 1))
+    // 前の範囲で知らせた切り替わり（範囲を伸ばしたとき）は、もう一度は知らせない
+    #expect(
+        watch.widened(from: .covering(before: minutes(10)), to: accepted, since: minutes(6, 59)) == nil)
+    // 答えのあとの刻みでは、もう知らせない
+    #expect(watch.observe(snapshot, now: minutes(7, 2), within: accepted) == nil)
+}

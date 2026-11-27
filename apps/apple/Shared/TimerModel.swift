@@ -254,8 +254,13 @@ final class TimerModel {
 
     /// Watch が振動で知らせる範囲が替わったら、通知を予約し直し、終わるまで待つ。
     /// Watch は iPhone が待ち終えてから振動で知らせ始めるので、同じ切り替わりを通知と振動の両方で知らせない
+    /// まだ読み込んでいなければ、前に予約した通知のうち範囲の中のものだけを消す（読み込めば範囲を除いて予約し直す）
     func watchVibrationChanged() async {
-        if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
+        if let snapshot = loading.received?.snapshot {
+            scheduleNotifications(for: snapshot)
+        } else {
+            notifications.withdraw(coveredBy: watchVibration())
+        }
         await notifications.settle()
     }
 

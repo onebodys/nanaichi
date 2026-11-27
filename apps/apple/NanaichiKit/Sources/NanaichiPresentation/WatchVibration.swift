@@ -56,22 +56,40 @@ public func watchVibrationToTell(confirmed: WatchVibration, vibratableUntil: Ins
 ///
 /// 知らせるのは、iPhone が通知を予約するのと同じ切り替わり（`upcomingPhaseChanges`）のうち、範囲の中のもの。
 /// iPhone は範囲の外だけを予約するので、1回の切り替わりで知らせは1回になる。
-/// スナップショットが替わった刻みでは知らせない。人の操作で移ったときは本人が押したのでわかる（GLOSSARY の「フェーズの切り替わり」）
+/// セッションの記録が替わった刻みでは知らせない。人の操作で移ったときは本人が押したのでわかる（GLOSSARY の「フェーズの切り替わり」）。
+/// 記録が同じまま時刻だけが違うスナップショット（読み込み直し）に替わったときは、前の刻みから続けて調べる
 public struct PhaseChangeVibration: Sendable {
-    private var checked: (snapshot: SessionSnapshot, at: Instant)?
+    private var checked: (session: Session, at: Instant)?
 
     public init() {}
 
     /// 前の刻みから記録先の時刻 `now` までに起きた切り替わりのうち、範囲 `vibration` の中のものがあれば、
     /// 移った先のフェーズを返す。いくつもあれば（刻みが遅れた）、最後のものだけを返して1回だけ知らせる
     public mutating func observe(_ snapshot: SessionSnapshot?, now: Instant, within vibration: WatchVibration) -> Phase? {
-        guard let snapshot else {
+        guard case .session(_, _, let session, _) = snapshot else {
             checked = nil
             return nil
         }
-        defer { checked = (snapshot, now) }
-        guard let checked, checked.snapshot == snapshot, case .session(_, _, let session, _) = snapshot else { return nil }
-        return session.upcomingPhaseChanges(after: checked.at, limit: maxPlannedPhaseNotifications)
-            .last { $0.at <= now && vibration.covers($0.at) }?.to
+        defer { checked = (session, now) }
+        guard let checked, checked.session == session else { return nil }
+        return Self.last(of: session, after: checked.at, through: now) { vibration.covers($0) }
+    }
+
+    /// iPhone が、範囲を `previous` から `vibration` に替えると受け取ったと答えた。範囲を頼んだ記録先の時刻 `since` から
+    /// 前の刻みまでの切り替わりのうち、前の範囲になく新しい範囲にあるものを返す（最後のものだけ）。
+    /// iPhone はその通知を答える前に消しているが、答えを待つあいだ Watch は前の範囲で見ていたので、まだ誰も知らせていない。
+    /// 消す前に iPhone の通知が出ていれば二重になるが、抜けるよりよい（ADR 0033）
+    public func widened(from previous: WatchVibration, to vibration: WatchVibration, since: Instant) -> Phase? {
+        guard let checked else { return nil }
+        return Self.last(of: checked.session, after: since, through: checked.at) {
+            vibration.covers($0) && !previous.covers($0)
+        }
+    }
+
+    private static func last(of session: Session, after: Instant, through: Instant, where included: (Instant) -> Bool)
+        -> Phase?
+    {
+        session.upcomingPhaseChanges(after: after, limit: maxPlannedPhaseNotifications)
+            .last { $0.at <= through && included($0.at) }?.to
     }
 }

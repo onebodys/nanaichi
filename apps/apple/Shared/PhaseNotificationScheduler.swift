@@ -42,6 +42,24 @@ final class PhaseNotificationScheduler {
         }
     }
 
+    /// 予約のうち、Watch が振動で知らせる範囲 `vibration` の切り替わりのものだけを消す。
+    /// まだスナップショットを読み込んでおらず予約し直せないとき（裏で起こされた直後）に、前に予約した通知が Watch の振動と
+    /// 重ならないようにする。範囲の外の予約は残す（ADR 0033）
+    func withdraw(coveredBy vibration: WatchVibration) {
+        let previous = queue
+        queue = Task {
+            await previous?.value
+            let covered = await center.pendingNotificationRequests().filter { request in
+                guard request.identifier.hasPrefix(phaseNotificationIdentifierPrefix),
+                    let at = request.content.userInfo[phaseChangeAtKey] as? Int64
+                else { return false }
+                return vibration.covers(Instant(milliseconds: at))
+            }
+            center.removePendingNotificationRequests(withIdentifiers: covered.map(\.identifier))
+            log.info("Watch が振動で知らせる通知を消した: \(covered.count, privacy: .public)件")
+        }
+    }
+
     /// 予約し直しが終わるまで待つ。アプリを終了する前に、音を鳴らす予約に入れ替えるのを待つ
     /// 待っている間に次の予約し直しが入ったら、それも待つ（裏に回る間に届いた変更の予約し直しを途中で止めない）
     func settle() async {
@@ -66,6 +84,7 @@ final class PhaseNotificationScheduler {
             content.title = item.title
             content.body = item.body
             content.threadIdentifier = "phase-change"
+            content.userInfo = [phaseChangeAtKey: item.at.milliseconds]
             content.sound = sound.map { soundOf(item.to.kind, settings: $0) }
             let trigger = UNCalendarNotificationTrigger(
                 dateMatching: Calendar.current.dateComponents(
@@ -85,6 +104,9 @@ final class PhaseNotificationScheduler {
         )
     }
 }
+
+/// 予約の中身に添える、切り替わりの記録先の時刻（ミリ秒）のキー。読み込む前に、Watch が振動で知らせる分だけを消すのに使う
+private let phaseChangeAtKey = "phaseChangeAt"
 
 /// 通知の音。アプリが鳴らすのと同じ音色と音量の音を、通知が読める Library/Sounds に書き出しておく
 /// （アプリを終了している間に届く通知も、どのフェーズに移ったかを音で聞き分けられるように）。

@@ -51,16 +51,19 @@ final class PhaseChangeVibrator {
         // 振動できないあいだは、範囲が残っていても知らせない（iPhone に閉じたと伝えるまでの間、知らせが抜ける）
         let within = vibratableUntil == nil ? .off : confirmed
         vibrating = within.covers(now)
-        if let to = watch.observe(received?.snapshot, now: now, within: within) {
-            WKInterfaceDevice.current().play(hapticOf(to.kind))
-            played += 1
-        }
+        if let to = watch.observe(received?.snapshot, now: now, within: within) { play(to) }
         if let next = watchVibrationToTell(confirmed: confirmed, vibratableUntil: vibratableUntil, now: now) {
-            tell(next, deviceNow: deviceNow)
+            tell(next, now: now, deviceNow: deviceNow)
         }
     }
 
-    private func tell(_ vibration: WatchVibration, deviceNow: Instant) {
+    private func play(_ to: Phase) {
+        WKInterfaceDevice.current().play(hapticOf(to.kind))
+        played += 1
+    }
+
+    /// 範囲 `vibration` を、記録先の時刻 `now` に iPhone に伝える
+    private func tell(_ vibration: WatchVibration, now: Instant, deviceNow: Instant) {
         guard !telling, retryAt.map({ deviceNow >= $0 }) ?? true else { return }
         telling = true
         Task {
@@ -68,8 +71,11 @@ final class PhaseChangeVibrator {
             telling = false
             switch answer {
             case .accepted?:
+                let previous = confirmed
                 confirmed = vibration
                 retryAt = nil
+                // 答えを待つあいだに過ぎた切り替わりのうち、新しく任された分は、iPhone がもう通知を消している
+                if let to = watch.widened(from: previous, to: vibration, since: now) { play(to) }
             // 届かなかった・受け取れなかった（古い版の iPhone のアプリなど）。範囲は替わらないので、iPhone の通知が知らせる
             case .snapshot?, .refused?, nil:
                 retryAt = deviceNow.adding(milliseconds: Self.retryAfterMs)
@@ -122,11 +128,24 @@ private final class RuntimeSession: NSObject, WKExtendedRuntimeSessionDelegate {
         }
     }
 
+    /// 止まった知らせ（`didInvalidate`）が前に出たあとに遅れて届いても、始め直しを止めないよう、
+    /// 止まっているものはここで外す（外したものの知らせは、`session` と比べて捨てる）
     func appBecameActive() {
         waitsForActivation = false
-        guard let session, let end = endsAt, end.timeIntervalSinceNow < Self.renewWhenLeft else { return }
-        self.session = nil
-        session.invalidate()
+        guard let session else { return }
+        switch session.state {
+        case .invalid:
+            self.session = nil
+        case .running:
+            guard let end = session.expirationDate, end.timeIntervalSinceNow < Self.renewWhenLeft else { return }
+            self.session = nil
+            session.invalidate()
+        // 始めている途中。始まるか止まるかの知らせを待つ
+        case .notStarted, .scheduled:
+            break
+        @unknown default:
+            break
+        }
     }
 
     nonisolated func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
