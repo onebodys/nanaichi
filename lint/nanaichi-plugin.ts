@@ -23,6 +23,14 @@ const isUndeclared = (identifier: ESTree.Node, name: string, sourceCode: SourceC
   return true;
 };
 
+/** `x.name` と `x["name"]` のどちらでも、メンバーの名前を返す。`x[key]` のように静的に決まらないものは undefined */
+const memberName = (node: ESTree.MemberExpression): string | undefined => {
+  if (!node.computed) return node.property.name;
+  return node.property.type === "Literal" && typeof node.property.value === "string"
+    ? node.property.value
+    : undefined;
+};
+
 /** グローバルを指すオブジェクトの名前。`globalThis.crypto.randomUUID()` も `crypto.randomUUID()` と同じに扱う */
 const globalObjects = new Set(["globalThis", "self", "window"]);
 
@@ -31,8 +39,7 @@ const isGlobal = (node: ESTree.Node, name: string, sourceCode: SourceCode): bool
   if (node.type === "Identifier") return node.name === name && isUndeclared(node, name, sourceCode);
   return (
     node.type === "MemberExpression" &&
-    !node.computed &&
-    node.property.name === name &&
+    memberName(node) === name &&
     node.object.type === "Identifier" &&
     globalObjects.has(node.object.name) &&
     isUndeclared(node.object, node.object.name, sourceCode)
@@ -47,8 +54,7 @@ const isGlobalMember = (
   sourceCode: SourceCode,
 ): boolean =>
   node.type === "MemberExpression" &&
-  !node.computed &&
-  node.property.name === property &&
+  memberName(node) === property &&
   isGlobal(node.object, object, sourceCode);
 
 /** ドメインで呼ばない、時刻・乱数・ID を作る関数（`new Date()` は別に見る） */
@@ -95,11 +101,19 @@ const switchesOnKind = (discriminant: ESTree.Expression): boolean => {
   if (discriminant.type === "ChainExpression" || discriminant.type === "TSNonNullExpression") {
     return switchesOnKind(discriminant.expression);
   }
-  if (discriminant.type !== "MemberExpression") return false;
-  return discriminant.computed
-    ? discriminant.property.type === "Literal" && discriminant.property.value === "kind"
-    : discriminant.property.name === "kind";
+  return discriminant.type === "MemberExpression" && memberName(discriminant) === "kind";
 };
+
+/**
+ * 判別可能な union の switch か。JS のプラグインには型の情報がないので、形で見分ける。
+ * 自分で定義する型の判別子は必ず `kind` で、値は文字列（AGENTS.md §2）。`kind` で分けていて、
+ * case がすべて文字列リテラルのものを判別可能な union の switch とみなす（`case 0:` のような数値の switch は外す）
+ */
+const isDiscriminatedUnionSwitch = (node: ESTree.SwitchStatement): boolean =>
+  switchesOnKind(node.discriminant) &&
+  node.cases.every(
+    ({ test }) => test === null || (test.type === "Literal" && typeof test.value === "string"),
+  );
 
 const noDefaultInKindSwitch = defineRule({
   meta: {
@@ -111,7 +125,7 @@ const noDefaultInKindSwitch = defineRule({
   },
   create: (context) => ({
     SwitchStatement: (node) => {
-      if (!switchesOnKind(node.discriminant)) return;
+      if (!isDiscriminatedUnionSwitch(node)) return;
       const fallback = node.cases.find((switchCase) => switchCase.test === null);
       if (fallback === undefined) return;
       context.report({

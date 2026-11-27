@@ -19,6 +19,7 @@ tester.run("no-impure-domain", rule("no-impure-domain"), {
     "const copy = (time: Date) => new Date(time.getTime());",
     "const floor = (n: number) => Math.floor(n);",
     "const parse = (iso: string) => Date.parse(iso);",
+    "const read = (key: string) => Date[key];",
     // 引数で受け取った時計や ID の発行は使ってよい
     "const stamp = (clock: { now: () => number }) => clock.now();",
     // ファイルの中で宣言したものはグローバルではない
@@ -40,6 +41,22 @@ tester.run("no-impure-domain", rule("no-impure-domain"), {
     },
     {
       code: "const id = () => globalThis.crypto.randomUUID();",
+      errors: [{ message: /crypto\.randomUUID\(\)/ }],
+    },
+    {
+      code: 'const now = () => Date["now"]();',
+      errors: [{ message: /Date\.now\(\)/ }],
+    },
+    {
+      code: 'const now = () => globalThis["Date"].now();',
+      errors: [{ message: /Date\.now\(\)/ }],
+    },
+    {
+      code: 'const dice = () => Math["random"]();',
+      errors: [{ message: /Math\.random\(\)/ }],
+    },
+    {
+      code: 'const id = () => crypto["randomUUID"]();',
       errors: [{ message: /crypto\.randomUUID\(\)/ }],
     },
     {
@@ -77,6 +94,15 @@ const area = (shape: Shape) => {
       return "zero";
     default:
       return "other";
+  }
+};`,
+    // kind という名前でも、数値で分ける switch は判別可能な union の switch ではない
+    `const level = (kind: number) => {
+  switch (kind) {
+    case 0:
+      return "low";
+    default:
+      return "high";
   }
 };`,
     // byethrow の Result の判別子 type はライブラリの都合で、自分で定義する判別子ではない
