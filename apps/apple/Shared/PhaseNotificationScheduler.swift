@@ -8,7 +8,8 @@ import os
 /// フェーズの切り替わりの通知を、ローカル通知として前もって予約する（ADR 0003）。
 ///
 /// 予約は OS が持つので、アプリを閉じていても、画面を開いていなくても届く。
-/// 予約し直すときは、前の予約（ID の頭が `phaseNotificationIdentifierPrefix`）を消してから入れ直す
+/// 予約し直すときは、同じ切り替わり（同じ ID）の予約を入れ直して置き換え、計画にない前の予約（ID の頭が
+/// `phaseNotificationIdentifierPrefix`）を消す。先に全部消してから入れ直すと、その間に切り替わりの時刻が来た通知が届かない
 @MainActor
 final class PhaseNotificationScheduler {
     private let center = UNUserNotificationCenter.current()
@@ -74,15 +75,15 @@ final class PhaseNotificationScheduler {
     }
 
     private func replace(with plan: [PlannedPhaseNotification], sound: AlertSettings?) async {
-        let stale = await center.pendingNotificationRequests().map(\.identifier)
+        let previous = await center.pendingNotificationRequests().map(\.identifier)
             .filter { $0.hasPrefix(phaseNotificationIdentifierPrefix) }
-        center.removePendingNotificationRequests(withIdentifiers: stale)
-        let now = Date()
+        let planned = Set(plan.map(\.identifier))
         var added = 0
         for item in plan {
             // 秒より細かくは指定できないので、切り替わりより先に届かないよう秒を切り上げる
             let fireAt = Date(timeIntervalSince1970: clock.wallDate(item.at).timeIntervalSince1970.rounded(.up))
-            guard fireAt > now else { continue }
+            // 1秒もないものは入れ直さず、前の予約を残す。入れ直しがその秒を過ぎると、その秒を指す予約はもう届かない
+            guard fireAt.timeIntervalSinceNow > 1 else { continue }
             let content = UNMutableNotificationContent()
             content.title = item.title
             content.body = item.body
@@ -100,6 +101,7 @@ final class PhaseNotificationScheduler {
                 log.error("通知を予約できなかった: \(error.localizedDescription, privacy: .public)")
             }
         }
+        center.removePendingNotificationRequests(withIdentifiers: previous.filter { !planned.contains($0) })
         let pending = await center.pendingNotificationRequests().count
         let status = await center.notificationSettings().authorizationStatus
         log.info(
