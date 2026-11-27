@@ -53,9 +53,24 @@ const probes: Record<string, Probe> = {
       "../device/records.ts",
       "../domain/../server/user-do.ts",
       "@/server/user-do.ts",
+      // 許したパッケージのサブパスや、許したパッケージと同じ名前のパス
+      "valibot/sub",
+      "../valibot",
+      "/valibot",
+      "../server/@praha/byethrow",
+      // 本番のコードからテストのファイルは import しない
+      "./start-session.test.ts",
+      "../domain/session.test.ts",
+      // `*` は `..` にも当たるので、同じディレクトリや domain から親へ戻る書き方
+      "./..",
+      "../domain/..",
+      // サブディレクトリはまだない
+      "./sub/x.ts",
       "vite-plus/test",
       "../testing/golden.ts",
       "fake-indexeddb",
+      // domain のテストだけに許したもの
+      "../../../apple/NanaichiKit/Tests/NanaichiDomainTests/Fixtures/import-batch.json",
     ],
   },
   "workflows のテストはテストの道具も import できる": {
@@ -66,13 +81,20 @@ const probes: Record<string, Probe> = {
       "vite-plus/test",
       "../testing/golden.ts",
     ],
-    rejected: ["better-auth", "fake-indexeddb", "../server/user-do.ts"],
+    rejected: [
+      "better-auth",
+      "fake-indexeddb",
+      "../server/user-do.ts",
+      "./..",
+      "../../../apple/NanaichiKit/Tests/NanaichiDomainTests/Fixtures/import-batch.json",
+    ],
   },
   "型だけの import や再 export、動的 import も落とす": {
     file: "workflows/forms.ts",
     allowed: [],
-    rejected: ["better-auth", "hono", "react", "better-auth/client"],
+    rejected: ["better-auth", "hono", "react", "better-auth/types", "better-auth/client"],
     source: `import type { Auth } from "better-auth";
+export type { Session } from "better-auth/types";
 export { Hono } from "hono";
 export * from "react";
 export const load = () => import("better-auth/client");
@@ -86,6 +108,8 @@ export const load = () => import("better-auth/client");
       "../device/records.ts",
       "../server/user-do.ts",
       "../server/valibot",
+      "./session.test.ts",
+      "./..",
       "better-auth",
       "vite-plus/test",
       "../testing/golden.ts",
@@ -108,6 +132,8 @@ export const load = () => import("better-auth/client");
       "../client/router.tsx",
       "../server/user-do.ts",
       "../server/valibot",
+      "../workflows/start-session.test.ts",
+      "../workflows/..",
       "react",
       "better-auth",
       "fake-indexeddb",
@@ -117,12 +143,26 @@ export const load = () => import("better-auth/client");
   "device のテストは fake-indexeddb も import できる": {
     file: "device/probe.test.ts",
     allowed: ["./records.ts", "vite-plus/test", "../testing/store-contract.ts", "fake-indexeddb"],
-    rejected: ["../client/router.tsx", "react", "../server/fake-indexeddb"],
+    rejected: ["../client/router.tsx", "react", "../server/fake-indexeddb", "fake-indexeddb/auto"],
   },
 };
 
 const sourceOf = ({ allowed, rejected, source }: Probe) =>
   source ?? [...allowed, ...rejected].map((specifier) => `import "${specifier}";\n`).join("");
+
+/** Oxlint の JSON の出力。ここで使う項目だけを書く */
+type LintReport = { diagnostics: { code: string; filename: string; message: string }[] };
+
+/** 設定の誤りなどで JSON が出なかったときは、Oxlint の stderr を添えて落とす */
+const parseReport = (stdout: string, stderr: string): LintReport => {
+  try {
+    return JSON.parse(stdout);
+  } catch (cause) {
+    throw new Error(`vp lint の出力が JSON でない\nstdout: ${stdout}\nstderr: ${stderr}`, {
+      cause,
+    });
+  }
+};
 
 /** ファイルごとの、落とされた import の一覧 */
 const rejectedByFile = new Map<string, string[]>();
@@ -139,14 +179,12 @@ beforeAll(() => {
     return path;
   });
   // vp lint は作業ディレクトリがワークスペースの中でないと動かないので、リポジトリの直下で動かす
-  const { stdout } = spawnSync(
-    process.execPath,
-    [vp, "lint", "-c", configPath, "-f", "json", ...paths],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  // Oxlint の JSON の出力。ここで使う項目だけを書く
-  const report: { diagnostics: { code: string; filename: string; message: string }[] } =
-    JSON.parse(stdout);
+  const lint = spawnSync(process.execPath, [vp, "lint", "-c", configPath, "-f", "json", ...paths], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (lint.error !== undefined) throw lint.error;
+  const report = parseReport(lint.stdout, lint.stderr);
   for (const { code, filename, message } of report.diagnostics) {
     if (code !== "eslint(no-restricted-imports)") continue;
     const specifier = /^'(.+)' import is restricted/.exec(message)?.[1];

@@ -197,10 +197,43 @@ const noDefaultInKindSwitch = defineRule({
   }),
 });
 
+/**
+ * 組み込みの no-restricted-imports が見ない import の書き方を止める。依存の方向（AGENTS.md §3）の検査を
+ * すり抜けないよう、domain / workflows / device の import はすべて no-restricted-imports に見える形で書かせる。
+ * 見ないのは、型の位置の `import("x")`（`typeof import("x")` を含む）と、文字列リテラルでない動的 import（`` import(`x`) `` や変数）
+ */
+const noHiddenImport = defineRule({
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        'no-restricted-imports が見ない import（型の位置の import("x")、文字列リテラルでない動的 import）を書かない',
+    },
+  },
+  create: (context) => ({
+    TSImportType: (node) => {
+      context.report({
+        node,
+        message:
+          '型の位置の import("x") は依存の方向の検査が見ない。import type { X } from "x" で書く（AGENTS.md §3）',
+      });
+    },
+    ImportExpression: (node) => {
+      if (node.source.type === "Literal" && typeof node.source.value === "string") return;
+      context.report({
+        node,
+        message:
+          '文字列リテラルでない動的 import は依存の方向の検査が見ない。import("x") のように文字列リテラルで書く（AGENTS.md §3）',
+      });
+    },
+  }),
+});
+
 export default definePlugin({
   meta: { name: "nanaichi" },
   rules: {
     "no-impure-domain": noImpureDomain,
     "no-default-in-kind-switch": noDefaultInKindSwitch,
+    "no-hidden-import": noHiddenImport,
   },
 });

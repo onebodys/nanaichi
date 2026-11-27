@@ -68,10 +68,18 @@ const allowedImports = {
 const allowPattern = (pattern: string): string[] =>
   pattern.includes("/") ? [`!${pattern}`] : [`!${pattern}`, `*/**/${pattern}`];
 
-/** `allowed` に並べたもの以外を落とす。`/` を含まない `*` はすべての import に当たり、`!` で許すものを戻す */
-const allowOnly = (allowed: readonly string[], message: string): RestrictRule =>
+/**
+ * `allowed` に並べたもの以外を落とす。`/` を含まない `*` はすべての import に当たり、`!` で許すものを戻す。
+ * `*` は `..` にも当たるので、`./*` や `../domain/*` が戻した `./..`・`../domain/..` は最後に落とし直す。
+ * `banned` は、戻したもののうち最後に落とし直すもの
+ */
+const allowOnly = (
+  allowed: readonly string[],
+  message: string,
+  banned: readonly string[] = [],
+): RestrictRule =>
   restrict(
-    ["*", ...allowed.flatMap(allowPattern)],
+    ["*", ...allowed.flatMap(allowPattern), "**/..", ...banned],
     `${message}（AGENTS.md §3）。使ってよいものは vite.config.ts の allowedImports に並べる`,
   );
 
@@ -80,7 +88,12 @@ const allowlistOverrides = Object.entries(allowedImports).flatMap(
   ([dir, { code, test, message }]) => [
     {
       files: [`${web}/${dir}/**`],
-      rules: { "no-restricted-imports": allowOnly(code, message) },
+      rules: {
+        // `./*` や `../domain/*` はテストのファイルも戻すので、本番のコードからテストのファイルを import しないよう落とし直す
+        "no-restricted-imports": allowOnly(code, message, ["*.test.ts"]),
+        // no-restricted-imports が見ない書き方（型の位置の import("x")、文字列リテラルでない動的 import）を止める
+        "nanaichi/no-hidden-import": "error" as const,
+      },
     },
     {
       files: [`${web}/${dir}/**/*.test.ts`],
