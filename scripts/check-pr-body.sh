@@ -17,13 +17,55 @@ fi
 # Web の画面で直した本文は改行が CRLF になる。
 # awk は Ubuntu の mawk でも動くよう、正規表現の {n,m} を使わない
 missing=$(tr -d '\r' | awk '
+  # インラインコードを除く。同じ数のバッククォートで閉じたところまでがコードで、閉じていなければ文字のまま残す
+  function stripInlineCode(text,    out, ticks, opener, rest, tail, offset, closeAt) {
+    out = ""
+    while (match(text, /`+/)) {
+      ticks = RLENGTH
+      opener = substr(text, RSTART, RLENGTH)
+      out = out substr(text, 1, RSTART - 1)
+      rest = substr(text, RSTART + ticks)
+      tail = rest
+      offset = 0
+      closeAt = 0
+      while (match(tail, /`+/)) {
+        if (RLENGTH == ticks) { closeAt = offset + RSTART; break }
+        offset += RSTART + RLENGTH - 1
+        tail = substr(tail, RSTART + RLENGTH)
+      }
+      if (closeAt == 0) { out = out opener; text = rest; continue }
+      text = substr(rest, closeAt + ticks)
+    }
+    return out text
+  }
+
   # 1つ目のファイル: テンプレートの見出し
   FNR == NR {
     if (sub(/^## /, "")) { sub(/[ \t]+$/, ""); required[++count] = $0 }
     next
   }
 
-  # ここから本文。HTML コメントを除く（行をまたぐものも）
+  # ここから本文。コードブロック（``` / ~~~）の中は、HTML コメントの始まりも含めてそのまま読み飛ばす。
+  # 閉じる行は、開いた行と同じ記号が同じ数以上並び、あとは空白だけの行
+  !inComment && inFence {
+    if (match($0, /^ ? ? ?(`+|~+)[ \t]*$/)) {
+      run = $0
+      sub(/^ */, "", run)
+      sub(/[ \t]*$/, "", run)
+      if (substr(run, 1, 1) == fenceChar && length(run) >= fenceLength) inFence = 0
+    }
+    next
+  }
+  !inComment && match($0, /^ ? ? ?(```+|~~~+)/) {
+    run = substr($0, 1, RLENGTH)
+    sub(/^ */, "", run)
+    inFence = 1
+    fenceChar = substr(run, 1, 1)
+    fenceLength = length(run)
+    next
+  }
+
+  # HTML コメントを除く（行をまたぐものも）
   {
     line = $0
     if (inComment) {
@@ -37,15 +79,6 @@ missing=$(tr -d '\r' | awk '
       if (end == 0) { line = substr(line, 1, start - 1); inComment = 1; break }
       line = substr(line, 1, start - 1) substr(rest, end + 3)
     }
-  }
-
-  # コードブロックを除く。閉じる行は開いた行と同じ記号
-  !inFence && match(line, /^ ? ? ?(```|~~~)/) {
-    inFence = 1; fence = substr(line, RLENGTH - 2, 3); next
-  }
-  inFence {
-    if (line ~ ("^ ? ? ?" fence)) inFence = 0
-    next
   }
 
   # 見出し
@@ -65,8 +98,7 @@ missing=$(tr -d '\r' | awk '
 
   line ~ /[^ \t]/ {
     if (current != "") filled[current] = 1
-    code = line
-    gsub(/`[^`]*`/, "", code)
+    code = stripInlineCode(line)
     if (tolower(code) ~ /(^|[^[:alnum:]])closes:?[ \t]+#[1-9][0-9]*([^[:alnum:]]|$)/) closes = 1
   }
 

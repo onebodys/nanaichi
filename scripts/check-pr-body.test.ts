@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vite-plus/test";
 
-const script = new URL("check-pr-body.sh", import.meta.url).pathname;
+const script = fileURLToPath(new URL("check-pr-body.sh", import.meta.url));
 const template = new URL("../.github/pull_request_template.md", import.meta.url);
 
 /** テンプレートの「## 」の行。スクリプトと同じく、これを必須の見出しとして使う */
@@ -87,6 +88,9 @@ describe("PR の本文の検査", () => {
     ["HTML コメントの中", "<!-- Closes #115 -->"],
     ["行をまたぐ HTML コメントの中", "<!--\nCloses #115\n-->"],
     ["インラインコードの中", "`Closes #115`"],
+    ["2つのバッククォートのインラインコードの中", "``Closes #115``"],
+    ["4つのバッククォートのコードブロックの中の ``` のあと", "````\n```\nCloses #115\n````"],
+    ["後ろに文字のある ``` では閉じないコードブロックの中", "```\n``` x\nCloses #115\n```"],
     ["ほかの語の一部", "Encloses #115"],
   ])("%s の Closes は数えない", (_, closes) => {
     const result = check(complete.replace("Closes #115", closes));
@@ -98,8 +102,18 @@ describe("PR の本文の検査", () => {
     ["小文字", "closes #115"],
     ["コロンつき", "Closes: #115"],
     ["文の途中", "これで Closes #115。"],
+    ["閉じていないバッククォートのあと", "`Closes #115"],
   ])("%s の Closes は数える", (_, closes) => {
     expect(check(complete.replace("Closes #115", closes)).status).toBe(0);
+  });
+
+  test("コードブロックの中の <!-- は HTML コメントとして扱わず、後ろの見出しを読む", () => {
+    const [first = ""] = headings;
+    const body = complete.replace(
+      `## ${first}\n\n書いた`,
+      `## ${first}\n\n書いた\n\n\`\`\`html\n<!--\n\`\`\``,
+    );
+    expect(check(body)).toEqual({ status: 0, stderr: "" });
   });
 
   test("コードブロックの中の見出しは数えない", () => {

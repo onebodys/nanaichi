@@ -2,9 +2,10 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-const script = new URL("check-glossary-avoid.sh", import.meta.url).pathname;
+const script = fileURLToPath(new URL("check-glossary-avoid.sh", import.meta.url));
 
 // このファイルもリポジトリの検査の対象なので、GLOSSARY.md の太字の語は組み立てて書く
 const aiJudge = ["AI", "判定"].join(" ");
