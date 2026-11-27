@@ -20,6 +20,12 @@ import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-conn
 
 export type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * ブラウザの fetch。画面で fetch を直接呼んでよいのはこのファイルだけ（AGENTS.md §5、vite.config.ts の lint）。
+ * 生の fetch を外に出すと検査をすり抜けられるので export しない。ほかの通信は `requestApi` を通す
+ */
+const browserFetch: Fetch = (path, init) => fetch(path, init);
+
 type ReceivedResponse = Readonly<{ ok: boolean; body: unknown }>;
 
 const send =
@@ -69,15 +75,16 @@ const noticeSignedOut =
     }
   };
 
+/** 通信層（fetch → スキーマ検証 → Result）。`fetchApi` を省くとブラウザの fetch を使う */
 export const requestApi =
-  (fetchApi: Fetch, onSignedOut: () => void) =>
+  (fetchApi: Fetch | undefined, onSignedOut: () => void) =>
   <T>(
     path: string,
     schema: StandardSchemaV1<unknown, T>,
     init?: RequestInit,
   ): Result.ResultAsync<T, BackendError> =>
     Result.pipe(
-      send(fetchApi)(path, init),
+      send(fetchApi ?? browserFetch)(path, init),
       Result.andThen(receive),
       Result.andThen(decode(schema)),
       Result.inspectError(noticeSignedOut(onSignedOut)),
@@ -111,7 +118,7 @@ const syncUrl = (): string => {
  * SPA と API は同じ origin なので、ログインの cookie はそのまま送られる。
  */
 export const createRemoteBackend = ({
-  fetchApi = (path, init) => fetch(path, init),
+  fetchApi = browserFetch,
   openSocket,
   onSignedOut,
 }: RemoteBackendDeps): Backend => {
@@ -197,7 +204,7 @@ const retryAfterMsOf = (response: Response): number => {
  * 429 は本文ではなくヘッダーを読むので、本文を読む前に分ける
  */
 export const createImportApi = ({
-  fetchApi = (path, init) => fetch(path, init),
+  fetchApi = browserFetch,
   onSignedOut,
 }: Omit<RemoteBackendDeps, "openSocket">): ImportApi => {
   const receiveReceipt = (
