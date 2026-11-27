@@ -220,3 +220,42 @@ Actions の画面で main の最新の「CI」を「Re-run all jobs」すれば�
 
 `pnpm test:e2e` で chromium の E2E テストを実行する。詳しくは [`E2E.md`](./E2E.md)。
 CI でも PR と main への push のたびに走り、落ちた main はデプロイしない（4章）。
+
+## 6. iPhone と Watch のアプリを TestFlight で入れる（ADR 0032）
+
+iPhone のアプリ（Watch のアプリを同梱）を App Store Connect に上げ、オーナーの iPhone の TestFlight アプリから入れる。
+TestFlight の内部テストだけで、App Store には出さない。上げるのは手元の Mac からで、CI からは上げない。
+
+### 1度だけの準備（オーナー）
+
+1. Apple Developer Program に登録する（チーム ID `SBJFQKQZVC`。`apps/apple/project.yml` に書いてある）
+2. App Store Connect でアプリを登録する。バンドル ID は `app.nanaichi.ios`、プラットフォームは iOS。Watch のアプリ（`app.nanaichi.ios.watchkitapp`）は同梱なので別に登録しない
+3. App Store Connect の「ユーザとアクセス」→「統合」→「App Store Connect API」で、チームのキーを作る（アクセスは App Manager 以上）。
+   ダウンロードした `AuthKey_<Key ID>.p8` を `~/.appstoreconnect/private_keys/` に置き、権限を 600 にする。**リポジトリには入れない**。
+   Issuer ID は同じ画面の上に出る。毎回 `ASC_ISSUER_ID` で渡すか、`~/.appstoreconnect/issuer_id` に Issuer ID だけを書いて置く
+4. この Mac のキーチェーンに、チームの配布用の証明書（Apple Distribution）を入れる。Xcode の Settings → Accounts でチームにログインし、
+   Manage Certificates の + から Apple Distribution を作れば入る（2026-11-26 に、この Mac で鍵を作り App Store Connect API で1枚発行して入れた。
+   期限は 2027-11-26）。App Manager の API キーはクラウド管理の配布用の証明書を使えないので、手元に証明書が要る
+5. App Store Connect の TestFlight で内部テスターのグループを作り、自分を入れる。グループの「自動配信」をオンにしておくと、処理が終わったビルドがそのまま配られる。
+   オフなら、上げるたびにグループの「ビルド」に処理が終わったビルドを足す（足すまで TestFlight のアプリに出ない）。iPhone に TestFlight アプリを入れる
+
+### 上げる
+
+```sh
+cd apps/apple
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ASC_ISSUER_ID=<Issuer ID> sh scripts/testflight.sh
+```
+
+- XcodeGen（`brew install xcodegen`）と Xcode が要る。`xcode-select` が Command Line Tools を指しているなら `DEVELOPER_DIR` で Xcode を選ぶ
+- アーカイブ（Release）だけチームで自動署名する。開発用のプロビジョニングプロファイルは API キーで Xcode が作る
+- 書き出しは手動の署名にする。App Store 向けのプロファイル（`nanaichi App Store <バンドル ID>`）がなければ、スクリプトが App Store Connect API で作り、
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` に入れる。Watch のバンドル ID が未登録なら、それも登録する。
+  証明書を作り直したら、古い証明書の入ったプロファイルを developer.apple.com の Profiles で消してから走らせる（作り直される）
+- ビルド番号は上げた時刻（UTC の `yyyyMMddHHmm`）。同じ分に2回上げると番号が重なって断られるので、そのときは前より大きい番号を `BUILD_NUMBER` で渡す。バージョン（`MARKETING_VERSION`）は `project.yml` のもの
+- 作ったものは `apps/apple/.testflight/` に置く（コミットしない）。上げたあと App Store Connect の処理が終わるまで待ち、終わると `altool` が状態を出す
+
+### 入れる
+
+1. 処理が終わり、ビルドが内部テスターのグループに入ると（自動配信がオフなら、グループに手で足す）、TestFlight のアプリにビルドが出る（内部テスターには審査なしで配られる）
+2. iPhone の TestFlight アプリで nanaichi を開き、「インストール」を押す。iPhone のアプリが入る
+3. ペアの Watch には Watch のアプリが自動で入る。入らなければ、iPhone の Watch アプリ →「マイウォッチ」→ nanaichi の「インストール」を押す
