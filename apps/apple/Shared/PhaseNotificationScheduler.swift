@@ -56,7 +56,10 @@ final class PhaseNotificationScheduler {
                 return vibration.covers(Instant(milliseconds: at))
             }
             center.removePendingNotificationRequests(withIdentifiers: covered.map(\.identifier))
-            log.info("Watch が振動で知らせる通知を消した: \(covered.count, privacy: .public)件")
+            // 消すのは通知センターの中で後から行われるので、もう一度読んで、消し終えてから次に進む（終えたら Watch に答える）
+            let remaining = await center.pendingNotificationRequests().count
+            log.info(
+                "Watch が振動で知らせる通知を消した: \(covered.count, privacy: .public)件（保留中 \(remaining, privacy: .public)件）")
         }
     }
 

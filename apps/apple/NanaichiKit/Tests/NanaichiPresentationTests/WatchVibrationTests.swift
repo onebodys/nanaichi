@@ -158,3 +158,14 @@ func changeWhileAwaitingAcceptanceVibratesOnce() {
     // 答えのあとの刻みでは、もう知らせない
     #expect(watch.observe(snapshot, now: minutes(7, 2), within: accepted) == nil)
 }
+
+@Test("端末の時計が戻っても、同じ切り替わりで2回は振動しない")
+func clockGoingBackDoesNotRepeat() {
+    let snapshot = started().snapshot(at: minutes(1), revision: .initial)
+    var watch = PhaseChangeVibration()
+    let vibration = WatchVibration.covering(before: minutes(30))
+    #expect(watch.observe(snapshot, now: minutes(6, 59), within: vibration) == nil)
+    #expect(watch.observe(snapshot, now: minutes(7, 1), within: vibration) == .journal(round: 1, setNumber: 1))
+    #expect(watch.observe(snapshot, now: minutes(6, 59), within: vibration) == nil)
+    #expect(watch.observe(snapshot, now: minutes(7, 1), within: vibration) == nil)
+}

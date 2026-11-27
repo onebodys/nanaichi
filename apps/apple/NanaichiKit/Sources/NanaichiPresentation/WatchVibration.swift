@@ -70,8 +70,12 @@ public struct PhaseChangeVibration: Sendable {
             checked = nil
             return nil
         }
-        defer { checked = (session, now) }
-        guard let checked, checked.session == session else { return nil }
+        guard let checked, checked.session == session else {
+            self.checked = (session, now)
+            return nil
+        }
+        // 同じセッションのあいだは、調べ終えた時刻を戻さない。端末の時計が戻っても、同じ切り替わりを2回知らせない
+        self.checked = (session, max(now, checked.at))
         return Self.last(of: session, after: checked.at, through: now) { vibration.covers($0) }
     }
 
