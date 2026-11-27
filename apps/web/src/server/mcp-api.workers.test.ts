@@ -181,7 +181,8 @@ const callTool = async (accessToken: string, name: string, args: Record<string, 
 const toolJson = async (accessToken: string, name: string, args?: Record<string, unknown>) => {
   const result = await callTool(accessToken, name, args);
   expect(result.isError).toBeUndefined();
-  return JSON.parse(result.content[0].text) as unknown;
+  const parsed: unknown = JSON.parse(result.content[0].text);
+  return parsed;
 };
 
 const JournalPeriodSchema = v.object({

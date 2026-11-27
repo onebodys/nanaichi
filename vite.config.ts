@@ -43,13 +43,21 @@ export default defineConfig({
   lint: {
     ignorePatterns: [".agents/**", ".claude/**", ".taste-skill/**", "**/worker-configuration.d.ts"],
     plugins: ["unicorn", "typescript", "oxc", "react"],
-    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
+    // nanaichi は AGENTS.md の決まり事のうち、組み込みのルールでは表せないものを検査する自前のプラグイン（lint/nanaichi-plugin.ts）
+    jsPlugins: [
+      { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
+      { name: "nanaichi", specifier: "./lint/nanaichi-plugin.ts" },
+    ],
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
       "react/rules-of-hooks": "error",
       "react/only-export-components": ["warn", { allowConstantExport: true }],
       // 値を返さない switch は型チェックだけでは分岐の抜け漏れに気づけないので、lint で網羅性を検査する（ADR 0022）
       "typescript/switch-exhaustiveness-check": "error",
+      // 判別可能な union の switch に default を書かない（AGENTS.md §4）。文字列や数値の switch は対象にしない
+      "nanaichi/no-default-in-kind-switch": "error",
+      // 型アサーション（as）を使わない（AGENTS.md §4）。as const はこのルールの対象外で、as const satisfies も通る
+      "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
     },
     // 依存の方向（AGENTS.md「3. Functional Core / Imperative Shell と依存の方向」）を機械的に検査する。
     overrides: [
@@ -152,6 +160,40 @@ export default defineConfig({
           ),
         },
       },
+      // ここから下は依存の方向ではなく、AGENTS.md のほかの決まり事の検査
+      // ドメインでは時刻・乱数・ID を作らない（AGENTS.md §3）。テストはドメインのコードではないので、ID を作ってよい
+      {
+        files: [`${web}/domain/**`],
+        rules: { "nanaichi/no-impure-domain": "error" },
+      },
+      {
+        files: [`${web}/domain/**/*.test.ts`],
+        rules: { "nanaichi/no-impure-domain": "off" },
+      },
+      // 画面は fetch を直接呼ばず、通信層（client/remote-backend.ts）を通す（AGENTS.md §5、ADR 0009）。
+      // window.fetch / globalThis.fetch / self.fetch も見る
+      {
+        files: [`${web}/client/**`],
+        rules: {
+          "no-restricted-globals": [
+            "error",
+            {
+              globals: [
+                {
+                  name: "fetch",
+                  message:
+                    "画面は fetch を直接呼ばない。client/remote-backend.ts の通信層（fetch → スキーマ検証 → Result）を通す",
+                },
+              ],
+              checkGlobalObject: true,
+            },
+          ],
+        },
+      },
+      {
+        files: [`${web}/client/remote-backend.ts`],
+        rules: { "no-restricted-globals": "off" },
+      },
     ],
     // 警告が残っていると新しい警告に気づけないので、警告があれば vp check を落とす（Issue #125）
     options: { typeAware: true, typeCheck: true, denyWarnings: true },
@@ -160,8 +202,9 @@ export default defineConfig({
     cache: true,
   },
   // テストは実行環境ごとの設定ファイル（apps/web は Node と Workers ランタイム）に分けている。
+  // lint/ は自前の Oxlint のプラグインのテスト。
   // Vitest は入れ子の projects を展開しないので、ルートからは末端の設定ファイルを直接指す。
   test: {
-    projects: ["apps/*/vitest.*.config.ts"],
+    projects: ["apps/*/vitest.*.config.ts", "lint/vitest.config.ts"],
   },
 });

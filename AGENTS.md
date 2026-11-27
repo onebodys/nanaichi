@@ -38,6 +38,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 ## 3. Functional Core / Imperative Shell と依存の方向
 
 - **ドメインは純粋**にする。ドメインのコードでは I/O、`Date.now()` / `new Date()`、`crypto.randomUUID()`、`Math.random()` を使わない。時刻と ID は引数で受け取る。
+  - この制約は Oxlint の自前のルール `nanaichi/no-impure-domain`（`lint/nanaichi-plugin.ts`）で**機械的に検査**する。ドメインのテスト（`*.test.ts`）は対象外。
 - **依存は外側から内側への一方向**。ドメインはワークフローやアダプタ、フレームワーク（Hono、React、Cloudflare の型、Better Auth、DB）を import しない。
   - この制約は Oxlint の `no-restricted-imports` などで**機械的に検査**できるようにする（検証可能性のため）。
 - ワークフローが必要とする読み書きの契約（resolver / store）はドメイン側に、概念の隣に置く（kamae の方針どおり。`ports/` ディレクトリは作らない）。
@@ -64,9 +65,11 @@ apps/web/src/
 kamae の「状態ごとに型を分ける」を、このプロジェクトでは徹底する。
 
 - optional / nullable なプロパティで状態を表さない。状態ごとに型を定義し、判別可能な union にする（例: タイマーは `Idle | Focus | Journal | Break | Ended` のように分け、「休憩中はセット番号がない」を `setNumber?: number` ではなく型の違いで表す）。
-- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。網羅性は Oxlint の `typescript/switch-exhaustiveness-check` で検査する。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
+- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
+  - この制約は Oxlint で**機械的に検査**する。網羅性は `typescript/switch-exhaustiveness-check`、`default` は自前のルール `nanaichi/no-default-in-kind-switch`（`lint/nanaichi-plugin.ts`）。後者は判別子 `kind` で分ける `switch`（`switch (x.kind)` / `switch (kind)`）だけを見るので、文字列や数値の `switch` には `default` を書いてよい。
 - 境界（API の入力、DB の行、WebSocket のメッセージ）で受け取った値はスキーマで検証し、その場で状態ごとの型に変換する。DB の行の nullable な列をドメインに持ち込まない。
 - 型アサーション（`as`）は使わない。`as const` と `as const satisfies Type` のみ可。
+  - この制約は Oxlint の `typescript/consistent-type-assertions`（`assertionStyle: "never"`。`as const` は対象外）で**機械的に検査**する。
 
 ### 境界での検証と PII
 
@@ -89,6 +92,7 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - レスポンスのスキーマ（valibot）は `domain/` に、レスポンスが表す型の隣に `<型名>JsonSchema` として置く（例: `domain/session.ts` の `SessionSnapshotJsonSchema`、`domain/api-error.ts` の `ApiErrorBodyJsonSchema`）。JSON にした値（時刻は ISO 8601 の文字列）を検証してドメインの型（時刻は `Date`）に戻す。出力の型は `v.GenericSchema<unknown, ドメインの型>` で注釈する。
 - サーバーはドメインの型をそのまま `c.json` で返す。エラーの本文は `satisfies ApiErrorBody` で種類を縛る。
 - 画面は `fetch` を直接呼ばず、`client/remote-backend.ts` の通信層（fetch → スキーマ検証 → byethrow の Result）を通す。失敗は `BackendError`（`domain/backend.ts`。通信できない `Unreachable`、断られた `Rejected`、応答の形が違う `Broken` など）で、画面は `kind` で扱いを決める。
+  - この制約は Oxlint の `no-restricted-globals`（`fetch`。`window.fetch` と `globalThis.fetch` も）で**機械的に検査**する。`client/remote-backend.ts` だけを外す。ほかの通信（`client/task-api.ts` など）は、そこの `browserFetch` を使う。
 - エンドポイントを足したら、スキーマを `domain/` に、関数を `client/remote-backend.ts` に足し、「実際の応答がスキーマに合う」ことを結合テスト（`*.workers.test.ts` など）で、「通信層が Result で返す」ことを `client/remote-backend.test.ts` で確かめる。
 
 ## 6. 用語とコードの対応

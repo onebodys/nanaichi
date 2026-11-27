@@ -20,6 +20,9 @@ import { connectSync, openBrowserSocket, type OpenSyncSocket } from "./sync-conn
 
 export type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
 
+/** ブラウザの fetch。画面で fetch を直接呼んでよいのはこのファイルだけ（AGENTS.md §5、vite.config.ts の lint） */
+export const browserFetch: Fetch = (path, init) => fetch(path, init);
+
 type ReceivedResponse = Readonly<{ ok: boolean; body: unknown }>;
 
 const send =
@@ -111,7 +114,7 @@ const syncUrl = (): string => {
  * SPA と API は同じ origin なので、ログインの cookie はそのまま送られる。
  */
 export const createRemoteBackend = ({
-  fetchApi = (path, init) => fetch(path, init),
+  fetchApi = browserFetch,
   openSocket,
   onSignedOut,
 }: RemoteBackendDeps): Backend => {
@@ -197,7 +200,7 @@ const retryAfterMsOf = (response: Response): number => {
  * 429 は本文ではなくヘッダーを読むので、本文を読む前に分ける
  */
 export const createImportApi = ({
-  fetchApi = (path, init) => fetch(path, init),
+  fetchApi = browserFetch,
   onSignedOut,
 }: Omit<RemoteBackendDeps, "openSocket">): ImportApi => {
   const receiveReceipt = (
