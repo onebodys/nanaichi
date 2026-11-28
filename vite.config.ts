@@ -206,6 +206,6 @@ export default defineConfig({
   // lint/ は自前の Oxlint のプラグインのテスト。
   // Vitest は入れ子の projects を展開しないので、ルートからは末端の設定ファイルを直接指す。
   test: {
-    projects: ["apps/*/vitest.*.config.ts", "lint/vitest.config.ts"],
+    projects: ["apps/*/vitest.*.config.ts", "lint/vitest.config.ts", "scripts/vitest.config.ts"],
   },
 });
