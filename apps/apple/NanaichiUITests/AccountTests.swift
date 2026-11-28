@@ -102,7 +102,8 @@ final class AccountTests: XCTestCase {
         openSettings(app, tab: "アカウント")
         click(app.buttons["account.signIn"], until: .reads(app, "account.email", "owner@example.com"), failsOn: refusal(app))
         waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない1セッション・記入 0件があります")
-        closeSettings(app, tab: "アカウント")
+        // ログインした直後は、取り込むかの確かめがメインのウィンドウに出て、設定のウィンドウは操作できなくなる（⌘W でも
+        // 閉じない）。設定は開いたまま確かめに答える
 
         let prompt = app.staticTexts["import.prompt"]
         XCTAssertTrue(prompt.waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
@@ -136,7 +137,8 @@ final class AccountTests: XCTestCase {
 
         openSettings(app, tab: "アカウント")
         click(app.buttons["account.signIn"], until: .reads(app, "account.email", "owner@example.com"), failsOn: refusal(app))
-        closeSettings(app, tab: "アカウント")
+        // ログインした直後は、取り込むかの確かめがメインのウィンドウに出て、設定のウィンドウは操作できなくなる（⌘W でも
+        // 閉じない）。設定は開いたまま確かめに答える
         let later = app.buttons["import.later"]
         XCTAssertTrue(later.waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
         click(later, until: .disappears(later, failure: "「あとで」を押しても取り込むかの確かめが閉じない"))
