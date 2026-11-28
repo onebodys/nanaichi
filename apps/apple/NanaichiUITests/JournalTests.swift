@@ -32,10 +32,10 @@ final class JournalTests: XCTestCase {
     }
 
     /// 帯に並んだ送れなかった記入の本文。送り直せて帯が変わる途中に1件ずつ読むと、数えたあとに消えた記入を
-    /// 読めずに落ちるので、画面の階層を一度に写してから読む。macOS の StaticText は文字を `value` に持ち、`label` は空になる
+    /// 読めずに落ちるので、画面の階層を一度に写してから読む。macOS の StaticText は文字を `value` に持ち、`label` は空になる。写せなければ nil（帯が空になったのと取り違えない）
     @MainActor
-    private func unsentBodies(_ app: XCUIApplication) -> [String] {
-        guard let root = try? app.snapshot() else { return [] }
+    private func unsentBodies(_ app: XCUIApplication) -> [String]? {
+        guard let root = try? app.snapshot() else { return nil }
         func bodies(_ element: any XCUIElementSnapshot) -> [String] {
             let text = (element.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? element.label
             return (element.identifier == "journal.unsent.body" ? [text] : []) + element.children.flatMap(bodies)
@@ -74,7 +74,9 @@ final class JournalTests: XCTestCase {
         let button = unsentButton(app, action, at: index)
         perform(
             { attempt in
-                if attempt == 0 || (unsentBodies(app).dropFirst(index).first == body && button.isEnabled) { button.click() }
+                if attempt == 0 || (unsentBodies(app)?.dropFirst(index).first == body && button.exists && button.isEnabled) {
+                    button.click()
+                }
             }, until: unsent(app, expected), file: file, line: line)
     }
 

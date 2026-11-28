@@ -34,10 +34,10 @@ final class PhoneJournalTests: XCTestCase {
     }
 
     /// 帯に並んだ送れなかった記入の本文。送り直せて帯が変わる途中に1件ずつ読むと、数えたあとに消えた記入を
-    /// 読めずに落ちるので、画面の階層を一度に写してから読む
+    /// 読めずに落ちるので、画面の階層を一度に写してから読む。写せなければ nil（帯が空になったのと取り違えない）
     @MainActor
-    private func unsentBodies(_ app: XCUIApplication) -> [String] {
-        guard let root = try? app.snapshot() else { return [] }
+    private func unsentBodies(_ app: XCUIApplication) -> [String]? {
+        guard let root = try? app.snapshot() else { return nil }
         func bodies(_ element: any XCUIElementSnapshot) -> [String] {
             (element.identifier == "journal.unsent.body" ? [element.label] : []) + element.children.flatMap(bodies)
         }
@@ -97,7 +97,9 @@ final class PhoneJournalTests: XCTestCase {
         let button = unsentButton(app, action, at: index)
         perform(
             { attempt in
-                if attempt == 0 || (unsentBodies(app).dropFirst(index).first == body && button.isEnabled) { button.tap() }
+                if attempt == 0 || (unsentBodies(app)?.dropFirst(index).first == body && button.exists && button.isEnabled) {
+                    button.tap()
+                }
             }, until: unsent(app, expected), file: file, line: line)
     }
 

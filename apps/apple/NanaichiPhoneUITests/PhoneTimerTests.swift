@@ -117,19 +117,27 @@ final class PhoneTimerTests: XCTestCase {
     func testPhaseChangeNotifiesWhileClosed() throws {
         // 20倍なら集中は21秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
         // このテストの実行で初めての開始なら、許可を求める画面を5秒待ってから進むので、その分も含めておく
+        let focusSeconds: TimeInterval = 7 * 60 / 20
         let app = application(timeScale: 20, resetting: true)
         let start = app.buttons["timer.start"]
         launch(app, until: .appears(start, failure: "ホームが開かない"))
+        let beforeStart = Date()
         tap(start, until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
         allowNotificationsIfAsked()
 
         XCUIDevice.shared.press(.home)
+        waitFor(
+            .holds(
+                { [.runningBackground, .runningBackgroundSuspended].contains(app.state) },
+                failure: { "ホームに戻っても裏に回らない（app.state=\(nameOf(app.state))）" }))
         // 裏に回ったときに通知の予約を入れ替え終えるのを待ってから、アプリを終了する。入れ替えている間は OS に止めるのを
-        // 待ってもらっている（`BackgroundHandOver`）ので、止まった（suspended）ら入れ替え終えている
-        if !app.wait(for: .runningBackgroundSuspended, timeout: 15) {
-            XCTContext.runActivity(named: "裏に回って15秒たっても止まらない（app.state=\(nameOf(app.state))）。このまま終了する") { _ in }
-        }
+        // 待ってもらっている（`BackgroundHandOver`）ので、止まれば（suspended）入れ替え終えている。シミュレーターでは
+        // 止まらないこともあるので、ジャーナルに切り替わる前に終了できるよう長くは待たない
+        _ = app.wait(for: .runningBackgroundSuspended, timeout: 3)
         app.terminate()
+        // 閉じている間に届いたことを確かめるので、切り替わる前に終了できていなければ、届いても確かめたことにならない
+        XCTAssertLessThan(
+            Date().timeIntervalSince(beforeStart), focusSeconds, "ジャーナルに切り替わる前にアプリを終了できなかった")
 
         let notification = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "ジャーナルの時間です")).firstMatch
