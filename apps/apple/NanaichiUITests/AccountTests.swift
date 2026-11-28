@@ -18,41 +18,8 @@ final class AccountTests: XCTestCase {
         ]
         // 前のテストが開いたウィンドウ（スタッツなど）を復元させない。復元したウィンドウがメインのウィンドウに重なり、クリックが当たらなくなる
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launch()
+        launch(app, until: .appears(app.buttons["timer.start"], failure: "メインのウィンドウが開かない"))
         return app
-    }
-
-    /// 識別子 `identifier` の文字が `text` になるまで待つ。macOS の StaticText は文字を `value` に持つ
-    @MainActor
-    private func waitFor(
-        _ app: XCUIApplication, _ identifier: String, toRead text: String, timeout: TimeInterval = 10,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        let element = app.staticTexts.matching(
-            NSPredicate(format: "identifier == %@ AND (value == %@ OR label == %@)", identifier, text, text)
-        ).firstMatch
-        XCTAssertTrue(element.waitForExistence(timeout: timeout), "\(identifier) が「\(text)」にならない", file: file, line: line)
-    }
-
-    /// 設定を開き、アカウントのタブに替わるまで待つ（Issue #84）。
-    /// 起動の直後の ⌘, はアプリが受け取れずに設定が開かないことがあり、開ききる前に押したタブはウィンドウが
-    /// 「タイマー」のまま替わらないことがある。どちらも押し直せば効くので、設定のウィンドウのタイトルが
-    /// 「アカウント」になるまで、開かなければ ⌘, を、開いていればタブを押し直す。
-    /// 最初の ⌘, は、設定のウィンドウがすでにあっても送る。ほかのウィンドウの後ろにあると、前に出さないと押せない
-    @MainActor
-    private func openAccountSettings(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        let tab = app.toolbars.buttons["アカウント"]
-        let accountWindow = app.windows.matching(NSPredicate(format: "title == %@", "アカウント")).firstMatch
-        app.typeKey(",", modifierFlags: .command)
-        for _ in 0..<3 {
-            guard tab.waitForExistence(timeout: 5) else {
-                app.typeKey(",", modifierFlags: .command)
-                continue
-            }
-            tab.click()
-            if accountWindow.waitForExistence(timeout: 3) { return }
-        }
-        XCTFail(tab.exists ? "設定のアカウントのタブが開かない" : "設定が開かない", file: file, line: line)
     }
 
     /// ログインしていなければこの Mac の記録先で動き、セッションの途中ではログインに進ませない（ADR 0020）
@@ -60,18 +27,15 @@ final class AccountTests: XCTestCase {
     func testSignInIsRefusedDuringASession() throws {
         let app = launch(stub: false)
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
 
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログインのボタンがない")
         attachScreenshot(of: app, named: "26-設定（アカウント・ログインしていない）")
         app.typeKey("w", modifierFlags: .command)
 
-        start.click()
-        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 5), "セッションが始まらない")
-        openAccountSettings(app)
-        app.buttons["account.signIn"].click()
-        waitFor(app, "account.message", toRead: "セッションを終えてからログインしてください。")
+        click(start, until: .appears(app.buttons["operation.Pause"], failure: "セッションが始まらない"))
+        openSettings(app, tab: "アカウント")
+        click(app.buttons["account.signIn"], until: .reads(app, "account.message", "セッションを終えてからログインしてください。"))
         XCTAssertTrue(app.buttons["account.signIn"].exists, "セッションの途中でログインに進んだ")
         attachScreenshot(of: app, named: "27-セッションの途中はログインできない")
     }
@@ -81,63 +45,53 @@ final class AccountTests: XCTestCase {
     func testSignOutAndSignInSwitchTheRecordStore() throws {
         let app = launch(stub: true)
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.click()
-        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 5), "アカウントの記録先でセッションが始まらない")
+        click(start, until: .appears(app.buttons["operation.Pause"], failure: "アカウントの記録先でセッションが始まらない"))
 
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         waitFor(app, "account.email", toRead: "owner@example.com")
         attachScreenshot(of: app, named: "28-設定（アカウント・ログイン中）")
 
-        app.buttons["account.signOut"].click()
-        XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログアウトしても戻らない")
+        click(app.buttons["account.signOut"], until: .appears(app.buttons["account.signIn"], failure: "ログアウトしても戻らない"))
         attachScreenshot(of: app, named: "29-ログアウトしたあと")
         app.typeKey("w", modifierFlags: .command)
         // この Mac の記録先に替わったので、アカウントで開いたセッションは出ない
         XCTAssertTrue(start.waitForExistence(timeout: 5), "ログアウトしても記録先が替わらない")
 
-        openAccountSettings(app)
-        app.buttons["account.signIn"].click()
-        waitFor(app, "account.email", toRead: "owner@example.com")
+        openSettings(app, tab: "アカウント")
+        click(app.buttons["account.signIn"], until: .reads(app, "account.email", "owner@example.com"))
     }
+
     /// ログインした直後に、この Mac の閉じたセッションを取り込むかを確かめ、取り込むとこの Mac から消える（Issue #19、ADR 0020）。
     /// 代わりのアカウントは、どのセッションも取り込んだと答える
     @MainActor
     func testImportsDeviceRecordsRightAfterSignIn() throws {
         let app = launch(stub: true)
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         waitFor(app, "account.email", toRead: "owner@example.com")
         // 起動したときにログインしていたなら確かめは出さず、取り込むものもない
         waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
-        app.buttons["account.signOut"].click()
-        XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログアウトしても戻らない")
+        click(app.buttons["account.signOut"], until: .appears(app.buttons["account.signIn"], failure: "ログアウトしても戻らない"))
         app.typeKey("w", modifierFlags: .command)
 
         // この Mac の記録先でセッションを1つ終える
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 5))
-        start.click()
         let end = app.buttons["operation.End"]
-        XCTAssertTrue(end.waitForExistence(timeout: 5), "セッションが始まらない")
-        end.click()
-        XCTAssertTrue(start.waitForExistence(timeout: 5), "セッションが終わらない")
+        click(start, until: .appears(end, failure: "セッションが始まらない"))
+        click(end, until: .appears(start, failure: "セッションが終わらない"))
 
-        openAccountSettings(app)
-        app.buttons["account.signIn"].click()
-        waitFor(app, "account.email", toRead: "owner@example.com")
+        openSettings(app, tab: "アカウント")
+        click(app.buttons["account.signIn"], until: .reads(app, "account.email", "owner@example.com"))
         waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない1セッション・記入 0件があります")
         app.typeKey("w", modifierFlags: .command)
 
         let prompt = app.staticTexts["import.prompt"]
         XCTAssertTrue(prompt.waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
         attachScreenshot(of: app, named: "46-取り込みの確かめ")
-        app.buttons["import.start"].click()
-        waitFor(app, "import.result", toRead: "1セッションをアカウントに取り込みました。")
+        click(app.buttons["import.start"], until: .reads(app, "import.result", "1セッションをアカウントに取り込みました。"))
         attachScreenshot(of: app, named: "47-取り込みました")
-        app.buttons["import.close"].click()
-        XCTAssertFalse(prompt.exists)
+        click(app.buttons["import.close"], until: .disappears(prompt, failure: "取り込みの確かめが閉じない"))
 
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
         XCTAssertFalse(app.buttons["account.import"].exists, "取り込んだのに、まだ取り込むボタンがある")
     }
@@ -146,29 +100,26 @@ final class AccountTests: XCTestCase {
     @MainActor
     func testImportLaterFromSettings() throws {
         let app = launch(stub: true)
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         waitFor(app, "account.email", toRead: "owner@example.com")
-        app.buttons["account.signOut"].click()
-        XCTAssertTrue(app.buttons["account.signIn"].waitForExistence(timeout: 5), "ログアウトしても戻らない")
+        click(app.buttons["account.signOut"], until: .appears(app.buttons["account.signIn"], failure: "ログアウトしても戻らない"))
         app.typeKey("w", modifierFlags: .command)
 
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 5))
-        start.click()
-        app.buttons["operation.End"].click()
-        XCTAssertTrue(start.waitForExistence(timeout: 5), "セッションが終わらない")
+        let end = app.buttons["operation.End"]
+        click(start, until: .appears(end, failure: "セッションが始まらない"))
+        click(end, until: .appears(start, failure: "セッションが終わらない"))
 
-        openAccountSettings(app)
-        app.buttons["account.signIn"].click()
-        waitFor(app, "account.email", toRead: "owner@example.com")
+        openSettings(app, tab: "アカウント")
+        click(app.buttons["account.signIn"], until: .reads(app, "account.email", "owner@example.com"))
         app.typeKey("w", modifierFlags: .command)
-        XCTAssertTrue(app.buttons["import.later"].waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
-        app.buttons["import.later"].click()
+        let later = app.buttons["import.later"]
+        XCTAssertTrue(later.waitForExistence(timeout: 5), "ログインした直後に取り込むかを確かめない")
+        click(later, until: .disappears(later, failure: "「あとで」を押しても取り込むかの確かめが閉じない"))
 
-        openAccountSettings(app)
+        openSettings(app, tab: "アカウント")
         waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない1セッション・記入 0件があります")
         attachScreenshot(of: app, named: "48-設定（アカウント・取り込んでいない記録）")
-        app.buttons["account.import"].click()
-        waitFor(app, "account.deviceRecords", toRead: "アカウントに取り込んでいない記録はありません")
+        click(app.buttons["account.import"], until: .reads(app, "account.deviceRecords", "アカウントに取り込んでいない記録はありません"))
     }
 }
