@@ -25,6 +25,15 @@ final class WatchTimerTests: XCTestCase {
         if let losesAnswers { app.launchEnvironment["NANAICHI_WATCH_PHONE_LOSES_ANSWERS"] = String(losesAnswers) }
         if showsVibrations { app.launchEnvironment["NANAICHI_WATCH_SHOW_VIBRATIONS"] = "1" }
         app.launch()
+        // iPhone の代わりのスナップショットが届くと、開始のボタンかフェーズが出る（読み込み中でなくなる）。CI のシミュレーターでは、
+        // 起動してからここまでに 10 秒を超えることがある
+        let start = app.buttons["timer.start"]
+        let phase = app.staticTexts["timer.phase"]
+        let deadline = Date().addingTimeInterval(30)
+        while !start.exists, !phase.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        XCTAssertTrue(start.exists || phase.exists, "起動してから iPhone の代わりの様子が届かない")
         return app
     }
 
@@ -73,7 +82,7 @@ final class WatchTimerTests: XCTestCase {
     /// ボタンが押せるようになるまで待って押す。Watch は iPhone に届いて今の様子を確かめ終えるまで、ボタンを押せなくする
     @MainActor
     private func tapWhenEnabled(_ button: XCUIElement) {
-        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: button)], timeout: 10)
+        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: button)], timeout: 20)
         button.tap()
     }
 
