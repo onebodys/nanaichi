@@ -12,22 +12,12 @@ final class PhoneTimerTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         origin = Int64(Date().timeIntervalSince1970 * 1000)
-        // 通知の許可を求める画面が遅れて出て、次の操作に割り込んだときも許可する。XCUITest に任せると
-        // 許可しないほうを押すことがあり、そのあとは通知が届かない
-        addUIInterruptionMonitor(withDescription: "通知の許可") { alert in
-            // 割り込みの処理は、XCUITest がメインスレッドで呼ぶ
-            MainActor.assumeIsolated {
-                let allow = alert.buttons.matching(NSPredicate(format: "label IN %@", allowLabels)).firstMatch
-                guard allow.exists else { return false }
-                allow.tap()
-                return true
-            }
-        }
+        allowNotificationsWhenTheyInterrupt()
     }
 
+    /// 起動するアプリ。`manualAdvance` は手動にするフェーズの切り替わり（`NANAICHI_MANUAL_ADVANCE`）。空ならすべて自動
     @MainActor
-    /// `manualAdvance` は手動にするフェーズの切り替わり（`NANAICHI_MANUAL_ADVANCE`）。空ならすべて自動
-    private func launch(
+    private func application(
         timeScale: Double, resetting reset: Bool, appearance: String = "Light", manualAdvance: String = ""
     ) -> XCUIApplication {
         let app = XCUIApplication()
@@ -37,33 +27,16 @@ final class PhoneTimerTests: XCTestCase {
             "NANAICHI_RESET_DEFAULTS": reset ? "1" : "0", "NANAICHI_APPEARANCE": appearance,
             "NANAICHI_MANUAL_ADVANCE": manualAdvance,
         ]
-        app.launch()
         return app
     }
 
-    /// 通知の許可を求める画面と、届いた通知のバナーを出すホーム画面
+    /// 操作を断ったときの文言
+    @MainActor
+    private func timerError(_ app: XCUIApplication) -> [XCUIElement] { [app.staticTexts["timer.error"]] }
+
+    /// 届いた通知のバナーを出すホーム画面
     @MainActor
     private var springboard: XCUIApplication { XCUIApplication(bundleIdentifier: "com.apple.springboard") }
-
-    /// 識別子 `identifier` の文字が `label` になるまで待つ
-    @MainActor
-    private func waitFor(
-        _ app: XCUIApplication, _ identifier: String, toRead label: String, timeout: TimeInterval = 10,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        let element = app.staticTexts.matching(
-            NSPredicate(format: "identifier == %@ AND (label == %@ OR value == %@)", identifier, label, label)
-        ).firstMatch
-        XCTAssertTrue(
-            element.waitForExistence(timeout: timeout), "\(identifier) が「\(label)」にならない", file: file, line: line)
-    }
-
-    /// 開始ボタンで通知の許可を求められたら許可する。前のテストで答えていれば、もう聞かれない
-    @MainActor
-    private func allowNotificationsIfAsked() {
-        let allow = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", allowLabels)).firstMatch
-        if allow.waitForExistence(timeout: 10) { allow.tap() }
-    }
 
     /// 1ラウンドを最後まで進め、開き直しても続き、終了してまとめが出る
     @MainActor
@@ -74,22 +47,23 @@ final class PhoneTimerTests: XCTestCase {
         let timeScale = 8.0
         func phaseTimeout(minutes: Double) -> TimeInterval { minutes * 60 / timeScale + 20 }
 
-        var app = launch(timeScale: timeScale, resetting: true, manualAdvance: "JournalToFocus")
+        var app = application(timeScale: timeScale, resetting: true, manualAdvance: "JournalToFocus")
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        launch(app, until: .appears(start, failure: "ホームが開かない"))
         attachScreenshot(named: "01-開始前")
 
-        start.tap()
+        tap(start, until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
         allowNotificationsIfAsked()
-        waitFor(app, "timer.phase", toRead: "集中")
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(named: "02-集中中")
 
-        app.buttons["operation.Pause"].tap()
-        XCTAssertTrue(app.staticTexts["timer.paused"].waitForExistence(timeout: 10), "一時停止にならない")
+        tap(
+            app.buttons["operation.Pause"], until: .appears(app.staticTexts["timer.paused"], failure: "一時停止にならない"),
+            failsOn: timerError(app))
         attachScreenshot(named: "03-一時停止中")
-        app.buttons["operation.Resume"].tap()
-        XCTAssertTrue(app.staticTexts["timer.paused"].waitForNonExistence(timeout: 10), "再開しない")
+        tap(
+            app.buttons["operation.Resume"], until: .disappears(app.staticTexts["timer.paused"], failure: "再開しない"),
+            failsOn: timerError(app))
 
         // ジャーナルが終わると、集中を始めるのを待つ。ジャーナルに入ったときに入力欄にカーソルが置かれ、キーボードが出ている
         let advance = app.buttons["operation.Advance"]
@@ -97,23 +71,19 @@ final class PhoneTimerTests: XCTestCase {
         waitFor(app, "timer.phase", toRead: "切り替え待ち")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "ジャーナルに入ってもキーボードが出ない")
         let body = app.textViews["journal.body"]
-        type("1セット目の振り返り", into: body, of: app, toRead: "1セット目の振り返り")
-        type("\n次は見出しを直す", into: body, of: app, toRead: "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
+        type("1セット目の振り返り", into: body, toRead: "1セット目の振り返り")
+        type("\n次は見出しを直す", into: body, toRead: "1セット目の振り返り\n次は見出しを直す", "Return で改行しない")
         attachScreenshot(named: "04-ジャーナルを書いている")
-        app.buttons["journal.sendFromKeyboard"].tap()
-        expectation(for: NSPredicate(format: "value == ''"), evaluatedWith: body)
-        waitForExpectations(timeout: 10)
-        app.buttons["journal.dismissKeyboard"].tap()
+        tap(app.buttons["journal.sendFromKeyboard"], until: .equals({ body.value as? String }, "", "送ったあとの入力欄の本文"))
+        tap(app.buttons["journal.dismissKeyboard"], until: .disappears(app.keyboards.firstMatch, failure: "キーボードが閉じない"))
         attachScreenshot(named: "05-記入して切り替え待ち")
-        advance.tap()
-        waitFor(app, "timer.position", toRead: "1ラウンド目・2セット目")
+        tap(advance, until: .reads(app, "timer.position", "1ラウンド目・2セット目"), failsOn: timerError(app))
         waitFor(app, "timer.phase", toRead: "集中")
 
         // 2セット目のジャーナルのあとも切り替え待ちになるので進める。3セット目のジャーナルのあとは休憩に自動で入る
         XCTAssertTrue(advance.waitForExistence(timeout: phaseTimeout(minutes: 8)), "2セット目のジャーナルのあとの切り替え待ちにならない")
         dismissKeyboardIfShown(app)
-        advance.tap()
-        waitFor(app, "timer.position", toRead: "1ラウンド目・3セット目")
+        tap(advance, until: .reads(app, "timer.position", "1ラウンド目・3セット目"), failsOn: timerError(app))
         waitFor(app, "timer.phase", toRead: "休憩", timeout: phaseTimeout(minutes: 8))
         dismissKeyboardIfShown(app)
         attachScreenshot(named: "06-休憩")
@@ -121,22 +91,21 @@ final class PhoneTimerTests: XCTestCase {
         waitFor(app, "timer.phase", toRead: "集中")
         attachScreenshot(named: "07-次のラウンドの集中")
 
-        app.buttons["operation.Abort"].tap()
-        waitFor(app, "timer.phase", toRead: "待機")
+        tap(app.buttons["operation.Abort"], until: .reads(app, "timer.phase", "待機"), failsOn: timerError(app))
         XCTAssertTrue(app.staticTexts["timer.idle"].waitForExistence(timeout: 10))
         attachScreenshot(named: "08-中断して待機")
-        app.buttons["operation.RestartFocus"].tap()
-        waitFor(app, "timer.phase", toRead: "集中")
+        tap(app.buttons["operation.RestartFocus"], until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
 
         // 終了して開き直しても、同じ記録からセッションが続く（ダークの見た目もここで確かめる）
         app.terminate()
-        app = launch(timeScale: timeScale, resetting: false, appearance: "Dark", manualAdvance: "JournalToFocus")
-        waitFor(app, "timer.phase", toRead: "集中")
+        app = application(timeScale: timeScale, resetting: false, appearance: "Dark", manualAdvance: "JournalToFocus")
+        launch(app, until: .reads(app, "timer.phase", "集中"))
         waitFor(app, "timer.position", toRead: "2ラウンド目・1セット目")
         attachScreenshot(named: "09-開き直したあと（ダーク）")
 
-        app.buttons["operation.End"].tap()
-        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "まとめが出ない")
+        tap(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "まとめが出ない"),
+            failsOn: timerError(app))
         waitFor(app, "summary.completedSets", toRead: "3")
         waitFor(app, "summary.entries", toRead: "1")
         waitFor(app, "summary.focusTime", toRead: "21分")
@@ -146,54 +115,41 @@ final class PhoneTimerTests: XCTestCase {
     /// アプリを閉じていても（裏に回したあと終了しても）、フェーズの切り替わりが通知で届く
     @MainActor
     func testPhaseChangeNotifiesWhileClosed() throws {
-        // 20倍なら集中は21秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
-        // 前のテストで通知を許可していると、許可を求める画面を10秒待ってから進むので、その分も含めておく
-        let app = launch(timeScale: 20, resetting: true)
+        // 15倍なら集中は28秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
+        // このテストの実行で初めての開始なら許可を求める画面を5秒待ち、開始を押し直すこともあるので、その分も含めておく
+        let timeScale = 15.0
+        let focusSeconds: TimeInterval = 7 * 60 / timeScale
+        let app = application(timeScale: timeScale, resetting: true)
         let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.tap()
+        launch(app, until: .appears(start, failure: "ホームが開かない"))
+        let beforeStart = Date()
+        tap(start, until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
         allowNotificationsIfAsked()
-        waitFor(app, "timer.phase", toRead: "集中")
 
         XCUIDevice.shared.press(.home)
-        // 裏に回ったときに通知の予約を入れ替えるのを待ってから、アプリを終了する
-        Thread.sleep(forTimeInterval: 2)
+        waitFor(
+            .holds(
+                { [.runningBackground, .runningBackgroundSuspended].contains(app.state) },
+                failure: { "ホームに戻っても裏に回らない（app.state=\(nameOf(app.state))）" }))
+        // 裏に回ったときに通知の予約を入れ替え終えるのを待ってから、アプリを終了する。入れ替えている間は OS に止めるのを
+        // 待ってもらっている（`BackgroundHandOver`）ので、止まれば（suspended）入れ替え終えている。シミュレーターでは
+        // 止まらないこともあるので、ジャーナルに切り替わる前に終了できるよう長くは待たない
+        _ = app.wait(for: .runningBackgroundSuspended, timeout: 3)
         app.terminate()
+        // 閉じている間に届いたことを確かめるので、切り替わる前に終了できていなければ、届いても確かめたことにならない
+        XCTAssertLessThan(
+            Date().timeIntervalSince(beforeStart), focusSeconds, "ジャーナルに切り替わる前にアプリを終了できなかった")
 
         let notification = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "ジャーナルの時間です")).firstMatch
-        // バナーは数秒で消え、ホーム画面の要素を探すのが遅いと見逃すので、見つからなければ通知センターを開いて探す
-        if !notification.waitForExistence(timeout: 30) {
+        // 切り替わるまで（開始から集中の長さ）に余裕を足して待つ。バナーは数秒で消え、ホーム画面の要素を探すのが遅いと
+        // 見逃すので、見つからなければ通知センターを開いて探す
+        if !notification.waitForExistence(timeout: focusSeconds + 15) {
             let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01))
             top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             XCTAssertTrue(notification.waitForExistence(timeout: 10), "ジャーナルに切り替わった通知が届かない")
         }
         attachScreenshot(named: "11-閉じている間に届いた通知")
-    }
-
-    /// 入力欄 `body` に `text` を書き、本文が `expected` になるまで待つ。
-    ///
-    /// ジャーナルが終わった直後は画面がタイマーへ戻る途中で、キーボードが出たあとに閉じ、入力欄からカーソルが
-    /// 外れることがある。そこへ `typeText` すると、途中から文字が届かない（Issue #82）。そこで、書く前に
-    /// カーソルが入力欄にあるのを確かめ、外れていたら入力欄を押して置き直す。`typeText` は文字を送り終えても
-    /// 画面が描き直す前に戻ることがあるので、本文はすぐ読まず、そろうまで待つ
-    @MainActor
-    private func type(
-        _ text: String, into body: XCUIElement, of app: XCUIApplication, toRead expected: String,
-        _ message: String = "", file: StaticString = #filePath, line: UInt = #line
-    ) {
-        let focused = app.textViews.matching(
-            NSPredicate(format: "identifier == %@ AND hasKeyboardFocus == true", body.identifier)
-        ).firstMatch
-        if !focused.waitForExistence(timeout: 2) {
-            body.tap()
-            XCTAssertTrue(focused.waitForExistence(timeout: 5), "入力欄にカーソルが置けない", file: file, line: line)
-        }
-        body.typeText(text)
-        let read = NSPredicate(format: "value == %@", expected)
-        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: read, object: body)], timeout: 10) != .completed {
-            XCTAssertEqual(body.value as? String, expected, message, file: file, line: line)
-        }
     }
 
     @MainActor
@@ -202,6 +158,3 @@ final class PhoneTimerTests: XCTestCase {
         if done.exists, done.isHittable { done.tap() }
     }
 }
-
-/// 通知の許可を求める画面の、許可するボタン
-private let allowLabels = ["許可", "Allow"]

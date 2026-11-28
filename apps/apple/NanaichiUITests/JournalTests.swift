@@ -20,23 +20,22 @@ final class JournalTests: XCTestCase {
         ]
         // 前のテストが開いたウィンドウ（スタッツなど）を復元させない
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launch()
+        launch(app, until: .appears(app.buttons["timer.start"], failure: "メインのウィンドウが開かない"))
         return app
     }
 
     @MainActor
     private func startSession(_ app: XCUIApplication) {
-        let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.click()
-        XCTAssertTrue(app.buttons["operation.End"].waitForExistence(timeout: 10), "セッションが始まらない")
+        click(
+            app.buttons["timer.start"], until: .appears(app.buttons["operation.End"], failure: "セッションが始まらない"),
+            failsOn: [app.staticTexts["timer.error"]])
     }
 
     /// 帯に並んだ送れなかった記入の本文。送り直せて帯が変わる途中に1件ずつ読むと、数えたあとに消えた記入を
-    /// 読めずに落ちるので、画面の階層を一度に写してから読む。macOS の StaticText は文字を `value` に持ち、`label` は空になる
+    /// 読めずに落ちるので、画面の階層を一度に写してから読む。macOS の StaticText は文字を `value` に持ち、`label` は空になる。写せなければ nil（帯が空になったのと取り違えない）
     @MainActor
-    private func unsentBodies(_ app: XCUIApplication) -> [String] {
-        guard let root = try? app.snapshot() else { return [] }
+    private func unsentBodies(_ app: XCUIApplication) -> [String]? {
+        guard let root = try? app.snapshot() else { return nil }
         func bodies(_ element: any XCUIElementSnapshot) -> [String] {
             let text = (element.value as? String).flatMap { $0.isEmpty ? nil : $0 } ?? element.label
             return (element.identifier == "journal.unsent.body" ? [text] : []) + element.children.flatMap(bodies)
@@ -44,16 +43,18 @@ final class JournalTests: XCTestCase {
         return bodies(root)
     }
 
+    /// 帯の記入が `expected` になる
+    @MainActor
+    private func unsent(_ app: XCUIApplication, _ expected: [String]) -> ScreenChange {
+        .equals({ self.unsentBodies(app) }, expected, "帯の記入")
+    }
+
     @MainActor
     private func waitForUnsent(
         _ app: XCUIApplication, _ expected: [String], file: StaticString = #filePath, line: UInt = #line
     ) {
-        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
-        let deadline = Date().addingTimeInterval(20)
-        while unsentBodies(app) != expected, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertEqual(unsentBodies(app), expected, "帯の記入", file: file, line: line)
+        // 送れなかったことにするまでの 20 秒（`DebugFailingJournalWrites`、書き足さなかったとき）より長く待つ
+        waitFor(unsent(app, expected), timeout: 30, file: file, line: line)
     }
 
     /// 帯の `index` 番目の記入のボタン
@@ -62,10 +63,30 @@ final class JournalTests: XCTestCase {
         app.buttons.matching(identifier: "journal.unsent.\(action)").element(boundBy: index)
     }
 
-    /// 入力欄の本文を送る（⌘Return はどちらの送信キーでも送る）
+    /// 帯の `index` 番目の記入 `body` のボタン `action` を押し、帯が `expected` になるのを待つ。押し直すのは、
+    /// その記入がまだ同じ位置にあり、ボタンが有効なときだけ（効いて帯が詰まったあとに次の記入のボタンを押さないように。
+    /// 送り直している間はボタンが無効になる）
+    @MainActor
+    private func press(
+        _ action: String, of body: String, at index: Int, in app: XCUIApplication, until expected: [String],
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let button = unsentButton(app, action, at: index)
+        perform(
+            { attempt in
+                if attempt == 0 || (unsentBodies(app)?.dropFirst(index).first == body && button.exists && button.isEnabled) {
+                    button.click()
+                }
+            }, until: unsent(app, expected), file: file, line: line)
+    }
+
+    /// 入力欄の本文を送る（⌘Return はどちらの送信キーでも送る）。送ると入力欄は空になる
+    /// （送れなかった記入が戻るのは、書き足したときか 20 秒たってから）
     @MainActor
     private func send(_ body: XCUIElement) {
-        body.typeKey(.return, modifierFlags: .command)
+        perform(
+            { _ in body.typeKey(.return, modifierFlags: .command) },
+            until: .equals({ body.value as? String }, "", "送ったあとの入力欄の本文"))
     }
 
     /// S1 で A と B が送れず帯に残る → S1 を終えて S2 を始める → A と B は前のセッションの記入として説明が出て、
@@ -75,18 +96,18 @@ final class JournalTests: XCTestCase {
         let app = launch(failingWrites: 3)
         startSession(app)
         let body = app.textViews["journal.body"]
-        body.click()
-        body.typeText("A")
+        type("A", into: body, toRead: "A")
         send(body)
-        body.typeText("B")
+        type("B", into: body, toRead: "B")
         waitForUnsent(app, ["A"])
         send(body)
-        body.typeText("C")
+        type("C", into: body, toRead: "C")
         waitForUnsent(app, ["A", "B"])
         XCTAssertFalse(app.staticTexts["journal.unsent.previousSession"].exists, "今のセッションの記入に説明が出る")
 
-        app.buttons["operation.End"].click()
-        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "セッションが終わらない")
+        click(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"),
+            failsOn: [app.staticTexts["timer.error"]])
         startSession(app)
         waitForUnsent(app, ["A", "B"])
         XCTAssertEqual(
@@ -99,21 +120,20 @@ final class JournalTests: XCTestCase {
         attachScreenshot(of: app, named: "50-前のセッションの送れなかった記入")
 
         // S2 で C が送れないと帯に並び、C は送り直せる（4回目からは送れる）
-        body.click()
+        focus(body)
         send(body)
-        body.typeText("D")
+        type("D", into: body, toRead: "D")
         waitForUnsent(app, ["A", "B", "C"])
         XCTAssertEqual(app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2)
         XCTAssertTrue(unsentButton(app, "resend", at: 2).isEnabled, "今のセッションの記入を送り直せない")
-        unsentButton(app, "resend", at: 2).click()
-        waitForUnsent(app, ["A", "B"])
+        press("resend", of: "C", at: 2, in: app, until: ["A", "B"])
 
         // B を捨てると帯から消え、A を入力欄に戻すと書き足した D の前につながる
-        unsentButton(app, "discard", at: 1).click()
-        waitForUnsent(app, ["A"])
-        unsentButton(app, "returnToInput", at: 0).click()
-        waitForUnsent(app, [])
+        press("discard", of: "B", at: 1, in: app, until: ["A"])
+        press("returnToInput", of: "A", at: 0, in: app, until: [])
         XCTAssertEqual(body.value as? String, "A\nD", "入力欄に戻らない")
-        app.buttons["operation.End"].click()
+        click(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"),
+            failsOn: [app.staticTexts["timer.error"]])
     }
 }

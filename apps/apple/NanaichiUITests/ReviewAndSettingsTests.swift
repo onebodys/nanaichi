@@ -15,35 +15,27 @@ final class ReviewAndSettingsTests: XCTestCase {
         ]
         // 前のテストが開いたウィンドウ（スタッツなど）を復元させない。復元したウィンドウがメインのウィンドウに重なり、クリックが当たらなくなる
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
-        app.launch()
+        launch(app, until: .appears(app.buttons["timer.start"], failure: "メインのウィンドウが開かない"))
         return app
     }
 
-    /// 識別子 `identifier` の要素の文字が `text` になるまで待つ。macOS の文字は value に入る（label は空のことがある）
-    @MainActor
-    private func waitFor(
-        _ app: XCUIApplication, _ identifier: String, toRead text: String, timeout: TimeInterval = 10,
-        file: StaticString = #filePath, line: UInt = #line
-    ) {
-        let element = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == %@ AND (value == %@ OR label == %@)", identifier, text, text)
-        ).firstMatch
-        XCTAssertTrue(element.waitForExistence(timeout: timeout), "\(identifier) が「\(text)」にならない", file: file, line: line)
-    }
-
-    /// 文字 `text` を含む要素がどこかに出るまで待つ（リンクを含む本文は、文字がいくつかに分かれて読まれることがある）。
+    /// 文字 `text` を含む要素がどこかに出る（リンクを含む本文は、文字がいくつかに分かれて読まれることがある）。
     /// ウィンドウのすべての要素（`.any`）を問い合わせると、タイムラインが長くなったときに問い合わせが時間切れになるので、
     /// 文字を持つ種類の要素だけを探す
+    @MainActor
+    private func shows(_ app: XCUIApplication, _ text: String) -> ScreenChange {
+        .holds(
+            { self.textQueries(app, containing: text).contains { $0.firstMatch.exists } },
+            failure: { "「\(text)」が出ない" })
+    }
+
+    /// 文字 `text` を含む要素がどこかに出るまで待つ
     @MainActor
     private func waitForText(
         _ app: XCUIApplication, _ text: String, timeout: TimeInterval = 10, file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let found = NSPredicate { _, _ in self.textQueries(app, containing: text).contains { $0.firstMatch.exists } }
-        let expectation = XCTNSPredicateExpectation(predicate: found, object: nil)
-        XCTAssertEqual(
-            XCTWaiter().wait(for: [expectation], timeout: timeout), .completed, "「\(text)」が出ない", file: file,
-            line: line)
+        waitFor(shows(app, text), timeout: timeout, file: file, line: line)
     }
 
     @MainActor
@@ -66,9 +58,9 @@ final class ReviewAndSettingsTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// セグメントやラジオボタンの選択肢 `title` を選ぶ
+    /// セグメントやラジオボタンの選択肢 `title` を選び、`change`（渡さなければ、その選択肢が選ばれたこと）が起きなければ選び直す
     @MainActor
-    private func choose(_ app: XCUIApplication, _ identifier: String, _ title: String) {
+    private func choose(_ app: XCUIApplication, _ identifier: String, _ title: String, until change: ScreenChange? = nil) {
         let control = element(app, identifier)
         XCTAssertTrue(control.waitForExistence(timeout: 5), "\(identifier) がない")
         let option = control.descendants(matching: .any).matching(
@@ -76,7 +68,11 @@ final class ReviewAndSettingsTests: XCTestCase {
                         XCUIElement.ElementType.staticText.rawValue)
         ).firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 5), "\(identifier) に「\(title)」がない")
-        option.click()
+        // macOS のセグメントとラジオボタンは、選ばれていれば `value` に 1 を持つ
+        let chosen = ScreenChange.holds(
+            { option.isSelected || option.value as? Int == 1 || option.value as? String == "1" },
+            failure: { "\(identifier) で「\(title)」が選ばれない" })
+        click(option, until: change ?? chosen)
     }
 
     /// ポップアップの選択肢 `title` を選ぶ
@@ -84,25 +80,39 @@ final class ReviewAndSettingsTests: XCTestCase {
     private func pick(_ app: XCUIApplication, _ identifier: String, _ title: String) {
         let popup = element(app, identifier)
         XCTAssertTrue(popup.waitForExistence(timeout: 5), "\(identifier) がない")
-        popup.click()
         let item = app.menuItems[title]
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "\(identifier) に「\(title)」がない")
-        item.click()
+        // ポップアップは押すたびにメニューを開け閉めするので、押し直さない
+        click(popup, until: .appears(item, failure: "\(identifier) に「\(title)」がない"), attempts: 1)
+        click(item, until: .equals({ popup.value as? String }, title, identifier))
     }
 
     @MainActor
     private func write(_ app: XCUIApplication, body: String, tag: String?) {
-        if let tag {
-            let tags = app.textFields["tags.input"]
-            tags.click()
-            tags.typeText("\(tag)\r")
-        }
+        if let tag { type("\(tag)\r", into: app.textFields["tags.input"]) }
         let input = app.textViews["journal.body"]
-        input.click()
-        input.typeText(body)
-        input.typeKey(.return, modifierFlags: .command)
-        expectation(for: NSPredicate(format: "value == ''"), evaluatedWith: input)
-        waitForExpectations(timeout: 5)
+        type(body, into: input, toRead: body)
+        perform(
+            { _ in input.typeKey(.return, modifierFlags: .command) },
+            until: .equals({ input.value as? String }, "", "送ったあとの入力欄の本文"))
+    }
+
+    /// `element` を右クリックし、メニューの項目 `title` を選んで、`change` が起きるのを待つ
+    @MainActor
+    private func rightClick(
+        _ element: XCUIElement, andChoose title: String, in app: XCUIApplication, until change: ScreenChange,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let item = app.menuItems[title]
+        perform(
+            { _ in element.rightClick() }, until: .appears(item, failure: "右クリックのメニューに「\(title)」がない"),
+            file: file, line: line)
+        click(item, until: change, file: file, line: line)
+    }
+
+    /// スタッツの期間が月のときの見出し（`2026年11月`、`rangeTextOf`）
+    private var thisMonthText: String {
+        let today = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: Date())
+        return "\(today.year ?? 0)年\(today.month ?? 0)月"
     }
 
     private var todayKey: String {
@@ -117,10 +127,7 @@ final class ReviewAndSettingsTests: XCTestCase {
     @MainActor
     func testTimelineTagsStatsAndCalendar() throws {
         let app = launch(database: "uitest-review.sqlite")
-        let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.click()
-        waitFor(app, "timer.phase", toRead: "集中")
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
 
         write(app, body: "第3章を読んだ", tag: "読書")
         XCTAssertTrue(element(app, "tag.attached").exists, "つけたタグが入力欄に残らない")
@@ -132,14 +139,15 @@ final class ReviewAndSettingsTests: XCTestCase {
 
         // 編集する（右クリックのメニューからシートで）
         let first = app.descendants(matching: .any).matching(identifier: "entry").element(boundBy: 1)
-        first.rightClick()
-        app.menuItems["編集…"].click()
         let editor = app.textViews["editor.body"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 5), "編集のシートが出ない")
+        rightClick(first, andChoose: "編集…", in: app, until: .appears(editor, failure: "編集のシートが出ない"))
+        focus(editor)
         editor.typeKey(.end, modifierFlags: .command)
         editor.typeText("。メモを取った")
         attachScreenshot(of: app, named: "12-記入を編集")
-        editor.typeKey(.return, modifierFlags: .command)
+        perform(
+            { _ in if editor.exists { editor.typeKey(.return, modifierFlags: .command) } },
+            until: .disappears(editor, failure: "編集のシートが閉じない"))
         waitForText(app, "第3章を読んだ。メモを取った")
         waitForText(app, "編集済み")
 
@@ -147,56 +155,47 @@ final class ReviewAndSettingsTests: XCTestCase {
         write(app, body: "消す記入", tag: nil)
         waitForText(app, "消す記入")
         let newest = app.descendants(matching: .any).matching(identifier: "entry").element(boundBy: 0)
-        newest.rightClick()
-        app.menuItems["削除…"].click()
         let confirm = app.buttons["entry.confirmDelete"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "削除の確かめが出ない")
+        rightClick(newest, andChoose: "削除…", in: app, until: .appears(confirm, failure: "削除の確かめが出ない"))
         attachScreenshot(of: app, named: "13-記入の削除の確かめ")
-        confirm.click()
-        XCTAssertTrue(texts(app, containing: "消す記入").firstMatch.waitForNonExistence(timeout: 5), "削除した記入が残る")
+        click(confirm, until: .disappears(texts(app, containing: "消す記入").firstMatch, failure: "削除した記入が残る"))
 
         // スタッツを開いて期間を切り替える
-        app.typeKey("2", modifierFlags: .command)
-        XCTAssertTrue(element(app, "stats.entries").waitForExistence(timeout: 10), "スタッツが出ない")
+        perform(
+            { _ in app.typeKey("2", modifierFlags: .command) },
+            until: .appears(element(app, "stats.entries"), failure: "スタッツが出ない"), timeout: 10)
         waitFor(app, "stats.entries", toRead: "2")
         attachScreenshot(of: app, named: "14-スタッツ（今日）")
-        choose(app, "stats.period", "週")
-        XCTAssertTrue(element(app, "stats.trend").waitForExistence(timeout: 5), "日ごとの集中が出ない")
+        choose(app, "stats.period", "週", until: .appears(element(app, "stats.trend"), failure: "日ごとの集中が出ない"))
         attachScreenshot(of: app, named: "15-スタッツ（週）")
-        choose(app, "stats.period", "月")
+        // 日ごとの集中は週から出ているので、月に替わったことは期間の見出しで確かめる
+        choose(app, "stats.period", "月", until: .reads(app, "stats.range", thisMonthText))
         XCTAssertTrue(element(app, "stats.trend").waitForExistence(timeout: 5))
-        choose(app, "stats.period", "すべて")
-        waitForText(app, "月ごとの集中")
+        choose(app, "stats.period", "すべて", until: shows(app, "月ごとの集中"))
         attachScreenshot(of: app, named: "16-スタッツ（すべて）")
 
         // ジャーナルのカレンダーで今日を選び、記入を見る
-        app.staticTexts["ジャーナルのカレンダー"].click()
         let today = element(app, "calendar.day.\(todayKey)")
-        XCTAssertTrue(today.waitForExistence(timeout: 5), "カレンダーに今日がない")
-        today.click()
-        waitFor(app, "entriesOnDate.count", toRead: "2件")
+        click(app.staticTexts["ジャーナルのカレンダー"], until: .appears(today, failure: "カレンダーに今日がない"))
+        click(today, until: .reads(app, "entriesOnDate.count", "2件"))
         attachScreenshot(of: app, named: "17-ジャーナルのカレンダー")
 
         // タグで見返す
-        element(app, "review.tag.設計").click()
         let tagged = element(app, "taggedEntries")
-        XCTAssertTrue(texts(tagged, containing: "画面の設計を見直した").firstMatch.waitForExistence(timeout: 5), "タグのついた記入が出ない")
+        click(
+            element(app, "review.tag.設計"),
+            until: .appears(texts(tagged, containing: "画面の設計を見直した").firstMatch, failure: "タグのついた記入が出ない"))
         XCTAssertFalse(texts(tagged, containing: "第3章を読んだ").firstMatch.exists, "ほかのタグの記入が混ざる")
         attachScreenshot(of: app, named: "18-タグで見返す")
 
         // 設定のタグで、#読書 を #設計 に付け替えて削除する
-        app.typeKey(",", modifierFlags: .command)
-        let tagsTab = app.toolbars.buttons["タグ"]
-        XCTAssertTrue(tagsTab.waitForExistence(timeout: 5), "設定が開かない")
-        tagsTab.click()
+        openSettings(app, tab: "タグ")
         let delete = app.buttons["tag.delete.読書"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5), "タグの一覧に #読書 がない")
-        delete.click()
-        choose(app, "tagDeletion.choice", "別のタグに付け替える")
-        waitForText(app, "#設計 に付け替えて削除")
+        click(delete, until: .appears(element(app, "tagDeletion.choice"), failure: "tagDeletion.choice がない"))
+        choose(app, "tagDeletion.choice", "別のタグに付け替える", until: shows(app, "#設計 に付け替えて削除"))
         attachScreenshot(of: app, named: "19-タグを付け替えて削除")
-        app.buttons["tagDeletion.confirm"].click()
-        XCTAssertTrue(delete.waitForNonExistence(timeout: 5), "削除したタグが一覧に残る")
+        click(app.buttons["tagDeletion.confirm"], until: .disappears(delete, failure: "削除したタグが一覧に残る"))
         waitForText(app, "2件の記入")
         attachScreenshot(of: app, named: "20-タグを削除したあとの設定")
     }
@@ -206,73 +205,63 @@ final class ReviewAndSettingsTests: XCTestCase {
     func testManualAdvanceAndTones() throws {
         // 15倍なら集中は28秒
         let app = launch(database: "uitest-settings.sqlite", timeScale: 15)
-        XCTAssertTrue(app.buttons["timer.start"].waitForExistence(timeout: 10))
 
-        app.typeKey(",", modifierFlags: .command)
-        let timerTab = app.toolbars.buttons["タイマー"]
-        XCTAssertTrue(timerTab.waitForExistence(timeout: 5), "設定が開かない")
-        timerTab.click()
+        openSettings(app, tab: "タイマー")
         choose(app, "advance.FocusToJournal", "手動")
         attachScreenshot(of: app, named: "21-設定（フェーズの進め方）")
 
-        app.toolbars.buttons["知らせ方"].click()
+        openSettings(app, tab: "知らせ方")
         pick(app, "tone.Journal", "木琴")
         XCTAssertEqual(element(app, "tone.Journal").value as? String, "木琴", "音色が変わらない")
         app.buttons["tone.Journal.preview"].click()
         attachScreenshot(of: app, named: "22-設定（知らせ方）")
-        app.toolbars.buttons["ジャーナル"].click()
+        openSettings(app, tab: "ジャーナル")
         XCTAssertTrue(element(app, "settings.submitKey").waitForExistence(timeout: 5))
         attachScreenshot(of: app, named: "23-設定（ジャーナル）")
-        app.toolbars.buttons["表示"].click()
+        openSettings(app, tab: "表示")
         choose(app, "settings.theme", "ダーク")
         attachScreenshot(of: app, named: "24-設定（表示・ダーク）")
         choose(app, "settings.theme", "ライト")
-        app.typeKey("w", modifierFlags: .command)
+        closeSettings(app, tab: "表示")
 
-        app.buttons["timer.start"].click()
-        waitFor(app, "timer.phase", toRead: "集中")
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
         waitFor(app, "timer.phase", toRead: "切り替え待ち", timeout: 7 * 60 / 15 + 10)
         attachScreenshot(of: app, named: "25-切り替え待ち")
-        app.buttons["operation.Advance"].click()
-        waitFor(app, "timer.phase", toRead: "ジャーナル")
+        click(app.buttons["operation.Advance"], until: .reads(app, "timer.phase", "ジャーナル"), failsOn: [app.staticTexts["timer.error"]])
     }
 
     /// タグの候補はクリックでも札になり、↓ で選んで Return でもつけられ、札の × で外せる（Issue #43、Web と同じ）
     @MainActor
     func testTagSuggestionsAttachOnClick() throws {
         let app = launch(database: "uitest-tags.sqlite")
-        let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.click()
-        waitFor(app, "timer.phase", toRead: "集中")
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
         // 使っているタグを2つ作る
         write(app, body: "第3章を読んだ", tag: "読書")
         write(app, body: "画面を見直した", tag: "設計")
         for chip in app.descendants(matching: .any).matching(identifier: "tag.attached").allElementsBoundByIndex.reversed() {
-            chip.buttons.firstMatch.click()
+            click(chip.buttons.firstMatch, until: .disappears(chip, failure: "札の × で外せない"))
         }
         XCTAssertFalse(element(app, "tag.attached").exists, "札の × で外せない")
 
         let tags = app.textFields["tags.input"]
-        tags.click()
-        tags.typeText("読")
+        type("読", into: tags)
         let suggestion = app.buttons.matching(identifier: "tag.suggestion").firstMatch
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "入力しても候補が出ない")
         // 候補の一覧は入力欄のすぐ下に出す（Issue #48。XCUITest の座標は下に向かって増える）
         let list = element(app, "tags.suggestions")
         XCTAssertGreaterThanOrEqual(list.frame.minY, tags.frame.maxY, "候補の一覧が入力欄の下に出ない")
         attachScreenshot(of: app, named: "49-タグの候補")
-        suggestion.click()
         let chip = element(app, "tag.attached")
-        XCTAssertTrue(chip.waitForExistence(timeout: 5), "候補をクリックしても札にならない")
+        click(suggestion, until: .appears(chip, failure: "候補をクリックしても札にならない"))
         XCTAssertEqual(tags.value as? String, "", "札にしたあとも入力欄に文字が残る")
 
         // 何も入力せずに ↓ で2つめの候補（設計）を選び、Return でつける
-        tags.typeKey(.downArrow, modifierFlags: [])
-        tags.typeKey(.return, modifierFlags: [])
-        expectation(
-            for: NSPredicate(format: "count == 2"),
-            evaluatedWith: app.descendants(matching: .any).matching(identifier: "tag.attached"))
-        waitForExpectations(timeout: 5)
+        // Return は押すたびに候補をつけるので、押し直さない
+        let chips = app.descendants(matching: .any).matching(identifier: "tag.attached")
+        perform(
+            { _ in
+                tags.typeKey(.downArrow, modifierFlags: [])
+                tags.typeKey(.return, modifierFlags: [])
+            }, until: .equals({ chips.count }, 2, "札の数"), attempts: 1)
     }
 }

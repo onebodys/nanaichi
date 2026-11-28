@@ -1,6 +1,12 @@
 import Foundation
 import NanaichiDomain
 
+#if DEBUG && os(macOS)
+    import AppKit
+#elseif DEBUG
+    import UIKit
+#endif
+
 /// 画面が使う記録先。デバッグのビルドでは、XCUITest のためにジャーナル記入を送れなかったことにできる（`DebugFailingJournalWrites`）
 func debugBackend(_ backend: any Backend) -> any Backend {
     #if DEBUG
@@ -14,14 +20,19 @@ func debugBackend(_ backend: any Backend) -> any Backend {
     /// XCUITest が「送っている間に書き足して、送れなかった」場面を作るための記録先（Issue #80）。デバッグのビルドにだけある。
     ///
     /// 環境変数 `NANAICHI_FAIL_JOURNAL_WRITES` が `n` なら、はじめの n 回のジャーナル記入の書き込みを、
-    /// 少し待ってから通信できなかったことにする（その間にテストが入力欄に書き足す）。それより後と、ほかの読み書きは `base` に渡す
+    /// テストが入力欄に書き足すまで待ってから通信できなかったことにする。それより後と、ほかの読み書きは `base` に渡す
     actor DebugFailingJournalWrites: Backend {
         private let base: any Backend
         private var failuresLeft: Int
 
-        /// 送れなかったことにするまで待つ長さ。テストが送信してから書き足し始めるまでより長くする。
-        /// CI の XCUITest は、送信を押してから次の1文字を打つまでに 4.6 秒かかったことがあり、3 秒では間に合わなかった（#93）
-        private static let delay = Duration.seconds(10)
+        /// 書き足さずに送れなかった場面で、送れなかったことにするまで待つ長さ
+        private static let delay = Duration.seconds(20)
+
+        #if os(macOS)
+            private static let edited = NSText.didChangeNotification
+        #else
+            private static let edited = UITextView.textDidChangeNotification
+        #endif
 
         /// 環境変数がなければ `base` をそのまま返す
         static func wrapping(_ base: any Backend, _ environment: [String: String]) -> any Backend {
@@ -39,8 +50,27 @@ func debugBackend(_ backend: any Backend) -> any Backend {
         {
             guard failuresLeft > 0 else { return await base.writeJournalEntry(id: id, body: body, tags: tags) }
             failuresLeft -= 1
-            try? await Task.sleep(for: Self.delay)
+            await Self.untilEdited()
             return .failure(.unreachable)
+        }
+
+        /// 入力欄に書き足されるまで（書き足されなければ `delay` だけ）待つ。決まった秒数だけ待つと、送信してから
+        /// 書き足し始めるまでが遅いマシンでは、書き足す前に送れなかったことになる（CI で 4.6 秒かかったことがある、#93）。
+        /// 書き足した文字は入力欄の利用者の編集として届き、送信で入力欄を空にしたことは届かない。
+        /// どの入力欄の編集でも失敗させる。この記録先を使う UI テスト（`NANAICHI_FAIL_JOURNAL_WRITES`）は、送っている間に
+        /// ジャーナル記入の本文にだけ書き足す前提（タグの欄などに書くテストで使うなら、編集した欄を見分ける）
+        private static func untilEdited() async {
+            let (signals, signal) = AsyncStream<Void>.makeStream()
+            let observer = NotificationCenter.default.addObserver(forName: edited, object: nil, queue: nil) { _ in
+                signal.yield()
+            }
+            let timeout = Task {
+                try? await Task.sleep(for: delay)
+                signal.yield()
+            }
+            for await _ in signals { break }
+            timeout.cancel()
+            NotificationCenter.default.removeObserver(observer)
         }
 
         func getCurrentSession() async -> Result<SessionSnapshot, BackendError> { await base.getCurrentSession() }

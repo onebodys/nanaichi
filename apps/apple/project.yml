@@ -52,7 +52,8 @@ targets:
   NanaichiUITests:
     type: bundle.ui-testing
     platform: macOS
-    sources: [NanaichiUITests]
+    # UITestSupport は Mac と iPhone の UI テストに共通の待ち方（Issue #98）
+    sources: [NanaichiUITests, UITestSupport]
     dependencies:
       - target: Nanaichi
     settings:
@@ -107,7 +108,7 @@ targets:
   NanaichiPhoneUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [NanaichiPhoneUITests]
+    sources: [NanaichiPhoneUITests, UITestSupport]
     dependencies:
       - target: NanaichiPhone
     settings:
