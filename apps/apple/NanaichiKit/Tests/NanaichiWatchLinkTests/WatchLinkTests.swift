@@ -583,11 +583,21 @@ func answerFromPreviousStoreAfterNoticeIsDropped() {
 
 @Test("記録先を開き直したあとに、前に開いていたときの同じ記録先のスナップショットが届いたら、変更の番号で新旧を決める")
 func snapshotFromSameStoreOpenedEarlierComparesRevision() {
-    let reopened = phoneSnapshot(revision: 5, store: tag("device", opened: 3))
-    let loading = PhoneSnapshotLoading.waiting.applying(reopened)
+    let reopened = tag("device", opened: 3)
+    let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 5, store: reopened))
     #expect(loading.applying(phoneSnapshot(revision: 4, store: store)) == loading)
-    let later = phoneSnapshot(revision: 6, store: store)
-    #expect(loading.applying(later) == .loaded(later))
+    #expect(
+        loading.applying(phoneSnapshot(revision: 6, store: store)) == .loaded(phoneSnapshot(revision: 6, store: reopened)))
+}
+
+@Test("前に開いていたときの同じ記録先のスナップショットが遅れて届いても、手元の開いた順は戻らず、そのあと遅れて届いた前の記録先のものは捨てる")
+func lateSnapshotFromSameStoreKeepsLaterOpening() {
+    // この端末の記録先（1番目）→ アカウント（2番目）→ ログアウトしてこの端末の記録先（3番目）
+    let reopened = tag("device", opened: 3)
+    let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 40, store: reopened))
+        .applying(phoneSnapshot(revision: 40, store: store))
+    #expect(loading == .loaded(phoneSnapshot(revision: 40, store: reopened)))
+    #expect(loading.applying(phoneSnapshot(revision: 2, store: tag("account", opened: 2))) == loading)
 }
 
 @Test("iPhone のアプリが起動し直したあとのスナップショットは、前の起動で開いた順に関わらず、違う記録先なら置き換える")

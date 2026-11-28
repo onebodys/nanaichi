@@ -214,6 +214,16 @@ public struct PhoneSnapshot: Hashable, Sendable, Codable {
         }
         return recordStore.generation.precedes(current.recordStore.generation)
     }
+
+    /// `current` と同じ記録先で、`current` のほうが同じ起動の中で後に開いたものなら、その印に替えたもの。
+    /// 前に開いていたときのスナップショットが遅れて届いても、手元の開いた順を戻さない（戻すと、そのあと遅れて届いた
+    /// 前の記録先のスナップショットを古いと決められない）
+    func keepingLaterOpening(of current: PhoneSnapshot) -> PhoneSnapshot {
+        guard recordStore.store == current.recordStore.store,
+            recordStore.generation.precedes(current.recordStore.generation)
+        else { return self }
+        return PhoneSnapshot(received: received, recordStore: current.recordStore)
+    }
 }
 
 /// Watch（と、Watch に置いておく最新を決める iPhone）が持つ、iPhone から届いたスナップショット
@@ -225,8 +235,9 @@ public enum PhoneSnapshotLoading: Hashable, Sendable {
     /// 届いたスナップショットを反映する。手元より古いもの（`PhoneSnapshot.isOlder`）は捨てる
     public func applying(_ arrived: PhoneSnapshot) -> PhoneSnapshotLoading {
         switch self {
+        case .waiting: .loaded(arrived)
         case .loaded(let current) where arrived.isOlder(than: current): self
-        case .waiting, .loaded: .loaded(arrived)
+        case .loaded(let current): .loaded(arrived.keepingLaterOpening(of: current))
         }
     }
 
