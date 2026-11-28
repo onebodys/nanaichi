@@ -47,7 +47,7 @@ jobs:
               echo "$files"
               if ! echo "$files" | grep -qvE '(\.md$|^docs/|^\.agents/|^\.claude/|^skills-lock\.json$)'; then
                 code=false
-                echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、ADR の番号の検査と vp check（書式・lint・型）だけを走らせます。"
+                echo "::notice title=ドキュメントだけの変更::テスト・ビルド・E2E を飛ばし、ADR の番号の検査と言い換えの検査と vp check（書式・lint・型）だけを走らせます。"
               fi
               # Swift のテストは、Swift のコードかゴールデンケース（TS のテストが書き出す）が変わったときだけ走らせる
               if ! echo "$files" | grep -qE '(^apps/apple/|^fixtures/golden/|^\.github/workflows/)'; then
@@ -83,6 +83,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       # ドキュメントだけの変更でも走らせる。ADR を足す PR はたいていドキュメントだけなので
       - run: sh scripts/check-adr-numbers.sh
+      # GLOSSARY.md の _Avoid_ で太字にした言い換えを使っていないか（AGENTS.md「6. 用語とコードの対応」）。ドキュメントだけの変更でも走らせる
+      - run: sh scripts/check-glossary-avoid.sh
       - uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: "24"
@@ -264,7 +266,7 @@ jobs:
         run: |
           if [ -f apps/web/.e2e/summary.md ]; then cat apps/web/.e2e/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
       # 失敗したテストの trace（.e2e/results/<テスト>/trace.md）と開発サーバーのログ（.e2e/logs/app.log）を残す。
-      # リトライで通った（flaky な）テストの trace も見られるよう、成功したときも残す
+      # 再試行で通った（flaky な）テストの trace も見られるよう、成功したときも残す
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7.0.2
         with:

@@ -13,7 +13,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 したがって「動いた」と主張するだけでなく、オーナーとエージェントの双方が検証できる証拠を残すことを、あらゆる作業で最優先にする。
 
 - **エージェント自身の検証**: 作業を終える前に必ず `vp check` と `vp test` を通す。画面に関わる変更は実際にブラウザで動かして確認する（ログイン済みの画面の開き方は [`docs/E2E.md`](./docs/E2E.md) の「ワーカーが画面を確かめる」）。通っていないものを「完了」と報告しない。
-- **オーナーが検証できる形で報告する**: PR の本文に以下を必ず書く。
+- **オーナーが検証できる形で報告する**: PR の本文に以下を必ず書く。見出しは `.github/pull_request_template.md` の文言にそろえ、`Closes #N`（§7）も書く。CI（`.github/workflows/pr-body.yml`）が検査する。
   - 何ができるようになったか（ユースケースの言葉で、`GLOSSARY.md` の用語を使う）
   - エージェントがどう検証したか（実行したコマンドと結果、画面ならスクリーンショット。CI が PR にコメントするリンクで見られる。撮る画面を足すのは `tests/screenshots.e2e.ts`、[`docs/E2E.md`](./docs/E2E.md) の「スクリーンショットを残す」）
   - オーナーが確かめる手順（どの画面で何をすると何が起きるか）。CI が PR にコメントするプレビューの URL で試せる手順にする。プレビューにないもの（ログイン、同期、MCP）は、マージのあとに本番で確かめる手順として分けて書く（ADR 0025）
@@ -24,7 +24,7 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 - **認証が絡む API はローカルの結合テストで確かめる**: `apps/web/src/server/auth-test-harness.ts` が miniflare の D1 と Better Auth の `testUtils` でログイン済みのセッションを作る。Cloudflare や Google に繋がずに `vp test` だけで検証できるので、`/api/*` にエンドポイントを足したら未ログイン（401）とログイン済みの振る舞いをこれでテストする。
   - UserDO（Durable Object）を通る API は Node では動かせないので、`*.workers.test.ts` に書き、`@cloudflare/vitest-plugin` で Workers ランタイムの上で動かす（`vitest.workers.config.ts`、土台は `apps/web/src/server/workers-test-harness.ts`）。時刻は `vi.setSystemTime` で進め、alarm は `runDurableObjectAlarm` で鳴らす。
 - **Issue の完了条件を満たしたことを示す**: PR は対応する Issue の完了条件を1つずつ、どう満たしたかに対応づける。
-- **flaky はその場で Issue にする**: テストがたまに落ちたら、作業と関係がなくても「無関係だから流す」で終わらせない。流し直して通っても、リトライで通っても同じ。Issue にはテスト名、落ちたときの出力、再現の頻度を書く。CI でリトライで通ったテストは、Step Summary の見出しに flaky の件数が出て、折りたたみの中に落ちたステップが出る（`docs/E2E.md`）。
+- **flaky はその場で Issue にする**: テストがたまに落ちたら、作業と関係がなくても「無関係だから流す」で終わらせない。流し直して通っても、再試行で通っても同じ。Issue にはテスト名、落ちたときの出力、再現の頻度を書く。CI で再試行で通ったテストは、Step Summary の見出しに flaky の件数が出て、折りたたみの中に落ちたステップが出る（`docs/E2E.md`）。
 
 ## 2. ユースケースは ROP で読めるように書く
 
@@ -38,8 +38,9 @@ kamae は「推奨であって厳格なルールではない」と書いてい�
 ## 3. Functional Core / Imperative Shell と依存の方向
 
 - **ドメインは純粋**にする。ドメインのコードでは I/O、`Date.now()` / `new Date()`、`crypto.randomUUID()`、`Math.random()` を使わない。時刻と ID は引数で受け取る。
+  - この制約は Oxlint の `nanaichi/no-impure-domain` で**機械的に検査**する。
 - **依存は外側から内側への一方向**。ドメインはワークフローやアダプタ、フレームワーク（Hono、React、Cloudflare の型、Better Auth、DB）を import しない。
-  - この制約は Oxlint の `no-restricted-imports` などで**機械的に検査**できるようにする（検証可能性のため）。
+  - この制約は Oxlint の `no-restricted-imports` で**機械的に検査**する。`domain/`・`workflows/`・`device/` は使ってよいものを `vite.config.ts` の `allowedImports` に並べ、それ以外を落とす。足すときは理由をコメントに書く。
 - ワークフローが必要とする読み書きの契約（resolver / store）はドメイン側に、概念の隣に置く（kamae の方針どおり。`ports/` ディレクトリは作らない）。
 - **不要なレイヤーは作らない**。DDD をやりたいわけではない。集約・リポジトリ・アプリケーションサービスなどの層を形式のために増やさない。
 
@@ -64,9 +65,11 @@ apps/web/src/
 kamae の「状態ごとに型を分ける」を、このプロジェクトでは徹底する。
 
 - optional / nullable なプロパティで状態を表さない。状態ごとに型を定義し、判別可能な union にする（例: タイマーは `Idle | Focus | Journal | Break | Ended` のように分け、「休憩中はセット番号がない」を `setNumber?: number` ではなく型の違いで表す）。
-- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。網羅性は Oxlint の `typescript/switch-exhaustiveness-check` で検査する。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
+- 判別可能な union の分岐は `kind` の `switch` で書き、すべての `kind` を `case` に並べる。同じ扱いのものは `case` を続けて書き、`default` は書かない。パターンマッチのライブラリ（ts-pattern など）は使わない（ADR 0022）。
+  - この制約は Oxlint の `typescript/switch-exhaustiveness-check` と `nanaichi/no-default-in-kind-switch` で**機械的に検査**する。
 - 境界（API の入力、DB の行、WebSocket のメッセージ）で受け取った値はスキーマで検証し、その場で状態ごとの型に変換する。DB の行の nullable な列をドメインに持ち込まない。
 - 型アサーション（`as`）は使わない。`as const` と `as const satisfies Type` のみ可。
+  - この制約は Oxlint の `typescript/consistent-type-assertions` で**機械的に検査**する。
 
 ### 境界での検証と PII
 
@@ -89,12 +92,13 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - レスポンスのスキーマ（valibot）は `domain/` に、レスポンスが表す型の隣に `<型名>JsonSchema` として置く（例: `domain/session.ts` の `SessionSnapshotJsonSchema`、`domain/api-error.ts` の `ApiErrorBodyJsonSchema`）。JSON にした値（時刻は ISO 8601 の文字列）を検証してドメインの型（時刻は `Date`）に戻す。出力の型は `v.GenericSchema<unknown, ドメインの型>` で注釈する。
 - サーバーはドメインの型をそのまま `c.json` で返す。エラーの本文は `satisfies ApiErrorBody` で種類を縛る。
 - 画面は `fetch` を直接呼ばず、`client/remote-backend.ts` の通信層（fetch → スキーマ検証 → byethrow の Result）を通す。失敗は `BackendError`（`domain/backend.ts`。通信できない `Unreachable`、断られた `Rejected`、応答の形が違う `Broken` など）で、画面は `kind` で扱いを決める。
+  - この制約は Oxlint の `no-restricted-globals` で**機械的に検査**する。ほかのファイルの通信（`client/task-api.ts` など）は、`client/remote-backend.ts` の `requestApi` を通す。
 - エンドポイントを足したら、スキーマを `domain/` に、関数を `client/remote-backend.ts` に足し、「実際の応答がスキーマに合う」ことを結合テスト（`*.workers.test.ts` など）で、「通信層が Result で返す」ことを `client/remote-backend.test.ts` で確かめる。
 
 ## 6. 用語とコードの対応
 
 - コード上の識別子は `GLOSSARY.md` の英語名を使う（Focus, Journal, Break, Phase, Idle, Set, Round, Session, SessionEvent, Start, Pause, Resume, Abort, RestartFocus, SkipBreak, Advance, End, AutoEnd, CompletedSet, AbortedSet, Snapshot, JournalEntry, Timeline, PhaseChange, AdvanceMode, AwaitingAdvance, ClockOffset, Revision, SyncMessage）。
-- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。
+- `_Avoid_` に挙げた言い換えはコードでもドキュメントでも使わない。そのうち太字の語は `scripts/check-glossary-avoid.sh` が push 時と CI で検査する（除外は `GLOSSARY.md` の冒頭）。太字でない語は人とレビューで見る。
 - 新しい概念が出てきたら、コードを書く前に `GLOSSARY.md` を更新する（domain-modeling スキル）。
 
 ## 7. ツールと作業の進め方
@@ -102,9 +106,9 @@ kamae はフロントエンドを対象外にしているため、ここで補�
 - ツールチェーンは Vite+（`vp`）。`vp check`（Oxlint / Oxfmt / 型チェック）と `vp test`（Vitest）を使う。ESLint / Prettier は入れない。
 - `vp check` は lint の警告でも落ちる（`vite.config.ts` の `denyWarnings`）。直せない警告はその行でだけ抑制し、理由をコメントに書く。
 - 未使用のファイル・export・依存は knip（`pnpm knip`、設定は `knip.config.ts`）で検出する。Vite+ プラグインが各ワークスペースの `vite.config.ts` を読む。誤検知は設定で除外し、理由をコメントで書く。
-- チェックはフックで自動化している。`pnpm install` で Git フックが入り（Orca の worktree では、フックがその worktree の `vp` で動くよう `orca.yaml` の Setup Script が worktree ごとの `core.hooksPath` を置く。`docs/SETUP.md`）、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と `vp check` と `vp test` と `knip` が走り、Swift のコード（`apps/apple/`）かゴールデンケース（`fixtures/golden/`）が main から変わっていれば `swift test` も走る（`scripts/swift-test-if-changed.sh`。Swift のない環境では飛ばす）。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。エージェントのセッションの終わりには走らせない（質問に答えるだけのターンでも毎回走り、時間がかかるため）。エージェントは §1 のとおり、作業を終える前に自分で `vp check` と `vp test` を走らせる。フックを `--no-verify` などで飛ばさない。
+- チェックはフックで自動化している。`pnpm install` で Git フックが入り（Orca の worktree では、フックがその worktree の `vp` で動くよう `orca.yaml` の Setup Script が worktree ごとの `core.hooksPath` を置く。`docs/SETUP.md`）、コミット時は `vp staged`、push 時は ADR の番号の検査（`scripts/check-adr-numbers.sh`）と言い換えの検査（`scripts/check-glossary-avoid.sh`、§6）と `vp check` と `vp test` と `knip` が走り、Swift のコード（`apps/apple/`）かゴールデンケース（`fixtures/golden/`）が main から変わっていれば `swift test` も走る（`scripts/swift-test-if-changed.sh`。Swift のない環境では飛ばす）。knip はリポジトリ全体の参照関係を見るため、ステージしたファイル単位で走るコミット時ではなく push 時に入れている。エージェントのセッションの終わりには走らせない（質問に答えるだけのターンでも毎回走り、時間がかかるため）。エージェントは §1 のとおり、作業を終える前に自分で `vp check` と `vp test` を走らせる。フックを `--no-verify` などで飛ばさない。
 - 依存は正確なバージョンで固定し（`pnpm-workspace.yaml` の `savePrefix: ""`）、GitHub Actions は `.github/workflows/actions.lock` でコミットに固定している。更新は Dependabot の PR で受け取る（`.github/dependabot.yml`）。ワークフローに Action を足したり版を変えたりしたら `gh actions-lock`（`gh extension install github/gh-actions-lock`）で lockfile を更新する。更新しないと CI がジョブを始める前に `startup_failure` で落ちる。
-- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、ADR の番号の検査と `vp check` だけを走らせる。
+- CI はドキュメントだけの変更（Markdown、`docs/`、`.agents/`、`.claude/`）ならテスト・ビルド・E2E を飛ばし、ADR の番号の検査と言い換えの検査と `vp check` だけを走らせる。
 - Issue ごとにブランチを切り、PR で `Closes #N` を書く。main に直接 push しない。
 - ドキュメント、コードコメント、PR の本文、テスト名は日本語。識別子とコミットメッセージは英語。
 - 覆しにくい判断をしたら `docs/adr/` に ADR を書く（domain-modeling スキルの基準に従う）。

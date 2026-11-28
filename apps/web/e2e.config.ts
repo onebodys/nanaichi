@@ -5,7 +5,7 @@ import { web } from "@e2e-dev/web";
 // 対象ブラウザは chromium だけにしている（Issue #15）。
 export default {
   tests: "tests/**/*.e2e.ts",
-  // markdown は `.e2e/summary.md` を書く。CI はこれを Step Summary に出し、リトライで通ったテストを flaky として見せる
+  // markdown は `.e2e/summary.md` を書く。CI はこれを Step Summary に出し、再試行で通ったテストを flaky として見せる
   reporters: ["list", "markdown"],
   targets: [
     {

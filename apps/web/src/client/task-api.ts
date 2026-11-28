@@ -38,10 +38,7 @@ export type TaskApiDeps = Readonly<{
   onSignedOut: () => void;
 }>;
 
-export const createTaskApi = ({
-  fetchApi = (path, init) => fetch(path, init),
-  onSignedOut,
-}: TaskApiDeps): TaskApi => {
+export const createTaskApi = ({ fetchApi, onSignedOut }: TaskApiDeps): TaskApi => {
   const request = requestApi(fetchApi, onSignedOut);
   return {
     getTaskSetting: () => request("/api/settings/tasks", TaskSettingJsonSchema),
