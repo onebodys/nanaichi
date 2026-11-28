@@ -53,7 +53,8 @@ final class PhoneJournalTests: XCTestCase {
     private func waitForUnsent(
         _ app: XCUIApplication, _ expected: [String], file: StaticString = #filePath, line: UInt = #line
     ) {
-        let deadline = Date().addingTimeInterval(10)
+        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
+        let deadline = Date().addingTimeInterval(20)
         while unsentBodies(app) != expected, Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
@@ -65,7 +66,8 @@ final class PhoneJournalTests: XCTestCase {
         _ app: XCUIApplication, toRead text: String, file: StaticString = #filePath, line: UInt = #line
     ) {
         let body = app.textViews["journal.body"]
-        let deadline = Date().addingTimeInterval(10)
+        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
+        let deadline = Date().addingTimeInterval(20)
         while body.value as? String != text, Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }

@@ -48,7 +48,8 @@ final class JournalTests: XCTestCase {
     private func waitForUnsent(
         _ app: XCUIApplication, _ expected: [String], file: StaticString = #filePath, line: UInt = #line
     ) {
-        let deadline = Date().addingTimeInterval(10)
+        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
+        let deadline = Date().addingTimeInterval(20)
         while unsentBodies(app) != expected, Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
