@@ -61,28 +61,25 @@ final class WatchTimerTests: XCTestCase {
         attachScreenshot(named: "03-中断して待機")
     }
 
-    /// セッション中は手首を下ろしても振動で知らせることを出し、集中からジャーナルへの切り替わりで1回だけ振動する（Issue #73）。
+    /// 集中からジャーナルへの切り替わりで、1回の知らせとして振動を3回続けて鳴らし、それきり鳴らさない（Issue #73）。
     /// iPhone の代わりの時計を遅らせて、集中の残りが数秒のセッションを始める。振動そのものはシミュレーターで感じられないので、
-    /// 知らせた回数を読む
+    /// 鳴らした振動の数を読む
     @MainActor
     func testVibratesOnceOnPhaseChange() {
         let app = launch(phone: "stub", clockBehind: 7 * 60 - 12)
         let start = app.buttons["timer.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         waitFor(app, "watch.vibrations", toRead: "0")
-        XCTAssertFalse(app.staticTexts["watch.vibrating"].exists, "セッションの外なのに振動で知らせると出ている")
 
         start.tap()
         waitFor(app, "timer.phase", toRead: "集中")
-        XCTAssertTrue(
-            app.staticTexts["watch.vibrating"].waitForExistence(timeout: 10), "振動で知らせることが出ない")
         attachScreenshot(named: "06-振動で知らせる集中中")
 
         waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: 20)
-        waitFor(app, "watch.vibrations", toRead: "1")
-        // 同じ切り替わりで二度は振動しない
+        waitFor(app, "watch.vibrations", toRead: "3")
+        // 同じ切り替わりで、もう一度は知らせない
         Thread.sleep(forTimeInterval: 3)
-        waitFor(app, "watch.vibrations", toRead: "1", timeout: 1)
+        waitFor(app, "watch.vibrations", toRead: "3", timeout: 1)
         attachScreenshot(named: "07-ジャーナルに切り替わって振動した")
     }
 

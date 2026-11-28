@@ -16,9 +16,8 @@ import os
 final class PhaseChangeVibrator {
     /// iPhone が受け取ったと答えた範囲
     private(set) var confirmed = WatchVibration.off
-    /// いま振動で知らせているか（拡張ランタイムセッションが動いていて、iPhone が範囲を受け取った）
-    private(set) var vibrating = false
-    /// 振動で知らせた回数。デバッグのビルドで XCUITest が読む（振動そのものはシミュレーターで確かめられない）
+    /// 鳴らした振動の数（1回の切り替わりで `PhaseChangeHaptic.repeats` 回）。デバッグのビルドで XCUITest が読む
+    /// （振動そのものはシミュレーターで確かめられない）
     private(set) var played = 0
 
     @ObservationIgnored private let link: any PhoneLink
@@ -64,8 +63,7 @@ final class PhaseChangeVibrator {
         let vibratableUntil = vibratableUntil(received)
         // 振動できないあいだは、範囲が残っていても知らせない（iPhone に閉じたと伝えるまでの間、知らせが抜ける）
         let within = vibratableUntil == nil ? .off : confirmed
-        vibrating = within.covers(now)
-        if let to = watch.observe(received?.snapshot, now: now, within: within) { play(to) }
+        if watch.observe(received?.snapshot, now: now, within: within) != nil { play() }
         if let next = watchVibrationToTell(confirmed: told, vibratableUntil: vibratableUntil, now: now) {
             tell(next, now: now, deviceNow: deviceNow)
         }
@@ -78,7 +76,6 @@ final class PhaseChangeVibrator {
     /// 拡張ランタイムセッションが止められた（ほかのアプリに移った・時間切れ・始められなかった）。止められたアプリはすぐ眠らされるので、
     /// 次の刻みを待たずに範囲を閉じると伝える
     private func runtimeStopped() {
-        vibrating = false
         let deviceNow = clock()
         let now = received?.serverNow(deviceNow: deviceNow) ?? deviceNow
         if let next = watchVibrationToTell(confirmed: told, vibratableUntil: nil, now: now) {
@@ -94,9 +91,16 @@ final class PhaseChangeVibrator {
         }
     }
 
-    private func play(_ to: Phase) {
-        WKInterfaceDevice.current().play(hapticOf(to.kind))
-        played += 1
+    /// 切り替わりを振動で知らせる。`PhaseChangeHaptic` の回数だけ、間隔をあけて続けて鳴らす。
+    /// 拡張ランタイムセッションのあいだはアプリが動き続けるので、画面が消えていても間隔を待つあいだに眠らされない
+    private func play() {
+        Task {
+            for pulse in 0..<PhaseChangeHaptic.repeats {
+                if pulse > 0 { try? await Task.sleep(for: PhaseChangeHaptic.interval) }
+                WKInterfaceDevice.current().play(PhaseChangeHaptic.type)
+                played += 1
+            }
+        }
     }
 
     /// 範囲 `vibration` を、記録先の時刻 `now` に iPhone に伝える。
@@ -124,8 +128,8 @@ final class PhaseChangeVibrator {
                 failed = nil
                 // 答えを待つあいだに過ぎた切り替わりのうち、新しく任された分は、iPhone がもう通知を消している。
                 // ただし答えを待つあいだに振動できなくなっていたら知らせない（閉じると伝え直す）
-                if runtime.endsAt != nil, let since, let to = watch.widened(from: previous, to: vibration, since: since) {
-                    play(to)
+                if runtime.endsAt != nil, let since, watch.widened(from: previous, to: vibration, since: since) != nil {
+                    play()
                 }
             // 届かなかった・受け取れなかった（古い版の iPhone のアプリなど）。範囲は替わらないので、iPhone の通知が知らせる
             case .snapshot?, .refused?, nil:
@@ -138,13 +142,16 @@ final class PhaseChangeVibrator {
 /// Watch に残しておく、iPhone に最後に伝えた番号のキー
 private let sequenceKey = "watchVibrationSequence"
 
-/// 移った先のフェーズごとの振動。手首を下ろしたままでも、どのフェーズに移ったかを感じ分けられるように変える
-private func hapticOf(_ to: PhaseKind) -> WKHapticType {
-    switch to {
-    case .focus: .start
-    case .journal: .notification
-    case .breakTime: .success
-    }
+/// 切り替わりの振動の鳴らし方。実機で気づきやすいかを確かめて調整するので、強さ（種類）・回数・間隔はここだけで決める。
+/// 1回だけだと手首を下ろしているときに気づきにくかった（2026-11-28、オーナーが実機で試した）ので、強めの振動を短い間隔で
+/// 続けて「時間だ」とわかるようにする。フェーズで種類を変えるより、気づくことを優先して、どのフェーズでも同じにする
+private enum PhaseChangeHaptic {
+    /// 振動の種類。watchOS の振動のうち強めのもの
+    static let type = WKHapticType.notification
+    /// 1回の切り替わりで続けて鳴らす回数
+    static let repeats = 3
+    /// 鳴らす間隔。短すぎると前の振動に重なり、続けて鳴らしても1回に感じる
+    static let interval = Duration.milliseconds(700)
 }
 
 /// 拡張ランタイムセッション（Info.plist の WKBackgroundModes が mindfulness）。動いているあいだは、画面が消えても

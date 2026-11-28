@@ -39,12 +39,6 @@ struct WatchTimerView: View {
                             .accessibilityIdentifier("operation.Abort")
                     }
                 }
-                if model.vibrator.vibrating {
-                    Label("手首を下ろしても振動で知らせます", systemImage: "applewatch.radiowaves.left.and.right")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("watch.vibrating")
-                }
                 #if DEBUG
                     // 振動はシミュレーターで感じられないので、XCUITest は知らせた回数を読む
                     if ProcessInfo.processInfo.environment["NANAICHI_WATCH_SHOW_VIBRATIONS"] != nil {
