@@ -122,6 +122,15 @@ describe("PR の本文の検査", () => {
     expect(check(body)).toEqual({ status: 0, stderr: "" });
   });
 
+  test("HTML コメントの中のバッククォートはインラインコードとして読まず、--> でコメントが終わる", () => {
+    const body = `補足 <!-- \` --> \`vp test\`\n\n${complete}`;
+    expect(check(body)).toEqual({ status: 0, stderr: "" });
+  });
+
+  test("閉じていないバッククォートのあとの HTML コメントも除く", () => {
+    expect(check(complete.replace("Closes #115", "` <!-- Closes #115 -->")).status).toBe(1);
+  });
+
   test("インラインコードだけの行も本文として数える", () => {
     const [first = ""] = headings;
     const body = complete.replace(`## ${first}\n\n書いた`, `## ${first}\n\n\`vp test\``);

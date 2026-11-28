@@ -17,15 +17,25 @@ fi
 # Web の画面で直した本文は改行が CRLF になる。
 # awk は Ubuntu の mawk でも動くよう、正規表現の {n,m} を使わない
 missing=$(tr -d '\r' | awk '
-  # インラインコードを (code) に置き換える。同じ数のバッククォートで閉じたところまでがコードで、閉じていなければ文字のまま残す。
-  # 中身は Closes や HTML コメントの始まりとして読まないが、本文が書いてあることには数える
-  function replaceInlineCode(text,    out, ticks, opener, rest, tail, offset, closeAt) {
+  # 行を左から読み、HTML コメントを除き、インラインコードを (code) に置き換える。先に始まったほうが勝つ（CommonMark）ので、
+  # コメントの中のバッククォートはコードとして読まず、コードの中の <!-- はコメントとして読まない。
+  # インラインコードは同じ数のバッククォートで閉じたところまでで、閉じていなければ文字のまま残す。
+  # コードの中身は Closes として読まないが、本文が書いてあることには数える。閉じていないコメントは inComment を立てる
+  function readInline(text,    out, comment, tick, ticks, rest, tail, offset, closeAt) {
     out = ""
-    while (match(text, /`+/)) {
+    while (1) {
+      comment = index(text, "<!--")
+      tick = match(text, /`+/) ? RSTART : 0
       ticks = RLENGTH
-      opener = substr(text, RSTART, RLENGTH)
-      out = out substr(text, 1, RSTART - 1)
-      rest = substr(text, RSTART + ticks)
+      if (comment == 0 && tick == 0) break
+      if (comment > 0 && (tick == 0 || comment < tick)) {
+        out = out substr(text, 1, comment - 1)
+        rest = substr(text, comment + 4)
+        if (index(rest, "-->") == 0) { inComment = 1; return out }
+        text = substr(rest, index(rest, "-->") + 3)
+        continue
+      }
+      rest = substr(text, tick + ticks)
       tail = rest
       offset = 0
       closeAt = 0
@@ -34,8 +44,8 @@ missing=$(tr -d '\r' | awk '
         offset += RSTART + RLENGTH - 1
         tail = substr(tail, RSTART + RLENGTH)
       }
-      if (closeAt == 0) { out = out opener; text = rest; continue }
-      out = out "(code)"
+      if (closeAt == 0) { out = out substr(text, 1, tick + ticks - 1); text = rest; continue }
+      out = out substr(text, 1, tick - 1) "(code)"
       text = substr(rest, closeAt + ticks)
     }
     return out text
@@ -67,7 +77,7 @@ missing=$(tr -d '\r' | awk '
     next
   }
 
-  # インラインコードを置き換えてから、HTML コメントを除く（行をまたぐものも）
+  # HTML コメント（行をまたぐものも）とインラインコードを読む
   {
     line = $0
     if (inComment) {
@@ -75,13 +85,7 @@ missing=$(tr -d '\r' | awk '
       line = substr(line, index(line, "-->") + 3)
       inComment = 0
     }
-    line = replaceInlineCode(line)
-    while ((start = index(line, "<!--")) > 0) {
-      rest = substr(line, start + 4)
-      end = index(rest, "-->")
-      if (end == 0) { line = substr(line, 1, start - 1); inComment = 1; break }
-      line = substr(line, 1, start - 1) substr(rest, end + 3)
-    }
+    line = readInline(line)
   }
 
   # 見出し
