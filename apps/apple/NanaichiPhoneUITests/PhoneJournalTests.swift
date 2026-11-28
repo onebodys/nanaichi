@@ -8,14 +8,14 @@ import XCTest
 final class PhoneJournalTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
+        allowNotificationsWhenTheyInterrupt()
     }
 
+    /// セッションを始める。通知の許可を求められたら許可する
     @MainActor
     private func startSession(_ app: XCUIApplication) {
-        let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.tap()
-        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10), "セッションが始まらない")
+        tap(app.buttons["timer.start"], until: .appears(app.buttons["operation.Pause"], failure: "セッションが始まらない"))
+        allowNotificationsIfAsked()
     }
 
     @MainActor
@@ -26,15 +26,8 @@ final class PhoneJournalTests: XCTestCase {
             "NANAICHI_RESET_DEFAULTS": "1", "NANAICHI_APPEARANCE": "Light",
             "NANAICHI_FAIL_JOURNAL_WRITES": String(failingWrites),
         ]
-        app.launch()
-        let start = app.buttons["timer.start"]
-        XCTAssertTrue(start.waitForExistence(timeout: 10))
-        start.tap()
-        // 通知の許可を求められたら許可する。前のテストで答えていれば、もう聞かれない
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let allow = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", ["許可", "Allow"])).firstMatch
-        if allow.waitForExistence(timeout: 5) { allow.tap() }
-        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10), "セッションが始まらない")
+        launch(app, until: .appears(app.buttons["timer.start"], failure: "ホームが開かない"))
+        startSession(app)
         return app
     }
 
@@ -49,16 +42,20 @@ final class PhoneJournalTests: XCTestCase {
         return bodies(root)
     }
 
+    /// 帯の記入が `expected` になる
+    @MainActor
+    private func unsent(_ app: XCUIApplication, _ expected: [String]) -> ScreenChange {
+        .equals({ self.unsentBodies(app) }, expected, "帯の記入")
+    }
+
+    /// 送れなかったことにするまでの 20 秒（`DebugFailingJournalWrites`、書き足さなかったとき）より長く待つ
+    private let failureTimeout: TimeInterval = 30
+
     @MainActor
     private func waitForUnsent(
         _ app: XCUIApplication, _ expected: [String], file: StaticString = #filePath, line: UInt = #line
     ) {
-        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
-        let deadline = Date().addingTimeInterval(20)
-        while unsentBodies(app) != expected, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertEqual(unsentBodies(app), expected, "帯の記入", file: file, line: line)
+        waitFor(unsent(app, expected), timeout: failureTimeout, file: file, line: line)
     }
 
     @MainActor
@@ -66,12 +63,19 @@ final class PhoneJournalTests: XCTestCase {
         _ app: XCUIApplication, toRead text: String, file: StaticString = #filePath, line: UInt = #line
     ) {
         let body = app.textViews["journal.body"]
-        // 送れなかったことにするまでの 10 秒（`DebugFailingJournalWrites`）より長く待つ
-        let deadline = Date().addingTimeInterval(20)
-        while body.value as? String != text, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-        XCTAssertEqual(body.value as? String, text, "入力欄の本文", file: file, line: line)
+        waitFor(.equals({ body.value as? String }, text, "入力欄の本文"), timeout: failureTimeout, file: file, line: line)
+    }
+
+    /// 入力欄の本文を送る。送ると入力欄は空になる（送れなかった記入が戻るのは、書き足したときか 20 秒たってから）
+    @MainActor
+    private func send(_ app: XCUIApplication) {
+        let body = app.textViews["journal.body"]
+        tap(app.buttons["journal.sendFromKeyboard"], until: .equals({ body.value as? String }, "", "送ったあとの入力欄の本文"))
+    }
+
+    @MainActor
+    private func dismissKeyboard(_ app: XCUIApplication) {
+        tap(app.buttons["journal.dismissKeyboard"], until: .disappears(app.keyboards.firstMatch, failure: "キーボードが閉じない"))
     }
 
     /// 帯の `index` 番目の記入のボタン
@@ -86,28 +90,25 @@ final class PhoneJournalTests: XCTestCase {
     func testUnsentEntriesStayInTheBandWhileAppending() throws {
         let app = launchInSession(failingWrites: 2)
         let body = app.textViews["journal.body"]
-        body.tap()
-        body.typeText("A")
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("B")
+        type("A", into: body)
+        send(app)
+        type("B", into: body)
         waitForUnsent(app, ["A"])
         waitForInput(app, toRead: "B")
         XCTAssertTrue(app.staticTexts["journal.error"].exists, "送れなかった文言が出ない")
 
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("C")
+        send(app)
+        type("C", into: body)
         waitForUnsent(app, ["A", "B"])
         waitForInput(app, toRead: "C")
-        app.buttons["journal.dismissKeyboard"].tap()
+        dismissKeyboard(app)
         attachScreenshot(named: "12-送れなかった記入")
 
         // 3回目からは送れる
-        unsentButton(app, "resend", at: 0).tap()
-        waitForUnsent(app, ["B"])
+        tap(unsentButton(app, "resend", at: 0), until: unsent(app, ["B"]))
         XCTAssertFalse(app.staticTexts["journal.error"].exists, "送り直せても送れなかった文言が残る")
 
-        unsentButton(app, "returnToInput").tap()
-        waitForUnsent(app, [])
+        tap(unsentButton(app, "returnToInput"), until: unsent(app, []))
         XCTAssertFalse(app.otherElements["journal.unsent"].exists, "帯が残る")
         waitForInput(app, toRead: "B\nC")
     }
@@ -118,20 +119,18 @@ final class PhoneJournalTests: XCTestCase {
     func testUnsentEntryAfterTheSessionEnds() throws {
         let app = launchInSession(failingWrites: 2)
         let body = app.textViews["journal.body"]
-        body.tap()
-        body.typeText("A")
-        app.buttons["journal.sendFromKeyboard"].tap()
+        type("A", into: body)
+        send(app)
         waitForInput(app, toRead: "A")
         XCTAssertTrue(app.staticTexts["journal.error"].exists, "送れなかった文言が出ない")
         XCTAssertFalse(app.otherElements["journal.unsent"].exists, "書き足していないのに帯が出る")
 
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("B")
+        send(app)
+        type("B", into: body)
         waitForUnsent(app, ["A"])
-        app.buttons["journal.dismissKeyboard"].tap()
+        dismissKeyboard(app)
 
-        app.buttons["operation.End"].tap()
-        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "セッションが終わらない")
+        tap(app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"))
         XCTAssertEqual(unsentBodies(app), ["A"], "セッションが終わると帯の記入が消える")
         XCTAssertFalse(unsentButton(app, "resend").isEnabled, "セッションの外で送り直せる")
         XCTAssertFalse(unsentButton(app, "returnToInput").isEnabled, "セッションの外で入力欄に戻せる")
@@ -164,8 +163,7 @@ final class PhoneJournalTests: XCTestCase {
         }
         if copy.exists { copy.tap() }
 
-        unsentButton(app, "discard").tap()
-        waitForUnsent(app, [])
+        tap(unsentButton(app, "discard"), until: unsent(app, []))
     }
 
     /// S1 で A と B が送れず帯に残る → S1 を終えて S2 を始める → A と B は前のセッションの記入として説明が出て、
@@ -174,19 +172,17 @@ final class PhoneJournalTests: XCTestCase {
     func testUnsentEntriesFromThePreviousSessionCannotBeResent() throws {
         let app = launchInSession(failingWrites: 3)
         let body = app.textViews["journal.body"]
-        body.tap()
-        body.typeText("A")
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("B")
+        type("A", into: body)
+        send(app)
+        type("B", into: body)
         waitForUnsent(app, ["A"])
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("C")
+        send(app)
+        type("C", into: body)
         waitForUnsent(app, ["A", "B"])
-        app.buttons["journal.dismissKeyboard"].tap()
+        dismissKeyboard(app)
         XCTAssertFalse(app.staticTexts["journal.unsent.previousSession"].exists, "今のセッションの記入に説明が出る")
 
-        app.buttons["operation.End"].tap()
-        XCTAssertTrue(app.staticTexts["summary.title"].waitForExistence(timeout: 10), "セッションが終わらない")
+        tap(app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"))
         startSession(app)
         waitForUnsent(app, ["A", "B"])
         XCTAssertEqual(
@@ -199,21 +195,18 @@ final class PhoneJournalTests: XCTestCase {
         attachScreenshot(named: "21-前のセッションの送れなかった記入")
 
         // S2 で C が送れないと帯に並び、C は送り直せる（4回目からは送れる）
-        body.tap()
-        app.buttons["journal.sendFromKeyboard"].tap()
-        body.typeText("D")
+        tap(body, until: .appears(app.buttons["journal.sendFromKeyboard"], failure: "入力欄を押してもキーボードが出ない"))
+        send(app)
+        type("D", into: body)
         waitForUnsent(app, ["A", "B", "C"])
-        app.buttons["journal.dismissKeyboard"].tap()
+        dismissKeyboard(app)
         XCTAssertEqual(app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2)
         XCTAssertTrue(unsentButton(app, "resend", at: 2).isEnabled, "今のセッションの記入を送り直せない")
-        unsentButton(app, "resend", at: 2).tap()
-        waitForUnsent(app, ["A", "B"])
+        tap(unsentButton(app, "resend", at: 2), until: unsent(app, ["A", "B"]))
 
         // B を捨てると帯から消え、A を入力欄に戻すと書き足した D の前につながる
-        unsentButton(app, "discard", at: 1).tap()
-        waitForUnsent(app, ["A"])
-        unsentButton(app, "returnToInput", at: 0).tap()
-        waitForUnsent(app, [])
+        tap(unsentButton(app, "discard", at: 1), until: unsent(app, ["A"]))
+        tap(unsentButton(app, "returnToInput", at: 0), until: unsent(app, []))
         waitForInput(app, toRead: "A\nD")
     }
 }
