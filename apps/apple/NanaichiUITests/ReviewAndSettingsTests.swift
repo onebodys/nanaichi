@@ -91,14 +91,15 @@ final class ReviewAndSettingsTests: XCTestCase {
             until: .equals({ input.value as? String }, "", "送ったあとの入力欄の本文"))
     }
 
-    /// `element` を右クリックし、メニューの `item` を選んで、`change` が起きるのを待つ
+    /// `element` を右クリックし、メニューの項目 `title` を選んで、`change` が起きるのを待つ
     @MainActor
     private func rightClick(
-        _ element: XCUIElement, andChoose item: XCUIElement, until change: ScreenChange,
+        _ element: XCUIElement, andChoose title: String, in app: XCUIApplication, until change: ScreenChange,
         file: StaticString = #filePath, line: UInt = #line
     ) {
+        let item = app.menuItems[title]
         perform(
-            { _ in element.rightClick() }, until: .appears(item, failure: "右クリックのメニューに「\(item.label)」がない"),
+            { _ in element.rightClick() }, until: .appears(item, failure: "右クリックのメニューに「\(title)」がない"),
             file: file, line: line)
         click(item, until: change, file: file, line: line)
     }
@@ -128,7 +129,7 @@ final class ReviewAndSettingsTests: XCTestCase {
         // 編集する（右クリックのメニューからシートで）
         let first = app.descendants(matching: .any).matching(identifier: "entry").element(boundBy: 1)
         let editor = app.textViews["editor.body"]
-        rightClick(first, andChoose: app.menuItems["編集…"], until: .appears(editor, failure: "編集のシートが出ない"))
+        rightClick(first, andChoose: "編集…", in: app, until: .appears(editor, failure: "編集のシートが出ない"))
         editor.typeKey(.end, modifierFlags: .command)
         editor.typeText("。メモを取った")
         attachScreenshot(of: app, named: "12-記入を編集")
@@ -143,7 +144,7 @@ final class ReviewAndSettingsTests: XCTestCase {
         waitForText(app, "消す記入")
         let newest = app.descendants(matching: .any).matching(identifier: "entry").element(boundBy: 0)
         let confirm = app.buttons["entry.confirmDelete"]
-        rightClick(newest, andChoose: app.menuItems["削除…"], until: .appears(confirm, failure: "削除の確かめが出ない"))
+        rightClick(newest, andChoose: "削除…", in: app, until: .appears(confirm, failure: "削除の確かめが出ない"))
         attachScreenshot(of: app, named: "13-記入の削除の確かめ")
         click(confirm, until: .disappears(texts(app, containing: "消す記入").firstMatch, failure: "削除した記入が残る"))
 

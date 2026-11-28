@@ -170,7 +170,7 @@ extension XCTestCase {
             perform(
                 { _ in
                     if tab.waitForExistence(timeout: 5) { tab.click() } else { app.typeKey(",", modifierFlags: .command) }
-                }, until: .appears(window, failure: tab.exists ? "設定の\(name)のタブが開かない" : "設定が開かない"),
+                }, until: .holds({ window.exists }, failure: { tab.exists ? "設定の\(name)のタブが開かない" : "設定が開かない" }),
                 timeout: 3, file: file, line: line)
         }
     }

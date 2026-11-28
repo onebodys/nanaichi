@@ -84,6 +84,20 @@ final class PhoneJournalTests: XCTestCase {
         app.buttons.matching(identifier: "journal.unsent.\(action)").element(boundBy: index)
     }
 
+    /// 帯の `index` 番目の記入 `body` のボタン `action` を押し、帯が `expected` になるのを待つ。押し直すのは、
+    /// その記入がまだ同じ位置にあるときだけ（効いて帯が詰まったあとに、次の記入のボタンを押さないように）
+    @MainActor
+    private func press(
+        _ action: String, of body: String, at index: Int, in app: XCUIApplication, until expected: [String],
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let button = unsentButton(app, action, at: index)
+        perform(
+            { attempt in
+                if attempt == 0 || unsentBodies(app).dropFirst(index).first == body { button.tap() }
+            }, until: unsent(app, expected), file: file, line: line)
+    }
+
     /// A を送る → 送っている間に B を書く → A が送れないと、入力欄に B が残り、帯に A が出る。
     /// 帯に残したまま B を送って送れなければ、帯に2件並び、A を送り直せても B は消えない。B は入力欄に戻せる
     @MainActor
@@ -105,10 +119,10 @@ final class PhoneJournalTests: XCTestCase {
         attachScreenshot(named: "12-送れなかった記入")
 
         // 3回目からは送れる
-        tap(unsentButton(app, "resend", at: 0), until: unsent(app, ["B"]))
+        press("resend", of: "A", at: 0, in: app, until: ["B"])
         XCTAssertFalse(app.staticTexts["journal.error"].exists, "送り直せても送れなかった文言が残る")
 
-        tap(unsentButton(app, "returnToInput"), until: unsent(app, []))
+        press("returnToInput", of: "B", at: 0, in: app, until: [])
         XCTAssertFalse(app.otherElements["journal.unsent"].exists, "帯が残る")
         waitForInput(app, toRead: "B\nC")
     }
@@ -163,7 +177,7 @@ final class PhoneJournalTests: XCTestCase {
         }
         if copy.exists { copy.tap() }
 
-        tap(unsentButton(app, "discard"), until: unsent(app, []))
+        press("discard", of: "A", at: 0, in: app, until: [])
     }
 
     /// S1 で A と B が送れず帯に残る → S1 を終えて S2 を始める → A と B は前のセッションの記入として説明が出て、
@@ -202,11 +216,11 @@ final class PhoneJournalTests: XCTestCase {
         dismissKeyboard(app)
         XCTAssertEqual(app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2)
         XCTAssertTrue(unsentButton(app, "resend", at: 2).isEnabled, "今のセッションの記入を送り直せない")
-        tap(unsentButton(app, "resend", at: 2), until: unsent(app, ["A", "B"]))
+        press("resend", of: "C", at: 2, in: app, until: ["A", "B"])
 
         // B を捨てると帯から消え、A を入力欄に戻すと書き足した D の前につながる
-        tap(unsentButton(app, "discard", at: 1), until: unsent(app, ["A"]))
-        tap(unsentButton(app, "returnToInput", at: 0), until: unsent(app, []))
+        press("discard", of: "B", at: 1, in: app, until: ["A"])
+        press("returnToInput", of: "A", at: 0, in: app, until: [])
         waitForInput(app, toRead: "A\nD")
     }
 }
