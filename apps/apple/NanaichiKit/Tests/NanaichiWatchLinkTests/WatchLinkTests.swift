@@ -72,37 +72,72 @@ func startRetriedWithSameId() async throws {
     #expect(firstSession.id == retriedSession.id)
 }
 
-@Test("Watch で中断すると、iPhone で中断したのと同じく不成立セットになり待機に戻る")
-func abortFromWatchMatchesPhone() async throws {
+/// 開始して1分ごとに `kinds` の操作を1つずつ行ったあとの状態を、Watch から頼んだときと iPhone で行ったときとで返す
+private func statesAfter(_ kinds: [SessionOperationKind]) async throws -> (throughWatch: TimerState?, onPhone: TimerState?) {
     let watchClock = TestClock()
     let throughWatch = phoneBackend(watchClock)
-    _ = await replyTo(.start(id: eventId()), using: throughWatch, recordStore: store)
-    watchClock.advance(minutes: 3)
-    let reply = await replyTo(.abort(id: eventId()), using: throughWatch, recordStore: store)
-
+    var reply = await replyTo(.start(id: eventId()), using: throughWatch, recordStore: store)
     let phoneClock = TestClock()
     let onPhone = phoneBackend(phoneClock)
-    _ = try await onPhone.startSession(id: eventId()).get()
-    phoneClock.advance(minutes: 3)
-    guard case .session(_, _, _, let phoneState) = try await onPhone.operateSession(id: eventId(), kind: .abort).get()
-    else {
-        Issue.record("iPhone で中断したあとにセッションがない")
+    var phoneSnapshot = try await onPhone.startSession(id: eventId()).get()
+    for kind in kinds {
+        watchClock.advance(minutes: 1)
+        phoneClock.advance(minutes: 1)
+        reply = await replyTo(.operate(id: eventId(), kind: kind), using: throughWatch, recordStore: store)
+        phoneSnapshot = try await onPhone.operateSession(id: eventId(), kind: kind).get()
+    }
+    guard case .session(_, _, _, let phoneState) = phoneSnapshot else { return (stateOf(reply), nil) }
+    return (stateOf(reply), phoneState)
+}
+
+@Test("Watch で一時停止すると、iPhone で一時停止したのと同じく集中の残り時間が止まる")
+func pauseFromWatchMatchesPhone() async throws {
+    let states = try await statesAfter([.pause])
+    guard case .focus(let focus) = states.throughWatch, case .paused = focus.clock else {
+        Issue.record("集中が一時停止していない: \(String(describing: states.throughWatch))")
         return
     }
+    #expect(focus.remainingSeconds == 6 * 60)
+    #expect(states.throughWatch == states.onPhone)
+}
 
-    guard case .idle(let idle) = stateOf(reply) else {
-        Issue.record("待機になっていない: \(reply)")
+@Test("Watch で再開すると、iPhone で再開したのと同じく止めたところから集中が進む")
+func resumeFromWatchMatchesPhone() async throws {
+    let states = try await statesAfter([.pause, .resume])
+    guard case .focus(let focus) = states.throughWatch, case .running = focus.clock else {
+        Issue.record("集中が進んでいない: \(String(describing: states.throughWatch))")
+        return
+    }
+    #expect(focus.remainingSeconds == 6 * 60)
+    #expect(states.throughWatch == states.onPhone)
+}
+
+@Test("Watch で中断すると、iPhone で中断したのと同じく不成立セットになり待機に戻る")
+func abortFromWatchMatchesPhone() async throws {
+    let states = try await statesAfter([.abort])
+    guard case .idle(let idle) = states.throughWatch else {
+        Issue.record("待機になっていない: \(String(describing: states.throughWatch))")
         return
     }
     #expect(idle.setNumber == 1 && idle.completedSets == 0)
-    #expect(stateOf(reply) == phoneState)
+    #expect(states.throughWatch == states.onPhone)
+}
+
+@Test("Watch で終了すると、iPhone で終了したのと同じくセッションが閉じる")
+func endFromWatchMatchesPhone() async throws {
+    let states = try await statesAfter([.end])
+    guard case .ended = states.throughWatch else {
+        Issue.record("終了していない: \(String(describing: states.throughWatch))")
+        return
+    }
+    #expect(states.throughWatch == states.onPhone)
 }
 
 @Test("中断できないときに Watch が中断を頼むと、断られた文言が返り、記録は変わらない")
 func abortRefusedOutsideFocus() async throws {
     let backend = phoneBackend(TestClock())
     let before = try await backend.getCurrentSession().get()
-    let reply = await replyTo(.abort(id: eventId()), using: backend, recordStore: store)
+    let reply = await replyTo(.operate(id: eventId(), kind: .abort), using: backend, recordStore: store)
     #expect(reply == .refused(message: "操作できませんでした。最新の状態を読み込み直しました。"))
     #expect(try await backend.getCurrentSession().get() == before)
 }
@@ -152,7 +187,7 @@ func codingRoundTrip() async throws {
     let backend = phoneBackend(TestClock())
     let reply = await replyTo(.start(id: eventId()), using: backend, recordStore: store)
     let messages: [WatchMessage] = [
-        .current, .start(id: eventId()), .abort(id: eventId()), .vibration(.none),
+        .current, .start(id: eventId()), .operate(id: eventId(), kind: .pause), .vibration(.none),
         .vibration(ToldWatchVibration(vibration: .covering(before: t0), sequence: 1)),
     ]
     for message in messages {

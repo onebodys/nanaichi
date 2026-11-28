@@ -19,8 +19,9 @@ public enum WatchMessage: Hashable, Sendable, Codable {
     /// セッションを開始する。`id` は開始の操作イベントの ID で、Watch が発行する。
     /// 届いたか確かめられずに頼み直すときも同じ ID で送れば、二重に開始しない（ADR 0007）
     case start(id: SessionEventId)
-    /// 集中を中断する。`id` は中断の操作イベントの ID
-    case abort(id: SessionEventId)
+    /// セッション中の操作（一時停止・再開・中断・終了）。`id` はその操作イベントの ID。
+    /// どの操作を Watch に出すかは Watch の画面が決め（`WatchFace`）、できるかどうかは iPhone の記録先が決める
+    case operate(id: SessionEventId, kind: SessionOperationKind)
     /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
     /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
     case vibration(ToldWatchVibration)
@@ -126,7 +127,7 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
     switch message {
     case .current: result = await backend.getCurrentSession()
     case .start(let id): result = await backend.startSession(id: id)
-    case .abort(let id): result = await backend.operateSession(id: id, kind: .abort)
+    case .operate(let id, let kind): result = await backend.operateSession(id: id, kind: kind)
     case .vibration: return .accepted
     }
     switch result {

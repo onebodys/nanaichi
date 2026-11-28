@@ -33,31 +33,60 @@ func watchStartAfterEnded() throws {
         == .outOfSession(start: .enabled))
 }
 
-@Test("集中中は Watch で中断でき、iPhone の応答を待つあいだは押せない")
-func watchAbortDuringFocus() {
+/// セッション中の Watch の画面に並ぶ操作
+private func watchOperationsOf(_ face: WatchFace) -> [SessionOperationKind]? {
+    guard case .inSession(_, let operations, _) = face.screen else { return nil }
+    return operations.map(\.kind)
+}
+
+@Test("集中中は Watch で一時停止・中断・終了ができ、iPhone の応答を待つあいだは押せない")
+func watchOperationsDuringFocus() {
     let face = WatchFace.of(viewOf(started(), at: minutes(1)), reach: .reachable, pending: false)
-    guard case .inSession(.focus(let focus), let abort) = face.screen else {
+    guard case .inSession(.focus(let focus), let operations, let control) = face.screen else {
         Issue.record("集中になっていない: \(face)")
         return
     }
     #expect(focus.remainingSeconds == 6 * 60)
-    #expect(abort == .available(.enabled))
+    #expect(operations.map(\.kind) == [.pause, .abort, .end])
+    #expect(control == .enabled)
     let pending = WatchFace.of(viewOf(started(), at: minutes(1)), reach: .reachable, pending: true)
-    guard case .inSession(.focus, let pendingAbort) = pending.screen else {
+    guard case .inSession(.focus, _, let pendingControl) = pending.screen else {
         Issue.record("応答を待つあいだに集中の画面でなくなった: \(pending)")
         return
     }
-    #expect(pendingAbort == .available(.pending))
+    #expect(pendingControl == .pending)
     #expect(WatchControl.pending.isEnabled == false)
 }
 
-@Test("ジャーナル中は中断できないので Watch に中断を出さず、iPhone に届かなければそれを出す")
+@Test("一時停止中の集中は Watch で再開・中断・終了ができる")
+func watchOperationsWhilePaused() throws {
+    let paused = try operated(started(), .pause, at: minutes(1))
+    let face = WatchFace.of(viewOf(paused, at: minutes(2)), reach: .reachable, pending: false)
+    #expect(watchOperationsOf(face) == [.resume, .abort, .end])
+}
+
+@Test("ジャーナル中は中断できないので Watch に中断を出さず、iPhone に届かなければ押せず、それを出す")
 func watchNoAbortDuringJournal() {
     let face = WatchFace.of(viewOf(started(), at: minutes(7, 30)), reach: .unreachable, pending: false)
-    guard case .inSession(.journal, let abort) = face.screen else {
+    guard case .inSession(.journal, let operations, let control) = face.screen else {
         Issue.record("ジャーナルになっていない: \(face)")
         return
     }
-    #expect(abort == .notNow)
+    #expect(operations.map(\.kind) == [.pause, .end])
+    #expect(control == .phoneUnreachable)
     #expect(face.phoneUnreachableNotice != nil)
+}
+
+@Test("休憩中の休憩スキップは iPhone で行い、Watch には一時停止と終了だけを出す")
+func watchOperationsDuringBreak() {
+    let face = WatchFace.of(viewOf(started(), at: minutes(25)), reach: .reachable, pending: false)
+    #expect(watchOperationsOf(face) == [.pause, .end])
+}
+
+@Test("待機からの集中の再開始と、切り替え待ちから進めるのは iPhone で行い、Watch には終了だけを出す")
+func watchOnlyEndsWhenIdleOrAwaiting() throws {
+    let idle = try operated(started(), .abort, at: minutes(1))
+    #expect(watchOperationsOf(WatchFace.of(viewOf(idle, at: minutes(2)), reach: .reachable, pending: false)) == [.end])
+    let awaiting = WatchFace.of(viewOf(started(mode: manualToJournal), at: minutes(7, 30)), reach: .reachable, pending: false)
+    #expect(watchOperationsOf(awaiting) == [.end])
 }

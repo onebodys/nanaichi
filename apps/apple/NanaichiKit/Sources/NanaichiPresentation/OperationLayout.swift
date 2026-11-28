@@ -17,6 +17,22 @@ public struct OperationButton: Hashable, Sendable {
     public let emphasis: Emphasis
 }
 
+/// 開始のアイコン（SF Symbols の名前）。Watch はアイコンだけ、iPhone はアイコンと文言を並べる（Issue #122）
+public let startSymbol = "play.fill"
+
+/// 操作のアイコン。時間を動かし始める操作（再開・集中の再開始・進める）は開始と同じ ▶ にする。
+/// ■ は中断にも終了にも読めるので使わない（Issue #122）。同じ状態でできる操作どうしは、アイコンが重ならない
+public func operationSymbolOf(_ kind: SessionOperationKind) -> String {
+    switch kind {
+    case .resume, .restartFocus, .advance: startSymbol
+    case .pause: "pause.fill"
+    case .abort: "xmark"
+    // 休憩の前の切り替え待ちでは進めると並ぶので、▶ とは別にする
+    case .skipBreak: "forward.end.fill"
+    case .end: "power"
+    }
+}
+
 /// 止まっているタイマーを先へ進める操作。あればこれを主にする
 private func isMovingOn(_ kind: SessionOperationKind) -> Bool {
     switch kind {

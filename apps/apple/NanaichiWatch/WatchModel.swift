@@ -7,7 +7,7 @@ import Observation
 /// Watch の画面の状態と操作（ADR 0031）。
 ///
 /// - iPhone から届いたスナップショットを持ち、刻みごとに Watch の時刻で状態を計算し直す（ADR 0003）
-/// - 開始と中断は iPhone に頼み、返ってきたスナップショットに置き換える。iPhone に届かないあいだは頼まない
+/// - 開始とセッション中の操作は iPhone に頼み、返ってきたスナップショットに置き換える。iPhone に届かないあいだは頼まない
 /// - iPhone の側の変化は、iPhone からの知らせで届く。頼みの答えと知らせは入れ替わって届くので、古いものは捨てる（ADR 0012）
 /// - セッション中は、フェーズの切り替わりを振動で知らせる（`PhaseChangeVibrator`、ADR 0033）
 @Observable
@@ -80,7 +80,10 @@ final class WatchModel {
 
     func start() { send(.start(id: newEventId())) }
 
-    func abort() { send(.abort(id: newEventId())) }
+    func operate(_ kind: SessionOperationKind) { send(.operate(id: newEventId(), kind: kind)) }
+
+    /// 直前の操作の失敗を読んだ
+    func dismissError() { errorMessage = nil }
 
     private func send(_ message: WatchMessage) {
         pending = true
@@ -96,11 +99,11 @@ final class WatchModel {
         switch (message, answer) {
         case (_, .snapshot(let snapshot)?):
             apply(snapshot)
-        case (.start, .refused(let refusal)?), (.abort, .refused(let refusal)?):
+        case (.start, .refused(let refusal)?), (.operate, .refused(let refusal)?):
             errorMessage = refusal
             // iPhone の様子が、Watch の思っているものと違ったのかもしれない（自動終了したなど）
             await ask(.current)
-        case (.start, nil), (.abort, nil):
+        case (.start, nil), (.operate, nil):
             errorMessage = phoneDidNotAnswerMessage
         // 今の様子を読めなくても、操作の失敗ではないので、前に受け取ったものを出し続ける
         case (.current, .refused?), (.current, nil):

@@ -4,6 +4,7 @@
     import NanaichiDomain
     import NanaichiPresentation
     import NanaichiWatchLink
+    import Synchronization
 
     /// XCUITest のための、ペアの iPhone の代わり。デバッグのビルドにだけある。
     /// watchOS のシミュレーターの XCUITest は iPhone のアプリを一緒に動かせないので、iPhone が Watch の頼みを通すのと
@@ -13,13 +14,14 @@
     ///   残して届かなくなった iPhone の代わりにする。なければ実際の iPhone につなぐ
     /// - `NANAICHI_WATCH_PHONE_STARTS_AFTER`: 起動してから何秒後に、iPhone の側でセッションを始めたことにするか。
     ///   iPhone で操作した結果が Watch に届くのを確かめる
-    /// - `NANAICHI_WATCH_PHONE_CLOCK_BEHIND`: iPhone の記録先の時計を何秒遅らせるか。Watch で開始すると、その秒数だけ前に
-    ///   始めたセッションになる（集中の 7 分を待たずに、切り替わりの振動を確かめる）
+    /// - `NANAICHI_WATCH_PHONE_STARTED_AGO`: Watch で開始したセッションを、何秒前に始めたことにするか。そのあとの操作は今の時刻で
+    ///   記録する（集中の 7 分を待たずに、切り替わりの振動や、ジャーナル・休憩の画面を確かめる）
     final class StubPhoneLink: PhoneLink {
         private let backend: DeviceBackend
         private let reach: PhoneReach
         private let startsAfter: Duration?
         private let recordStore = RecordStoreTag("stub")
+        private let startedAgo: StartedAgoClock
 
         init?(_ environment: [String: String], clock: @escaping @Sendable () -> Instant) {
             switch environment["NANAICHI_WATCH_PHONE"] {
@@ -27,8 +29,11 @@
             case "unreachable": reach = .unreachable
             default: return nil
             }
-            let behindMs = environment["NANAICHI_WATCH_PHONE_CLOCK_BEHIND"].flatMap(Double.init).map { Int64($0 * 1000) } ?? 0
-            backend = DeviceBackend(location: .inMemory, clock: { clock().adding(milliseconds: -behindMs) })
+            let startedAgo = StartedAgoClock(
+                behindMs: environment["NANAICHI_WATCH_PHONE_STARTED_AGO"].flatMap(Double.init).map { Int64($0 * 1000) } ?? 0,
+                clock: clock)
+            backend = DeviceBackend(location: .inMemory, clock: { startedAgo.read() })
+            self.startedAgo = startedAgo
             startsAfter = environment["NANAICHI_WATCH_PHONE_STARTS_AFTER"].flatMap(Double.init).map { .seconds($0) }
         }
 
@@ -53,9 +58,27 @@
 
         func ask(_ message: WatchMessage) async -> PhoneMessage? {
             switch reach {
-            case .reachable: await replyTo(message, using: backend, recordStore: recordStore)
-            case .unreachable: nil
+            case .reachable:
+                let answer = await replyTo(message, using: backend, recordStore: recordStore)
+                if case .start = message { startedAgo.started() }
+                return answer
+            case .unreachable: return nil
             }
         }
+    }
+
+    /// 代わりの iPhone の記録先の時計。開始を記録するまでは `behindMs` だけ遅れ、開始したら今の時刻に戻る
+    private final class StartedAgoClock: Sendable {
+        private let behindMs: Mutex<Int64>
+        private let clock: @Sendable () -> Instant
+
+        init(behindMs: Int64, clock: @escaping @Sendable () -> Instant) {
+            self.behindMs = Mutex(behindMs)
+            self.clock = clock
+        }
+
+        func read() -> Instant { clock().adding(milliseconds: -behindMs.withLock { $0 }) }
+
+        func started() { behindMs.withLock { $0 = 0 } }
     }
 #endif

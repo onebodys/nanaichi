@@ -75,12 +75,12 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
             UserDefaults.standard.set(WatchLinkCoding.encode(applied), forKey: vibrationKey)
             await vibrationChanged()
             return .accepted
-        case .current, .start, .abort:
+        case .current, .start, .operate:
             break
         }
         var (backend, tag) = recordStore()
         var answer = await replyTo(message, using: backend, recordStore: tag)
-        // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始・中断はやり直さない
+        // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始と操作はやり直さない
         while case let (current, currentTag) = recordStore(), currentTag != tag {
             (backend, tag) = (current, currentTag)
             answer = await replyTo(.current, using: backend, recordStore: tag)
