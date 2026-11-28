@@ -26,7 +26,8 @@
         private let backend: DeviceBackend
         private let reach: PhoneReach
         private let startsAfter: Duration?
-        private let recordStore = RecordStoreTag("stub")
+        private let recordStore = RecordStoreTag(
+            store: RecordStoreId("stub"), generation: RecordStoreGeneration(launch: "stub", opened: 1))
         private let startedAgo: StartedAgoClock
         private let manualAdvance: Set<PhaseTransition>
         private let answersToLose: Mutex<Int>
