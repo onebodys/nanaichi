@@ -12,19 +12,69 @@ import NanaichiPresentation
 // 頼みごとを足すとき（音声入力の録音、#74）は、`WatchMessage` と `PhoneMessage` に種類を足す。
 // 録音のファイルは WatchConnectivity のファイルの転送で送り、添える情報をここの型で書く
 
-/// Watch から iPhone への頼み。iPhone は `PhoneMessage` で答える
+/// Watch から iPhone への頼み。iPhone は `PhoneMessage` で答える。
+///
+/// 記録を変える頼み（開始と操作）には、Watch が画面に出している記録先の印（とセッション）を添える。
+/// Watch の画面が古いうちに押されたもの（iPhone が記録先を替えた・ほかの端末で次のセッションを始めた）を、
+/// iPhone のいまの記録先やセッションに通さないため。食い違えば断り、Watch は今の様子を頼み直す
 public enum WatchMessage: Hashable, Sendable, Codable {
     /// iPhone の今のスナップショットをもらう。Watch が iPhone に届くようになったときに頼む
     case current
     /// セッションを開始する。`id` は開始の操作イベントの ID で、Watch が発行する。
     /// 届いたか確かめられずに頼み直すときも同じ ID で送れば、二重に開始しない（ADR 0007）
-    case start(id: SessionEventId)
-    /// 集中を中断する。`id` は中断の操作イベントの ID
-    case abort(id: SessionEventId)
+    case start(id: SessionEventId, recordStore: RecordStoreTag)
+    /// セッション中の操作（一時停止・再開・中断・終了）。`id` はその操作イベントの ID、`session` は Watch が画面に出している
+    /// セッション。どの操作を Watch に出すかは Watch の画面が決め（`WatchFace`）、できるかどうかは iPhone の記録先が決める
+    case operate(id: SessionEventId, kind: SessionOperationKind, session: SessionId, recordStore: RecordStoreTag)
     /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
     /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
     case vibration(ToldWatchVibration)
 }
+
+/// Watch が iPhone に頼んで記録を変えること
+public enum WatchCommand: Hashable, Sendable {
+    case start
+    case operate(SessionOperationKind)
+}
+
+/// Watch が iPhone に送った、記録を変える頼みと、そのとき Watch が見ていた記録
+public struct WatchRequest: Hashable, Sendable {
+    public let message: WatchMessage
+    let command: WatchCommand
+    /// 見ていた記録先と変更の番号。同じなら同じ記録を見ている（ADR 0030）
+    let basis: Basis
+
+    struct Basis: Hashable, Sendable {
+        let recordStore: RecordStoreTag
+        let revision: Revision
+    }
+
+    /// 画面に出している `shown` を見て `command` を頼むときの頼み。セッションがないのに操作を頼むなら nil。
+    ///
+    /// `unanswered`（前に送って答えが返らなかった頼み）が、同じ記録を見た同じ頼みなら、そのまま送り直す。
+    /// 答えが返らなくても記録先には届いていることがあり、同じ操作イベントの ID なら二重に記録しない（ADR 0007）。
+    /// 届いていれば、Watch が今の様子を頼み直したときに記録が進み、次の頼みは新しい ID になる
+    public static func of(
+        _ command: WatchCommand, shown: PhoneSnapshot, unanswered: WatchRequest?,
+        newEventId: () -> SessionEventId
+    ) -> WatchRequest? {
+        let basis = Basis(recordStore: shown.recordStore, revision: shown.received.snapshot.revision)
+        if let unanswered, unanswered.command == command, unanswered.basis == basis { return unanswered }
+        let message: WatchMessage
+        switch (command, shown.received.snapshot) {
+        case (.start, _):
+            message = .start(id: newEventId(), recordStore: shown.recordStore)
+        case (.operate(let kind), .session(_, _, let session, _)):
+            message = .operate(id: newEventId(), kind: kind, session: session.id, recordStore: shown.recordStore)
+        case (.operate, .noSession):
+            return nil
+        }
+        return WatchRequest(message: message, command: command, basis: basis)
+    }
+}
+
+/// Watch が画面に出している記録が、iPhone のいまの記録先やセッションと食い違っていたときの文言
+public let watchOutdatedMessage = "Watch の表示が古くなっていました。最新の状態を読み込み直しました。"
 
 /// iPhone から Watch に届くもの。頼みへの答えと、iPhone の側で変わったときの知らせに使う
 public enum PhoneMessage: Hashable, Sendable, Codable {
@@ -68,13 +118,52 @@ public func nextWatchVibrationSequence(after last: Int64, deviceNow: Instant) ->
     max(deviceNow.milliseconds, last + 1)
 }
 
-/// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。
-/// 変更の番号（`Revision`）は記録先ごとに数えるので、記録先が違うスナップショットどうしは新旧を比べられない
+/// どの記録先のスナップショットか（`RecordStoreTags`）。変更の番号（`Revision`）は記録先ごとに数えるので、
+/// 記録先が違うスナップショットどうしは新旧を比べられない
 public struct RecordStoreTag: Hashable, Sendable, Codable {
     public let rawValue: String
 
     public init(_ rawValue: String) {
         self.rawValue = rawValue
+    }
+}
+
+/// iPhone が記録先ごとに残しておく、Watch に送る記録先の印（ADR 0031）。
+///
+/// iPhone のアプリは裏で終了させられ、Watch の頼みで起こされることがある。印を起動のたびに作り直すと、Watch が持っている
+/// 前の印と食い違い、起こした頼みが「表示が古い」と断られる。そのため同じ記録先を開き直すときは前の印を使う。
+/// この端末の記録先は、記録が続く限り同じ印にする。アカウントの記録先は、ログインするたびに新しい印にする（前と別のアカウントの
+/// ことがあり、変更の番号を比べられない）。起動したときに残っていたログインを開き直すときは、前の印を使う
+public struct RecordStoreTags: Hashable, Sendable, Codable {
+    public private(set) var device: RecordStoreTag
+    public private(set) var account: RecordStoreTag?
+
+    /// どの記録先を、どう開くか
+    public enum Opening: Sendable {
+        /// この端末の記録先（起動したとき・ログアウトしたとき・ログインが切れたとき）
+        case device
+        /// 起動したときに残っていたログインのアカウントの記録先
+        case restoredAccount
+        /// ログインしたアカウントの記録先
+        case signedInAccount
+    }
+
+    /// 何も残っていない（初めて起動した・記録を消した）。この端末の記録先の印を新しく作る
+    public init(newTag: () -> RecordStoreTag) {
+        device = newTag()
+        account = nil
+    }
+
+    /// `opening` を開くときの印。要るときだけ新しく作って覚える
+    public mutating func tag(opening: Opening, newTag: () -> RecordStoreTag) -> RecordStoreTag {
+        switch (opening, account) {
+        case (.device, _): return device
+        case (.restoredAccount, let restored?): return restored
+        case (.restoredAccount, nil), (.signedInAccount, _):
+            let tag = newTag()
+            account = tag
+            return tag
+        }
     }
 }
 
@@ -118,6 +207,7 @@ public enum PhoneSnapshotLoading: Hashable, Sendable {
 }
 
 /// iPhone が Watch の頼み `message` を、いまの記録先 `backend`（その印が `recordStore`）に通して答える。
+/// 開始と操作は、Watch が見ていた記録先とセッションが、いまのものと同じときだけ通す。
 /// 振動で知らせる範囲（`vibration`）は記録先に通さず、受け取ったとだけ答える。範囲を覚えて通知を予約し直すのは呼ぶ側
 public func replyTo(_ message: WatchMessage, using backend: any Backend, recordStore: RecordStoreTag) async
     -> PhoneMessage
@@ -125,8 +215,21 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
     let result: Result<SessionSnapshot, BackendError>
     switch message {
     case .current: result = await backend.getCurrentSession()
-    case .start(let id): result = await backend.startSession(id: id)
-    case .abort(let id): result = await backend.operateSession(id: id, kind: .abort)
+    case .start(let id, let shownStore):
+        guard shownStore == recordStore else { return .refused(message: watchOutdatedMessage) }
+        result = await backend.startSession(id: id)
+    case .operate(let id, let kind, let shownSession, let shownStore):
+        guard shownStore == recordStore else { return .refused(message: watchOutdatedMessage) }
+        // 記録先はセッションを指定して操作できないので、いまのセッションを読んで確かめてから通す。
+        // いまのセッションがない（終わった）ときは通す。同じ ID の頼み直しなら記録先が前の答えを返し、そうでなければ断る
+        switch await backend.getCurrentSession() {
+        case .success(.session(_, _, let current, _)) where current.id != shownSession:
+            return .refused(message: watchOutdatedMessage)
+        case .success(.session), .success(.noSession):
+            result = await backend.operateSession(id: id, kind: kind)
+        case .failure(let error):
+            result = .failure(error)
+        }
     case .vibration: return .accepted
     }
     switch result {
@@ -135,6 +238,41 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
         return .snapshot(PhoneSnapshot(received: received, recordStore: recordStore))
     case .failure(let error):
         return .refused(message: operationErrorMessageOf(error))
+    }
+}
+
+/// iPhone が、振動で知らせる範囲のほかの Watch の頼み `message` を、いまの記録先に通して答える。
+///
+/// - `recordStore` はいまの記録先とその印。ログイン・ログアウトで替わるので、頼みが届くたびに読む。答えを待つあいだや画面に渡す
+///   あいだに替わったら、前の記録先の答えは返さず、替わった先の今の様子を返す（Watch が、もう使っていない記録先の様子を出し続けない
+///   ように）。開始と操作はやり直さない
+/// - 断ったときは、記録先が替わっていても断りを返す。替わった先の様子で上書きすると、Watch は頼みが通ったように見せてしまう
+///   （ログインが切れて、この端末の記録先に替わったときなど）。Watch は断られたら今の様子を頼み直す
+/// - 答えのスナップショットは、Watch に答える前に `answered` に渡し、終わるまで待つ。iPhone はそこで画面と通知の予約に
+///   反映する。Watch の頼みで裏で起こされたアプリは答えたあとすぐ止められることがあり、アカウントの記録先の同期の接続も
+///   裏では切れていることがあるので、同期メッセージを待たない
+@MainActor
+public func answerWatch(
+    _ message: WatchMessage, recordStore: () -> (any Backend, RecordStoreTag),
+    answered: (PhoneSnapshot) async -> Void
+) async -> PhoneMessage {
+    var (backend, tag) = recordStore()
+    var answer = await replyTo(message, using: backend, recordStore: tag)
+    var handedOver = false
+    // 取り直すあいだや画面に渡すあいだにまた替わることもあるので、替わらなくなるまで取り直す
+    while true {
+        guard case .snapshot(let snapshot) = answer else { return answer }
+        let (current, currentTag) = recordStore()
+        if currentTag != tag {
+            (backend, tag) = (current, currentTag)
+            answer = await replyTo(.current, using: backend, recordStore: tag)
+            handedOver = false
+        } else if !handedOver {
+            await answered(snapshot)
+            handedOver = true
+        } else {
+            return answer
+        }
     }
 }
 

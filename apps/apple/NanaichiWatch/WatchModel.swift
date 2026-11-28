@@ -7,7 +7,10 @@ import Observation
 /// Watch の画面の状態と操作（ADR 0031）。
 ///
 /// - iPhone から届いたスナップショットを持ち、刻みごとに Watch の時刻で状態を計算し直す（ADR 0003）
-/// - 開始と中断は iPhone に頼み、返ってきたスナップショットに置き換える。iPhone に届かないあいだは頼まない
+/// - 開始とセッション中の操作は iPhone に頼み、返ってきたスナップショットに置き換える。iPhone に届かないあいだと、
+///   届くようになってから今の様子を確かめ終えるまでは頼まない（それまでの表示は古いことがある）
+/// - 答えが返らなかった頼みは、今の様子を頼み直して確かめる。同じ記録を見たまま押し直したら、同じ操作イベントの ID で
+///   送り直す（`WatchRequest`、ADR 0007）
 /// - iPhone の側の変化は、iPhone からの知らせで届く。頼みの答えと知らせは入れ替わって届くので、古いものは捨てる（ADR 0012）
 /// - セッション中は、フェーズの切り替わりを振動で知らせる（`PhaseChangeVibrator`、ADR 0033）
 @Observable
@@ -18,6 +21,8 @@ final class WatchModel {
     private(set) var deviceNow: Instant
     /// 頼んだ操作の答えを待っている
     private(set) var pending = false
+    /// iPhone に届くようになってから、今の様子を確かめ終えていない
+    private(set) var syncing = false
     /// 直前の操作の失敗
     private(set) var errorMessage: String?
     let vibrator: PhaseChangeVibrator
@@ -26,6 +31,13 @@ final class WatchModel {
     @ObservationIgnored private let clock: @Sendable () -> Instant
     /// アプリが前にいる（画面に出ている）
     @ObservationIgnored private var active = false
+    /// 送って答えが返らなかった頼み。同じ記録を見たまま押し直したら、これを送り直す
+    @ObservationIgnored private var unanswered: WatchRequest?
+    /// 何度目に今の様子を確かめ始めたか。確かめているあいだに届かなくなってまた届くと、確かめ直す。押せるようにするのは最後に始めたものだけ
+    @ObservationIgnored private var syncGeneration = 0
+
+    /// 今の様子を確かめられなかったとき、頼み直すまでの待ちの最初と最長
+    private static let syncRetry = (first: Duration.seconds(1), longest: Duration.seconds(30))
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
@@ -43,7 +55,9 @@ final class WatchModel {
         if active { vibrator.appBecameActive() } else { vibrator.appResignedActive() }
     }
 
-    var face: WatchFace { .of(.of(loading.timer, deviceNow: deviceNow), reach: reach, pending: pending) }
+    var face: WatchFace {
+        .of(.of(loading.timer, deviceNow: deviceNow), reach: reach, pending: pending || syncing)
+    }
 
     /// iPhone からの知らせを受け取り、刻み続ける。アプリが動いている間ずっと呼んだままにする
     func run() async {
@@ -67,9 +81,13 @@ final class WatchModel {
             switch event {
             case .reach(let reach):
                 self.reach = reach
-                if reach == .reachable { vibrator.phoneReachable() }
-                // 届かなかったあいだの変化は知らせで届くが、届くようになったら今の様子を確かめる
-                if reach == .reachable { Task { await ask(.current) } }
+                if reach == .reachable {
+                    vibrator.phoneReachable()
+                    // 届かなかったあいだの変化は知らせで届くが、届くようになったら今の様子を確かめる。
+                    // 届くようになったその場で押せなくする（確かめを待つあいだに押されないように）
+                    let generation = beginSync()
+                    Task { await sync(generation) }
+                }
             case .message(let message):
                 handle(message)
             }
@@ -78,38 +96,74 @@ final class WatchModel {
 
     // MARK: - 操作
 
-    func start() { send(.start(id: newEventId())) }
+    func start() { request(.start) }
 
-    func abort() { send(.abort(id: newEventId())) }
+    func operate(_ kind: SessionOperationKind) { request(.operate(kind)) }
 
-    private func send(_ message: WatchMessage) {
+    /// 画面に出している記録を見て `command` を頼む。ボタンを押せないとき（答えを待っている・届かない・確かめている）は頼まない。
+    /// ボタンを押せなくするのは描き直したときなので、続けて押されたときもここで二重に送らない
+    private func request(_ command: WatchCommand) {
+        guard !pending, !syncing, reach == .reachable, case .loaded(let shown) = loading,
+            let request = WatchRequest.of(command, shown: shown, unanswered: unanswered, newEventId: newEventId)
+        else { return }
         pending = true
         errorMessage = nil
         Task {
-            await ask(message)
+            switch await link.ask(request.message) {
+            case .snapshot(let snapshot)?:
+                unanswered = nil
+                apply(snapshot)
+            case .refused(let refusal)?:
+                unanswered = nil
+                errorMessage = refusal
+                // iPhone の様子が、Watch の思っているものと違ったのかもしれない（自動終了した・ほかの端末で操作したなど）
+                await askCurrent()
+            case nil:
+                // 届いて記録されたのに、答えだけが返らなかったのかもしれない。今の様子を確かめ、
+                // 変わっていなければ（記録されていなければ）押し直したときに同じ ID で送り直す
+                unanswered = request
+                errorMessage = phoneDidNotAnswerMessage
+                if reach == .reachable { await askCurrent() }
+            // 受け取っただけの答えは、記録先に通さない頼み（振動で知らせる範囲）にしか返らない
+            case .accepted?:
+                break
+            }
             pending = false
         }
     }
 
-    private func ask(_ message: WatchMessage) async {
-        let answer = await link.ask(message)
-        switch (message, answer) {
-        case (_, .snapshot(let snapshot)?):
-            apply(snapshot)
-        case (.start, .refused(let refusal)?), (.abort, .refused(let refusal)?):
-            errorMessage = refusal
-            // iPhone の様子が、Watch の思っているものと違ったのかもしれない（自動終了したなど）
-            await ask(.current)
-        case (.start, nil), (.abort, nil):
-            errorMessage = phoneDidNotAnswerMessage
-        // 今の様子を読めなくても、操作の失敗ではないので、前に受け取ったものを出し続ける
-        case (.current, .refused?), (.current, nil):
-            break
-        // 受け取っただけの答えは、記録先に通さない頼み（振動で知らせる範囲。`PhaseChangeVibrator` が頼む）にしか返らない
-        case (_, .accepted?), (.vibration, _):
-            break
+    /// iPhone に届くようになったら、今の様子を確かめ終えるまでボタンを押せなくする。
+    /// 届かなかったあいだに置かれていた最新のスナップショット（application context）は、古いことがある
+    private func beginSync() -> Int {
+        syncGeneration += 1
+        syncing = true
+        return syncGeneration
+    }
+
+    /// 今の様子を読めるまで、待ちを延ばしながら頼み直す。読めたら押せるようにする。
+    /// 後から確かめ始めたものがあるか、届かなくなったらやめる（次に届くようになったときに確かめ直す）
+    private func sync(_ generation: Int) async {
+        var wait = Self.syncRetry.first
+        while generation == syncGeneration, reach == .reachable {
+            if await askCurrent() {
+                if generation == syncGeneration { syncing = false }
+                return
+            }
+            try? await Task.sleep(for: wait)
+            wait = min(wait * 2, Self.syncRetry.longest)
         }
     }
+
+    /// 今の様子を頼み、読めたら true。読めなくても操作の失敗ではないので、前に受け取ったものを出し続ける
+    @discardableResult
+    private func askCurrent() async -> Bool {
+        guard case .snapshot(let snapshot)? = await link.ask(.current) else { return false }
+        apply(snapshot)
+        return true
+    }
+
+    /// 直前の操作の失敗を読んだ
+    func dismissError() { errorMessage = nil }
 
     private func handle(_ message: PhoneMessage) {
         switch message {

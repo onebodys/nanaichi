@@ -16,7 +16,8 @@
 #
 # Xcode のプロジェクトは project.yml から作り直す。Xcode は DEVELOPER_DIR か xcode-select のものを使う。
 # iPhone のシミュレーターは IPHONE_SIMULATOR（名前）で選べる。なければ入っている iPhone のうち、いちばん新しい OS のもの。
-# Watch のシミュレーターも同じく WATCH_SIMULATOR で選べ、なければ名前が Apple Watch で始まるもののうち、いちばん新しい OS のもの
+# Watch のシミュレーターも同じく WATCH_SIMULATOR で選べ、なければいちばん小さい画面の Apple Watch SE 3 (40mm) のうち、
+# いちばん新しい OS のもの（Watch の画面はこの大きさにスクロールせずに収める、Issue #122）
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -85,12 +86,12 @@ case "$platform" in
     out=.uitest-watch
     scheme=NanaichiWatch
     udid=$(xcrun simctl list devices available --json |
-      jq -r --arg name "${WATCH_SIMULATOR:-}" '[.devices | to_entries[]
+      jq -r --arg name "${WATCH_SIMULATOR:-Apple Watch SE 3 (40mm)}" '[.devices | to_entries[]
         | (.key | capture("watchOS-(?<major>[0-9]+)-(?<minor>[0-9]+)") | [(.major | tonumber), (.minor | tonumber)]) as $version
-        | .value[] | select(if $name == "" then (.name | startswith("Apple Watch")) else .name == $name end)
+        | .value[] | select(.name == $name)
         | {version: $version, udid}] | sort_by(.version) | last | .udid // empty')
     if [ -z "$udid" ]; then
-      echo "Watch のシミュレーターがありません（xcodebuild -downloadPlatform watchOS で入れる）" >&2
+      echo "${WATCH_SIMULATOR:-Apple Watch SE 3 (40mm)} のシミュレーターがありません（xcodebuild -downloadPlatform watchOS で入れる）" >&2
       exit 1
     fi
     boot "$udid"

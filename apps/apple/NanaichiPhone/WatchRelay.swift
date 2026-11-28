@@ -26,15 +26,20 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     @MainActor private(set) var vibration = restoredVibration()
     /// 範囲が替わったときに、通知を予約し直して終わるまで待つ。`activate` で1回だけ決める
     private var vibrationChanged: @MainActor () async -> Void = {}
+    /// Watch に答えるスナップショットを、答える前に iPhone の画面に反映し、通知の予約し直しが終わるまで待つ。`activate` で1回だけ決める
+    private var snapshotAnswered: @MainActor (PhoneSnapshot) async -> Void = { _ in }
 
     /// Watch とつなぎ始める。`recordStore` はいまの記録先とその印で、ログイン・ログアウトで替わるので、頼みが届くたびに読む。
-    /// `vibrationChanged` は、Watch が振動で知らせる範囲が替わったときに、通知を予約し直して終わるまで待つ
+    /// `vibrationChanged` は、Watch が振動で知らせる範囲が替わったときに、通知を予約し直して終わるまで待つ。
+    /// `snapshotAnswered` は、Watch に答えるスナップショットを iPhone の画面に反映し、通知の予約し直しが終わるまで待つ
     func activate(
         recordStore: @escaping @MainActor () -> (any Backend, RecordStoreTag),
-        vibrationChanged: @escaping @MainActor () async -> Void
+        vibrationChanged: @escaping @MainActor () async -> Void,
+        snapshotAnswered: @escaping @MainActor (PhoneSnapshot) async -> Void
     ) {
         self.recordStore = recordStore
         self.vibrationChanged = vibrationChanged
+        self.snapshotAnswered = snapshotAnswered
         session?.delegate = self
         session?.activate()
     }
@@ -57,8 +62,7 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
         if sendingNow, session.isReachable { session.sendMessageData(data, replyHandler: nil) }
     }
 
-    /// 頼みをいまの記録先に通す。答えを待つあいだにログイン・ログアウトで記録先が替わったら、前の記録先の答えは返さず、
-    /// 替わった先の今の様子を返す。Watch が、もう使っていない記録先の様子を出し続けないように
+    /// 頼みをいまの記録先に通す（`answerWatch`）
     @MainActor
     private func answer(_ message: WatchMessage) async -> PhoneMessage {
         switch message {
@@ -75,17 +79,9 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
             UserDefaults.standard.set(WatchLinkCoding.encode(applied), forKey: vibrationKey)
             await vibrationChanged()
             return .accepted
-        case .current, .start, .abort:
-            break
+        case .current, .start, .operate:
+            return await answerWatch(message, recordStore: recordStore, answered: snapshotAnswered)
         }
-        var (backend, tag) = recordStore()
-        var answer = await replyTo(message, using: backend, recordStore: tag)
-        // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始・中断はやり直さない
-        while case let (current, currentTag) = recordStore(), currentTag != tag {
-            (backend, tag) = (current, currentTag)
-            answer = await replyTo(.current, using: backend, recordStore: tag)
-        }
-        return answer
     }
 
     // MARK: - WCSessionDelegate
@@ -126,6 +122,46 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
         session.activate()
     }
 }
+
+/// Watch に送る記録先の印（`RecordStoreTags`）を、この端末に残しておく。iPhone のアプリが裏で終了させられ、Watch の頼みで
+/// 起こされても、同じ記録先なら Watch が持っている印と同じになり、起こした頼みを「表示が古い」と断らない
+@MainActor
+final class WatchRecordStoreTags {
+    private var tags: RecordStoreTags
+    /// 起動して、残っていた記録先を開いているところ。それより後に開くのは、ログイン・ログアウト・ログインが切れたとき
+    private var launching = true
+
+    /// `reusesSaved` が false なら前の印を使わない（この端末の記録先の変更の番号が 0 から数え直しになるとき）
+    init(reusesSaved: Bool) {
+        let saved =
+            reusesSaved
+            ? UserDefaults.standard.data(forKey: recordStoreTagsKey).flatMap {
+                WatchLinkCoding.decode(RecordStoreTags.self, from: $0)
+            } : nil
+        tags = saved ?? RecordStoreTags(newTag: newRecordStoreTag)
+        save()
+    }
+
+    /// 記録先を開くときの印。`isDevice` はこの端末の記録先か
+    func tag(opening isDevice: Bool) -> RecordStoreTag {
+        let opening: RecordStoreTags.Opening =
+            isDevice ? .device : launching ? .restoredAccount : .signedInAccount
+        let tag = tags.tag(opening: opening, newTag: newRecordStoreTag)
+        save()
+        return tag
+    }
+
+    /// 起動して、残っていた記録先を開き終えた
+    func launched() { launching = false }
+
+    private func save() {
+        UserDefaults.standard.set(WatchLinkCoding.encode(tags), forKey: recordStoreTagsKey)
+    }
+}
+
+private let recordStoreTagsKey = "watchRecordStoreTags"
+
+private func newRecordStoreTag() -> RecordStoreTag { RecordStoreTag(UUID().uuidString) }
 
 /// この端末に残しておく、Watch が振動で知らせる範囲のキー
 private let vibrationKey = "watchVibration"

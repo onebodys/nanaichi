@@ -118,8 +118,9 @@ struct StartButton: View {
 
     var body: some View {
         Button(action: model.start) {
-            Text(title).frame(minWidth: 160)
+            Label(title, systemImage: startSymbol).frame(minWidth: 160)
         }
+        .operationLabelStyle()
         .buttonStyle(.borderedProminent)
         .controlSize(.extraLarge)
         .tint(PhaseStyle.focus.color)
@@ -365,6 +366,7 @@ struct OperationButtons: View {
             }
         }
         .controlSize(.large)
+        .operationLabelStyle()
     }
 
     private func row(_ buttons: [OperationButton]) -> some View {
@@ -384,24 +386,25 @@ private struct OperationButtonView: View {
 
     var body: some View {
         let title = operationButtonTextOf(button.kind, state)
+        let symbol = operationSymbolOf(button.kind)
         let action = { model.operate(button.kind) }
         Group {
             switch button.emphasis {
             case .primary:
                 switch primaryColorOf(button.kind) {
                 case .phase(let color):
-                    Button(action: action) { Text(title).frame(minWidth: 120) }
+                    Button(action: action) { Label(title, systemImage: symbol).frame(minWidth: 120) }
                         .buttonStyle(.borderedProminent)
                         .tint(color)
                 case .neutral:
-                    Button(action: action) { Text(title).frame(minWidth: 120) }
+                    Button(action: action) { Label(title, systemImage: symbol).frame(minWidth: 120) }
                         .buttonStyle(.bordered)
                 }
             case .secondary:
-                Button(title, action: action)
+                Button(title, systemImage: symbol, action: action)
                     .buttonStyle(.bordered)
             case .quiet:
-                Button(title, action: action)
+                Button(title, systemImage: symbol, action: action)
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
             }
@@ -430,6 +433,17 @@ private struct OperationButtonView: View {
 }
 
 extension View {
+    /// 操作のボタンの見せ方。iPhone と iPad はアイコンと文言を並べ、Watch のアイコンだけのボタンと結びつけて覚えてもらう
+    /// （Issue #122）。Mac は文言だけのまま
+    @ViewBuilder
+    fileprivate func operationLabelStyle() -> some View {
+        #if os(macOS)
+            labelStyle(.titleOnly)
+        #else
+            labelStyle(.titleAndIcon)
+        #endif
+    }
+
     /// ショートカットを添えたボタンの説明。ショートカットがあるのは Mac のメニュー（`TimerCommands`）だけなので、
     /// iPhone と iPad では出さない
     @ViewBuilder

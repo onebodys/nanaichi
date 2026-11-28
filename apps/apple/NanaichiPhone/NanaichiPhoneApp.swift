@@ -41,11 +41,11 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         device = DeviceBackend(location: launch.database, clock: launch.clock.now)
         let watch = WatchRelay()
         self.watch = watch
+        let recordStoreTags = WatchRecordStoreTags(reusesSaved: reusesSavedRecordStoreTags(launch.database))
         // タスク（ToDo）は iPhone では使わない（ADR 0031）
         model = PhoneModel(device: device, accounts: launch.accounts, thisDevice: launch.thisDevice) { backend, _ in
+            let recordStore = recordStoreTags.tag(opening: backend is DeviceBackend)
             let backend = debugBackend(backend)
-            // 記録先を替えるたびに作り直すので、ここで記録先の印を発行する
-            let recordStore = RecordStoreTag(UUID().uuidString)
             let timer = TimerModel(
                 backend: backend, clock: launch.clock,
                 alert: alert, notifications: PhaseNotificationScheduler(clock: launch.clock),
@@ -58,10 +58,16 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
             timer.watchVibration = { watch.vibration.vibration }
             return PhoneServices(backend: backend, timer: timer, recordStore: recordStore)
         }
+        recordStoreTags.launched()
         // Watch の頼みは、そのときの記録先に通す（ログイン・ログアウトで替わる）
         watch.activate(
             recordStore: { [model] in (model.services.backend, model.services.recordStore) },
-            vibrationChanged: { [model] in await model.services.timer.watchVibrationChanged() })
+            vibrationChanged: { [model] in await model.services.timer.watchVibrationChanged() },
+            // 答えたスナップショットが、いまの記録先のものなら画面に反映する
+            snapshotAnswered: { [model] snapshot in
+                guard snapshot.recordStore == model.services.recordStore else { return }
+                await model.services.timer.applyAnsweredToWatch(snapshot.received)
+            })
         super.init()
         UNUserNotificationCenter.current().delegate = self
         // 切り替わりの音はほかのアプリの音に重ねて鳴らし、消音のスイッチに従う（時計のアラームのように鳴らし分けない）
@@ -147,6 +153,16 @@ final class PhoneServices: RecordStoreServices {
     }
 
     func run() async { await timer.run() }
+}
+
+/// 前に起動したときの記録先の印を使い直せるか。記録を残さないときと、デバッグのビルドで記録を消して起動したとき（XCUITest）は、
+/// この端末の記録先の変更の番号が 0 から数え直しになるので使い直さない
+private func reusesSavedRecordStoreTags(_ database: DeviceDatabaseLocation) -> Bool {
+    if case .inMemory = database { return false }
+    #if DEBUG
+        if ProcessInfo.processInfo.environment["NANAICHI_RESET_DATABASE"] == "1" { return false }
+    #endif
+    return true
 }
 
 /// XCUITest がダークの見た目を撮るための明るさ（`NANAICHI_APPEARANCE`）。デバッグのビルドにだけある

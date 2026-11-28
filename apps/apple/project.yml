@@ -114,7 +114,7 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: NanaichiPhone
-  # Watch のアプリ（ADR 0031）。iPhone のアプリに同梱し、開始と中断は WatchConnectivity で iPhone に頼む。記録先は持たない
+  # Watch のアプリ（ADR 0031）。iPhone のアプリに同梱し、操作は WatchConnectivity で iPhone に頼む。記録先は持たない
   NanaichiWatch:
     type: application
     platform: watchOS

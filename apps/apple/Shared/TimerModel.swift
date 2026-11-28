@@ -152,8 +152,9 @@ final class TimerModel {
         }
     }
 
-    /// 届いたスナップショットに置き換え、スナップショットが替わったら通知を予約し直す
-    private func apply(_ received: Received) {
+    /// 届いたスナップショットに置き換え、スナップショットが替わったら通知を予約し直す。
+    /// `notifiesWatch` が false なら Watch に知らせない（Watch の頼みの答えは、iPhone が確かめ終えてから答えとして届ける）
+    private func apply(_ received: Received, notifiesWatch: Bool = true) {
         guard !released else { return }
         let before = loading.received?.snapshot
         loading = loading.applying(received)
@@ -161,7 +162,7 @@ final class TimerModel {
         refreshMenuBarLabel()
         guard let current = loading.received, current.snapshot != before else { return }
         let after = current.snapshot
-        snapshotChanged(current)
+        if notifiesWatch { snapshotChanged(current) }
         scheduleNotifications(for: after)
         holdActivity(during: view.isInSession)
         refreshDerivedCounts()
@@ -268,6 +269,15 @@ final class TimerModel {
         } else {
             notifications.withdraw(coveredBy: watchVibration())
         }
+        await notifications.settle()
+    }
+
+    /// Watch の頼みを記録先に通して受け取ったスナップショットを反映し、通知の予約し直しが終わるまで待つ（iPhone だけ）。
+    /// Watch の頼みで裏で起こされたアプリは、Watch に答えたあとすぐ止められることがある。アカウントの記録先では、操作の応答は
+    /// 頼んだ側にしか返らず、同期の接続も裏では切れていることがあるので、同期メッセージを待たずにここで反映する。
+    /// 反映しないと、Watch で終えたセッションの通知が残り、Watch が範囲を閉じたときに古いスナップショットで予約し直してしまう
+    func applyAnsweredToWatch(_ received: Received) async {
+        apply(received, notifiesWatch: false)
         await notifications.settle()
     }
 

@@ -1,6 +1,6 @@
 import NanaichiDomain
 
-/// Watch から iPhone に届くか（ADR 0031）。届かないあいだ、Watch は開始・中断を受け付けない
+/// Watch から iPhone に届くか（ADR 0031）。届かないあいだ、Watch は操作を受け付けない
 public enum PhoneReach: Hashable, Sendable {
     case reachable
     case unreachable
@@ -30,7 +30,7 @@ public enum WatchControl: Hashable, Sendable {
     }
 }
 
-/// Watch の画面に出すもの（ADR 0031）。Watch でできる操作は開始と中断だけなので、ほかの操作は出さない
+/// Watch の画面に出すもの（ADR 0031）。Watch でできない操作（`isWatchOperation`）は出さない
 public struct WatchFace: Hashable, Sendable {
     public let screen: WatchScreen
     public let reach: PhoneReach
@@ -44,7 +44,9 @@ public struct WatchFace: Hashable, Sendable {
             case .loading, .loadFailed: .waitingForPhone
             case .noSession, .ended: .outOfSession(start: control)
             case .inSession(_, let state, let operations):
-                .inSession(state: state, abort: operations.contains(.abort) ? .available(control) : .notNow)
+                .inSession(
+                    state: state, operations: operationButtonsOf(operations).filter { isWatchOperation($0.kind) },
+                    control: control)
             }
         return WatchFace(screen: screen, reach: reach)
     }
@@ -63,16 +65,16 @@ public enum WatchScreen: Hashable, Sendable {
     case waitingForPhone
     /// セッションの外（始める前・終了したあと）。開始できる
     case outOfSession(start: WatchControl)
-    /// セッション中。中断は集中中だけできる（GLOSSARY の「中断」）
-    case inSession(state: UnendedTimerState, abort: WatchAbort)
+    /// セッション中。`operations` はいまできる操作のうち Watch でできるものを、主な操作から順に並べたもの
+    case inSession(state: UnendedTimerState, operations: [OperationButton], control: WatchControl)
 }
 
-/// セッション中の Watch の中断ボタン
-public enum WatchAbort: Hashable, Sendable {
-    /// いまは中断できない（集中中でない）。ボタンを出さない
-    case notNow
-    /// 中断できる状態。押せるかは `WatchControl` で決める
-    case available(WatchControl)
+/// Watch でできるセッション中の操作（ADR 0031）。集中の再開始・休憩スキップ・進めるは iPhone で行う
+func isWatchOperation(_ kind: SessionOperationKind) -> Bool {
+    switch kind {
+    case .pause, .resume, .abort, .end: true
+    case .restartFocus, .skipBreak, .advance: false
+    }
 }
 
 /// Watch が頼んだのに iPhone から答えが返らなかったときの文言

@@ -19,8 +19,9 @@ func debugBackend(_ backend: any Backend) -> any Backend {
         private let base: any Backend
         private var failuresLeft: Int
 
-        /// 送れなかったことにするまで待つ長さ。テストが送信してから書き足し始めるまでより長くする
-        private static let delay = Duration.seconds(3)
+        /// 送れなかったことにするまで待つ長さ。テストが送信してから書き足し始めるまでより長くする。
+        /// CI の XCUITest は、送信を押してから次の1文字を打つまでに 4.6 秒かかったことがあり、3 秒では間に合わなかった（#93）
+        private static let delay = Duration.seconds(10)
 
         /// 環境変数がなければ `base` をそのまま返す
         static func wrapping(_ base: any Backend, _ environment: [String: String]) -> any Backend {
