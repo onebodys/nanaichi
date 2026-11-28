@@ -14,7 +14,7 @@ import NanaichiPresentation
 
 /// Watch から iPhone への頼み。iPhone は `PhoneMessage` で答える。
 ///
-/// 記録を変える頼み（開始と操作）には、Watch が画面に出している記録先の印（とセッション）を添える。
+/// 記録を変える頼み（開始と操作）には、Watch が画面に出している記録先（とセッション）を添える。
 /// Watch の画面が古いうちに押されたもの（iPhone が記録先を替えた・ほかの端末で次のセッションを始めた）を、
 /// iPhone のいまの記録先やセッションに通さないため。食い違えば断り、Watch は今の様子を頼み直す
 public enum WatchMessage: Hashable, Sendable, Codable {
@@ -22,10 +22,10 @@ public enum WatchMessage: Hashable, Sendable, Codable {
     case current
     /// セッションを開始する。`id` は開始の操作イベントの ID で、Watch が発行する。
     /// 届いたか確かめられずに頼み直すときも同じ ID で送れば、二重に開始しない（ADR 0007）
-    case start(id: SessionEventId, recordStore: RecordStoreTag)
+    case start(id: SessionEventId, recordStore: RecordStoreId)
     /// セッション中の操作（一時停止・再開・中断・終了）。`id` はその操作イベントの ID、`session` は Watch が画面に出している
     /// セッション。どの操作を Watch に出すかは Watch の画面が決め（`WatchFace`）、できるかどうかは iPhone の記録先が決める
-    case operate(id: SessionEventId, kind: SessionOperationKind, session: SessionId, recordStore: RecordStoreTag)
+    case operate(id: SessionEventId, kind: SessionOperationKind, session: SessionId, recordStore: RecordStoreId)
     /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
     /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
     case vibration(ToldWatchVibration)
@@ -63,9 +63,10 @@ public struct WatchRequest: Hashable, Sendable {
         let message: WatchMessage
         switch (command, shown.received.snapshot) {
         case (.start, _):
-            message = .start(id: newEventId(), recordStore: shown.recordStore)
+            message = .start(id: newEventId(), recordStore: shown.recordStore.store)
         case (.operate(let kind), .session(_, _, let session, _)):
-            message = .operate(id: newEventId(), kind: kind, session: session.id, recordStore: shown.recordStore)
+            message = .operate(
+                id: newEventId(), kind: kind, session: session.id, recordStore: shown.recordStore.store)
         case (.operate, .noSession):
             return nil
         }
@@ -215,14 +216,14 @@ public struct PhoneSnapshot: Hashable, Sendable, Codable {
         return recordStore.generation.precedes(current.recordStore.generation)
     }
 
-    /// `current` と同じ記録先で、`current` のほうが同じ起動の中で後に開いたものなら、その印に替えたもの。
-    /// 前に開いていたときのスナップショットが遅れて届いても、手元の開いた順を戻さない（戻すと、そのあと遅れて届いた
+    /// `other` と同じ記録先で、`other` のほうが同じ起動の中で後に開いたものなら、その印に替えたもの。
+    /// 同じ記録先のスナップショットのどちらを残しても、手元の開いた順を戻さない（戻すと、そのあと遅れて届いた
     /// 前の記録先のスナップショットを古いと決められない）
-    func keepingLaterOpening(of current: PhoneSnapshot) -> PhoneSnapshot {
-        guard recordStore.store == current.recordStore.store,
-            recordStore.generation.precedes(current.recordStore.generation)
+    func keepingLaterOpening(of other: PhoneSnapshot) -> PhoneSnapshot {
+        guard recordStore.store == other.recordStore.store,
+            recordStore.generation.precedes(other.recordStore.generation)
         else { return self }
-        return PhoneSnapshot(received: received, recordStore: current.recordStore)
+        return PhoneSnapshot(received: received, recordStore: other.recordStore)
     }
 }
 
@@ -232,11 +233,12 @@ public enum PhoneSnapshotLoading: Hashable, Sendable {
     case waiting
     case loaded(PhoneSnapshot)
 
-    /// 届いたスナップショットを反映する。手元より古いもの（`PhoneSnapshot.isOlder`）は捨てる
+    /// 届いたスナップショットを反映する。手元より古いもの（`PhoneSnapshot.isOlder`）は捨てるが、同じ記録先を後に開いた
+    /// ものなら、開いた順だけは引き継ぐ（iPhone の時計が戻って、後に開いたときのスナップショットの時刻が前になったとき）
     public func applying(_ arrived: PhoneSnapshot) -> PhoneSnapshotLoading {
         switch self {
         case .waiting: .loaded(arrived)
-        case .loaded(let current) where arrived.isOlder(than: current): self
+        case .loaded(let current) where arrived.isOlder(than: current): .loaded(current.keepingLaterOpening(of: arrived))
         case .loaded(let current): .loaded(arrived.keepingLaterOpening(of: current))
         }
     }
@@ -260,10 +262,10 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
     switch message {
     case .current: result = await backend.getCurrentSession()
     case .start(let id, let shownStore):
-        guard shownStore.store == recordStore.store else { return .refused(message: watchOutdatedMessage) }
+        guard shownStore == recordStore.store else { return .refused(message: watchOutdatedMessage) }
         result = await backend.startSession(id: id)
     case .operate(let id, let kind, let shownSession, let shownStore):
-        guard shownStore.store == recordStore.store else { return .refused(message: watchOutdatedMessage) }
+        guard shownStore == recordStore.store else { return .refused(message: watchOutdatedMessage) }
         // 記録先はセッションを指定して操作できないので、いまのセッションを読んで確かめてから通す。
         // いまのセッションがない（終わった）ときは通す。同じ ID の頼み直しなら記録先が前の答えを返し、そうでなければ断る
         switch await backend.getCurrentSession() {
