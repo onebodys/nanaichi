@@ -118,13 +118,52 @@ public func nextWatchVibrationSequence(after last: Int64, deviceNow: Instant) ->
     max(deviceNow.milliseconds, last + 1)
 }
 
-/// どの記録先のスナップショットか。iPhone がログイン・ログアウトで記録先を替えるたびに、新しいものを発行する。
-/// 変更の番号（`Revision`）は記録先ごとに数えるので、記録先が違うスナップショットどうしは新旧を比べられない
+/// どの記録先のスナップショットか（`RecordStoreTags`）。変更の番号（`Revision`）は記録先ごとに数えるので、
+/// 記録先が違うスナップショットどうしは新旧を比べられない
 public struct RecordStoreTag: Hashable, Sendable, Codable {
     public let rawValue: String
 
     public init(_ rawValue: String) {
         self.rawValue = rawValue
+    }
+}
+
+/// iPhone が記録先ごとに残しておく、Watch に送る記録先の印（ADR 0031）。
+///
+/// iPhone のアプリは裏で終了させられ、Watch の頼みで起こされることがある。印を起動のたびに作り直すと、Watch が持っている
+/// 前の印と食い違い、起こした頼みが「表示が古い」と断られる。そのため同じ記録先を開き直すときは前の印を使う。
+/// この端末の記録先は、記録が続く限り同じ印にする。アカウントの記録先は、ログインするたびに新しい印にする（前と別のアカウントの
+/// ことがあり、変更の番号を比べられない）。起動したときに残っていたログインを開き直すときは、前の印を使う
+public struct RecordStoreTags: Hashable, Sendable, Codable {
+    public private(set) var device: RecordStoreTag
+    public private(set) var account: RecordStoreTag?
+
+    /// どの記録先を、どう開くか
+    public enum Opening: Sendable {
+        /// この端末の記録先（起動したとき・ログアウトしたとき・ログインが切れたとき）
+        case device
+        /// 起動したときに残っていたログインのアカウントの記録先
+        case restoredAccount
+        /// ログインしたアカウントの記録先
+        case signedInAccount
+    }
+
+    /// 何も残っていない（初めて起動した・記録を消した）。この端末の記録先の印を新しく作る
+    public init(newTag: () -> RecordStoreTag) {
+        device = newTag()
+        account = nil
+    }
+
+    /// `opening` を開くときの印。要るときだけ新しく作って覚える
+    public mutating func tag(opening: Opening, newTag: () -> RecordStoreTag) -> RecordStoreTag {
+        switch (opening, account) {
+        case (.device, _): return device
+        case (.restoredAccount, let restored?): return restored
+        case (.restoredAccount, nil), (.signedInAccount, _):
+            let tag = newTag()
+            account = tag
+            return tag
+        }
     }
 }
 
@@ -207,6 +246,8 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
 /// - `recordStore` はいまの記録先とその印。ログイン・ログアウトで替わるので、頼みが届くたびに読む。答えを待つあいだや画面に渡す
 ///   あいだに替わったら、前の記録先の答えは返さず、替わった先の今の様子を返す（Watch が、もう使っていない記録先の様子を出し続けない
 ///   ように）。開始と操作はやり直さない
+/// - 断ったときは、記録先が替わっていても断りを返す。替わった先の様子で上書きすると、Watch は頼みが通ったように見せてしまう
+///   （ログインが切れて、この端末の記録先に替わったときなど）。Watch は断られたら今の様子を頼み直す
 /// - 答えのスナップショットは、Watch に答える前に `answered` に渡し、終わるまで待つ。iPhone はそこで画面と通知の予約に
 ///   反映する。Watch の頼みで裏で起こされたアプリは答えたあとすぐ止められることがあり、アカウントの記録先の同期の接続も
 ///   裏では切れていることがあるので、同期メッセージを待たない
@@ -220,12 +261,13 @@ public func answerWatch(
     var handedOver = false
     // 取り直すあいだや画面に渡すあいだにまた替わることもあるので、替わらなくなるまで取り直す
     while true {
+        guard case .snapshot(let snapshot) = answer else { return answer }
         let (current, currentTag) = recordStore()
         if currentTag != tag {
             (backend, tag) = (current, currentTag)
             answer = await replyTo(.current, using: backend, recordStore: tag)
             handedOver = false
-        } else if !handedOver, case .snapshot(let snapshot) = answer {
+        } else if !handedOver {
             await answered(snapshot)
             handedOver = true
         } else {

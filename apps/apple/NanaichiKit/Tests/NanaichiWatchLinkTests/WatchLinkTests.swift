@@ -398,6 +398,82 @@ func recordStoreSwitchedWhileHandingOver() async throws {
     #expect(handed.last == snapshot)
 }
 
+@Test("Watch の頼みが断られたら、答えるあいだに iPhone の記録先が替わっても（ログインが切れたなど）、替わった先の様子ではなく断りを返す")
+@MainActor
+func refusalSurvivesRecordStoreSwitch() async throws {
+    let account = phoneBackend(TestClock())
+    let device = phoneBackend(TestClock())
+    let accountStore = RecordStoreTag("account")
+    let session = sessionOf(
+        await replyTo(.start(id: eventId(), recordStore: accountStore), using: account, recordStore: accountStore))
+    var reads = 0
+    var handed: [PhoneSnapshot] = []
+    // 進んでいる集中に再開を頼んで断られ、そのころにこの端末の記録先に替わる
+    let answer = await answerWatch(
+        .operate(id: eventId(), kind: .resume, session: session!, recordStore: accountStore),
+        recordStore: {
+            reads += 1
+            return reads == 1 ? (account, accountStore) : (device, store)
+        }, answered: { handed.append($0) })
+    #expect(answer == .refused(message: "操作できませんでした。最新の状態を読み込み直しました。"))
+    #expect(handed.isEmpty)
+}
+
+@Test("iPhone は Watch に答える前に、画面に渡すのが終わるまで待つ")
+@MainActor
+func answerWaitsForHandOver() async throws {
+    let backend = phoneBackend(TestClock())
+    var finished = false
+    _ = await answerWatch(
+        .start(id: eventId(), recordStore: store), recordStore: { (backend, store) },
+        answered: { _ in
+            try? await Task.sleep(for: .milliseconds(50))
+            finished = true
+        })
+    #expect(finished)
+}
+
+@Test("同じ記録先を開き直すときは前と同じ印にし、ログインするたびにアカウントの印を新しくする。この端末の記録先の印は替えない")
+func recordStoreTagsSurviveRelaunch() throws {
+    var count = 0
+    func newTag() -> RecordStoreTag {
+        count += 1
+        return RecordStoreTag("tag-\(count)")
+    }
+    var tags = RecordStoreTags(newTag: newTag)
+    let device = tags.tag(opening: .device, newTag: newTag)
+    let signedIn = tags.tag(opening: .signedInAccount, newTag: newTag)
+    #expect(signedIn != device)
+    // iPhone のアプリが裏で終了させられ、残しておいた印から起き直した
+    var relaunched = try #require(
+        WatchLinkCoding.decode(RecordStoreTags.self, from: WatchLinkCoding.encode(tags)))
+    #expect(relaunched.tag(opening: .device, newTag: newTag) == device)
+    #expect(relaunched.tag(opening: .restoredAccount, newTag: newTag) == signedIn)
+    // ログアウトしてログインし直すと、別のアカウントかもしれないので新しい印
+    #expect(relaunched.tag(opening: .device, newTag: newTag) == device)
+    let signedInAgain = relaunched.tag(opening: .signedInAccount, newTag: newTag)
+    #expect(signedInAgain != signedIn && signedInAgain != device)
+    // アカウントの印が残っていなければ、起き直したときに新しく作る
+    var fresh = RecordStoreTags(newTag: newTag)
+    #expect(fresh.tag(opening: .restoredAccount, newTag: newTag) != fresh.tag(opening: .device, newTag: newTag))
+}
+
+@Test("裏で終了させられた iPhone が Watch の頼みで起き直しても、Watch が前に受け取った印で頼んだ操作を断らない")
+func requestFromBeforeRelaunchIsAccepted() async throws {
+    var tags = RecordStoreTags(newTag: { RecordStoreTag(UUID().uuidString) })
+    let before = tags.tag(opening: .device, newTag: { RecordStoreTag(UUID().uuidString) })
+    let backend = phoneBackend(TestClock())
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: before), using: backend, recordStore: before))
+    var relaunched = try #require(WatchLinkCoding.decode(RecordStoreTags.self, from: WatchLinkCoding.encode(tags)))
+    let after = relaunched.tag(opening: .device, newTag: { RecordStoreTag(UUID().uuidString) })
+    let reply = await replyTo(
+        .operate(id: eventId(), kind: .pause, session: session!, recordStore: before), using: backend, recordStore: after)
+    guard case .focus(let focus) = stateOf(reply), case .paused = focus.clock else {
+        Issue.record("起き直した iPhone が操作を断った: \(reply)")
+        return
+    }
+}
+
 @Test("Watch が今の様子を頼むと、iPhone の記録先の今のスナップショットが返る")
 func currentSnapshot() async throws {
     let backend = phoneBackend(TestClock())
