@@ -26,15 +26,20 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     @MainActor private(set) var vibration = restoredVibration()
     /// 範囲が替わったときに、通知を予約し直して終わるまで待つ。`activate` で1回だけ決める
     private var vibrationChanged: @MainActor () async -> Void = {}
+    /// Watch に答えるスナップショットを、答える前に iPhone の画面に反映し、通知の予約し直しが終わるまで待つ。`activate` で1回だけ決める
+    private var snapshotAnswered: @MainActor (PhoneSnapshot) async -> Void = { _ in }
 
     /// Watch とつなぎ始める。`recordStore` はいまの記録先とその印で、ログイン・ログアウトで替わるので、頼みが届くたびに読む。
-    /// `vibrationChanged` は、Watch が振動で知らせる範囲が替わったときに、通知を予約し直して終わるまで待つ
+    /// `vibrationChanged` は、Watch が振動で知らせる範囲が替わったときに、通知を予約し直して終わるまで待つ。
+    /// `snapshotAnswered` は、Watch に答えるスナップショットを iPhone の画面に反映し、通知の予約し直しが終わるまで待つ
     func activate(
         recordStore: @escaping @MainActor () -> (any Backend, RecordStoreTag),
-        vibrationChanged: @escaping @MainActor () async -> Void
+        vibrationChanged: @escaping @MainActor () async -> Void,
+        snapshotAnswered: @escaping @MainActor (PhoneSnapshot) async -> Void
     ) {
         self.recordStore = recordStore
         self.vibrationChanged = vibrationChanged
+        self.snapshotAnswered = snapshotAnswered
         session?.delegate = self
         session?.activate()
     }
@@ -57,8 +62,7 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
         if sendingNow, session.isReachable { session.sendMessageData(data, replyHandler: nil) }
     }
 
-    /// 頼みをいまの記録先に通す。答えを待つあいだにログイン・ログアウトで記録先が替わったら、前の記録先の答えは返さず、
-    /// 替わった先の今の様子を返す。Watch が、もう使っていない記録先の様子を出し続けないように
+    /// 頼みをいまの記録先に通す（`answerWatch`）
     @MainActor
     private func answer(_ message: WatchMessage) async -> PhoneMessage {
         switch message {
@@ -76,16 +80,8 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
             await vibrationChanged()
             return .accepted
         case .current, .start, .operate:
-            break
+            return await answerWatch(message, recordStore: recordStore, answered: snapshotAnswered)
         }
-        var (backend, tag) = recordStore()
-        var answer = await replyTo(message, using: backend, recordStore: tag)
-        // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始と操作はやり直さない
-        while case let (current, currentTag) = recordStore(), currentTag != tag {
-            (backend, tag) = (current, currentTag)
-            answer = await replyTo(.current, using: backend, recordStore: tag)
-        }
-        return answer
     }
 
     // MARK: - WCSessionDelegate

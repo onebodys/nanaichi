@@ -122,6 +122,12 @@ private struct InSession: View {
                 .minimumScaleFactor(0.7)
         case .awaitingAdvance:
             Countdown(remainingSeconds: 0, dimmed: false)
+            Text("進めるのは iPhone で")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityIdentifier("watch.advanceOnPhone")
         case .focus, .journal, .breakTime:
             if let inPhase = state.inPhase {
                 Countdown(remainingSeconds: inPhase.remainingSeconds, dimmed: isPaused)

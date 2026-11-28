@@ -61,7 +61,12 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         // Watch の頼みは、そのときの記録先に通す（ログイン・ログアウトで替わる）
         watch.activate(
             recordStore: { [model] in (model.services.backend, model.services.recordStore) },
-            vibrationChanged: { [model] in await model.services.timer.watchVibrationChanged() })
+            vibrationChanged: { [model] in await model.services.timer.watchVibrationChanged() },
+            // 答えたスナップショットが、いまの記録先のものなら画面に反映する
+            snapshotAnswered: { [model] snapshot in
+                guard snapshot.recordStore == model.services.recordStore else { return }
+                await model.services.timer.applyAnsweredToWatch(snapshot.received)
+            })
         super.init()
         UNUserNotificationCenter.current().delegate = self
         // 切り替わりの音はほかのアプリの音に重ねて鳴らし、消音のスイッチに従う（時計のアラームのように鳴らし分けない）

@@ -271,6 +271,15 @@ final class TimerModel {
         await notifications.settle()
     }
 
+    /// Watch の頼みを記録先に通して受け取ったスナップショットを反映し、通知の予約し直しが終わるまで待つ（iPhone だけ）。
+    /// Watch の頼みで裏で起こされたアプリは、Watch に答えたあとすぐ止められることがある。アカウントの記録先では、操作の応答は
+    /// 頼んだ側にしか返らず、同期の接続も裏では切れていることがあるので、同期メッセージを待たずにここで反映する。
+    /// 反映しないと、Watch で終えたセッションの通知が残り、Watch が範囲を閉じたときに古いスナップショットで予約し直してしまう
+    func applyAnsweredToWatch(_ received: Received) async {
+        apply(received)
+        await notifications.settle()
+    }
+
     /// Watch に答える前に読み込むのを待つ長さ。WatchConnectivity の答えを待たせすぎない
     private static let loadBeforeAnsweringWatch = Duration.seconds(3)
 

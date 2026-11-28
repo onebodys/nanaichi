@@ -10,15 +10,19 @@ final class WatchTimerTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// `startedAgo` は、Watch で開始したセッションを何秒前に始めたことにするか
+    /// `startedAgo` は、開始したセッションを何秒前に始めたことにするか。`manualAdvance` は手動にするフェーズの切り替わり、
+    /// `losesAnswers` は、記録先には通したうえで答えを返さない開始・操作の頼みの数（`StubPhoneLink`）
     @MainActor
     private func launch(
-        phone: String, startsAfter: Double? = nil, startedAgo: Double? = nil, showsVibrations: Bool = false
+        phone: String, startsAfter: Double? = nil, startedAgo: Double? = nil, manualAdvance: String? = nil,
+        losesAnswers: Int? = nil, showsVibrations: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment = ["NANAICHI_WATCH_PHONE": phone]
         if let startsAfter { app.launchEnvironment["NANAICHI_WATCH_PHONE_STARTS_AFTER"] = String(startsAfter) }
         if let startedAgo { app.launchEnvironment["NANAICHI_WATCH_PHONE_STARTED_AGO"] = String(startedAgo) }
+        if let manualAdvance { app.launchEnvironment["NANAICHI_MANUAL_ADVANCE"] = manualAdvance }
+        if let losesAnswers { app.launchEnvironment["NANAICHI_WATCH_PHONE_LOSES_ANSWERS"] = String(losesAnswers) }
         if showsVibrations { app.launchEnvironment["NANAICHI_WATCH_SHOW_VIBRATIONS"] = "1" }
         app.launch()
         return app
@@ -37,22 +41,40 @@ final class WatchTimerTests: XCTestCase {
             element.waitForExistence(timeout: timeout), "\(identifier) が「\(label)」にならない", file: file, line: line)
     }
 
-    /// スクロールする場所がなく、文字・記号・ボタンがどれも画面の中に収まっている。撮った画面を `name` で残す
+    /// スクロールする場所がなく、文字・記号・ボタンがどれも大きさを持って画面の中に収まり、互いに重ならない。
+    /// 撮った画面を `name` で残す
     @MainActor
     private func assertFitsOnScreen(
         _ app: XCUIApplication, screenshot name: String, file: StaticString = #filePath, line: UInt = #line
     ) {
         XCTAssertEqual(app.scrollViews.count, 0, "スクロールする場所がある", file: file, line: line)
         let screen = app.windows.firstMatch.frame
-        for query in [app.staticTexts, app.images, app.buttons] {
-            for element in query.allElementsBoundByIndex where element.exists {
-                XCTAssertTrue(
-                    screen.contains(element.frame),
-                    "\(element.identifier)（\(element.label)）が画面 \(screen) からはみ出す: \(element.frame)",
+        let elements = [app.staticTexts, app.images, app.buttons].flatMap(\.allElementsBoundByIndex).filter(\.exists)
+        for element in elements {
+            XCTAssertFalse(
+                element.frame.isEmpty, "\(element.identifier)（\(element.label)）に大きさがない", file: file, line: line)
+            XCTAssertTrue(
+                screen.contains(element.frame),
+                "\(element.identifier)（\(element.label)）が画面 \(screen) からはみ出す: \(element.frame)",
+                file: file, line: line)
+        }
+        for (index, element) in elements.enumerated() {
+            for other in elements[(index + 1)...] {
+                let overlap = element.frame.intersection(other.frame)
+                XCTAssertFalse(
+                    overlap.width > 0.5 && overlap.height > 0.5,
+                    "\(element.identifier)（\(element.label)）と \(other.identifier)（\(other.label)）が重なる",
                     file: file, line: line)
             }
         }
         attachScreenshot(named: name)
+    }
+
+    /// ボタンが押せるようになるまで待って押す。Watch は iPhone に届いて今の様子を確かめ終えるまで、ボタンを押せなくする
+    @MainActor
+    private func tapWhenEnabled(_ button: XCUIElement) {
+        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: button)], timeout: 10)
+        button.tap()
     }
 
     /// 文言のない操作のボタンで、VoiceOver が GLOSSARY の用語を読む
@@ -75,7 +97,7 @@ final class WatchTimerTests: XCTestCase {
         XCTAssertFalse(app.images["watch.unreachable"].exists)
         assertFitsOnScreen(app, screenshot: "01-開始前")
 
-        start.tap()
+        tapWhenEnabled(start)
         waitFor(app, "timer.phase", toRead: "集中")
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         let countdown = app.staticTexts["timer.countdown"]
@@ -111,26 +133,68 @@ final class WatchTimerTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["timer.phase"].exists, "終了してもセッション中の画面のまま")
     }
 
-    /// ジャーナルと休憩の画面も、SE 3（40mm）にスクロールせずに収まる。ジャーナル中は中断を出さない
+    /// ジャーナルと休憩の画面も、一時停止中も含めて SE 3（40mm）にスクロールせずに収まり、Watch で一時停止・終了できる。
+    /// ジャーナル中は中断を出さず、休憩中の休憩スキップは iPhone で行う
     @MainActor
     func testJournalAndBreakFitOnScreen() {
         // 集中の7分と30秒
         let journal = launch(phone: "stub", startedAgo: 7 * 60 + 30)
-        journal.buttons["timer.start"].tap()
+        tapWhenEnabled(journal.buttons["timer.start"])
         waitFor(journal, "timer.phase", toRead: "ジャーナル")
         assertIconButton(journal.buttons["operation.Pause"], reads: "一時停止")
         XCTAssertFalse(journal.buttons["operation.Abort"].exists, "ジャーナル中に中断が出ている")
         assertFitsOnScreen(journal, screenshot: "05-ジャーナル中")
+        journal.buttons["operation.Pause"].tap()
+        XCTAssertTrue(journal.images["timer.paused"].waitForExistence(timeout: 10), "ジャーナルが一時停止中にならない")
+        assertIconButton(journal.buttons["operation.Resume"], reads: "再開")
+        assertFitsOnScreen(journal, screenshot: "06-一時停止中のジャーナル")
+        journal.buttons["operation.End"].tap()
+        XCTAssertTrue(journal.buttons["timer.start"].waitForExistence(timeout: 10), "ジャーナル中に終了できない")
         journal.terminate()
 
         // 3セットの24分と30秒
         let breakTime = launch(phone: "stub", startedAgo: 24 * 60 + 30)
-        breakTime.buttons["timer.start"].tap()
+        tapWhenEnabled(breakTime.buttons["timer.start"])
         waitFor(breakTime, "timer.phase", toRead: "休憩")
         waitFor(breakTime, "timer.position", toRead: "1ラウンド目")
         assertIconButton(breakTime.buttons["operation.Pause"], reads: "一時停止")
         assertIconButton(breakTime.buttons["operation.End"], reads: "終了")
-        assertFitsOnScreen(breakTime, screenshot: "06-休憩中")
+        XCTAssertFalse(breakTime.buttons["operation.SkipBreak"].exists, "休憩スキップが Watch に出ている")
+        assertFitsOnScreen(breakTime, screenshot: "07-休憩中")
+        breakTime.buttons["operation.Pause"].tap()
+        XCTAssertTrue(breakTime.images["timer.paused"].waitForExistence(timeout: 10), "休憩が一時停止中にならない")
+        assertIconButton(breakTime.buttons["operation.Resume"], reads: "再開")
+        assertFitsOnScreen(breakTime, screenshot: "08-一時停止中の休憩")
+        breakTime.buttons["operation.End"].tap()
+        XCTAssertTrue(breakTime.buttons["timer.start"].waitForExistence(timeout: 10), "休憩中に終了できない")
+    }
+
+    /// 手動の切り替わりの切り替え待ちも SE 3（40mm）に収まり、進めるのは iPhone で行うと出す
+    @MainActor
+    func testAwaitingAdvanceFitsOnScreen() {
+        let app = launch(phone: "stub", startedAgo: 7 * 60 + 5, manualAdvance: "FocusToJournal")
+        tapWhenEnabled(app.buttons["timer.start"])
+        waitFor(app, "timer.phase", toRead: "切り替え待ち")
+        XCTAssertTrue(app.staticTexts["watch.advanceOnPhone"].exists, "進めるのは iPhone で、と出ない")
+        assertIconButton(app.buttons["operation.End"], reads: "終了")
+        XCTAssertFalse(app.buttons["operation.Advance"].exists, "進めるが Watch に出ている")
+        assertFitsOnScreen(app, screenshot: "09-切り替え待ち")
+    }
+
+    /// 開始の答えが Watch に返らなかったら、届かなかったと重ねて出し、今の様子を頼み直す。
+    /// iPhone には届いて記録されていたので、セッションが始まった様子に替わる
+    @MainActor
+    func testUnansweredRequestResyncs() {
+        let app = launch(phone: "stub", losesAnswers: 1)
+        tapWhenEnabled(app.buttons["timer.start"])
+        // watchOS のアラートは XCUITest の alerts に出ないので、文言で探す
+        let notice = app.staticTexts["iPhone に届きませんでした。もう一度お試しください。"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "答えが返らなかったことを出さない")
+        attachScreenshot(named: "13-iPhone から答えが返らなかった")
+        app.buttons["OK"].tap()
+        waitFor(app, "timer.phase", toRead: "集中")
+        XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["operation.Pause"].isEnabled, "頼み直したあとも押せない")
     }
 
     /// 集中からジャーナルへの切り替わりで、1回の知らせとして振動を3回続けて鳴らし、それきり鳴らさない（Issue #73）。
@@ -142,16 +206,16 @@ final class WatchTimerTests: XCTestCase {
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         waitFor(app, "watch.vibrations", toRead: "0")
 
-        start.tap()
+        tapWhenEnabled(start)
         waitFor(app, "timer.phase", toRead: "集中")
-        attachScreenshot(named: "09-振動で知らせる集中中")
+        attachScreenshot(named: "14-振動で知らせる集中中")
 
         waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: 20)
         waitFor(app, "watch.vibrations", toRead: "3")
         // 同じ切り替わりで、もう一度は知らせない
         Thread.sleep(forTimeInterval: 3)
         waitFor(app, "watch.vibrations", toRead: "3", timeout: 1)
-        attachScreenshot(named: "10-ジャーナルに切り替わって振動した")
+        attachScreenshot(named: "15-ジャーナルに切り替わって振動した")
     }
 
     /// iPhone の側で始めたセッションが、Watch の表示に出る。Watch では何も押さない
@@ -160,7 +224,7 @@ final class WatchTimerTests: XCTestCase {
         let app = launch(phone: "stub", startsAfter: 3)
         waitFor(app, "timer.phase", toRead: "集中", timeout: 20)
         XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10))
-        attachScreenshot(named: "07-iPhone で始めたセッション")
+        attachScreenshot(named: "10-iPhone で始めたセッション")
     }
 
     /// iPhone に届かないあいだは開始を押せず、届かないことを記号で出す
@@ -173,6 +237,20 @@ final class WatchTimerTests: XCTestCase {
         XCTAssertTrue(unreachable.waitForExistence(timeout: 10))
         XCTAssertEqual(unreachable.label, "iPhone に繋がっていません")
         XCTAssertFalse(start.isEnabled, "iPhone に届かないのに開始を押せる")
-        assertFitsOnScreen(app, screenshot: "08-iPhone に繋がっていない")
+        assertFitsOnScreen(app, screenshot: "11-iPhone に繋がっていない")
+    }
+
+    /// セッション中に iPhone に届かなくなっても、届かないことの記号をフェーズの横に並べて SE 3（40mm）に収まり、操作できない。
+    /// 代わりの iPhone が、ジャーナルに入ったセッションを始めたあと届かなくなる
+    @MainActor
+    func testPhoneUnreachableInSessionFitsOnScreen() {
+        let app = launch(phone: "unreachable", startsAfter: 0, startedAgo: 7 * 60 + 30)
+        waitFor(app, "timer.phase", toRead: "ジャーナル")
+        XCTAssertTrue(app.images["watch.unreachable"].waitForExistence(timeout: 10))
+        let pause = app.buttons["operation.Pause"]
+        XCTAssertTrue(pause.waitForExistence(timeout: 10))
+        XCTAssertFalse(pause.isEnabled, "iPhone に届かないのに一時停止を押せる")
+        XCTAssertFalse(app.buttons["operation.End"].isEnabled, "iPhone に届かないのに終了を押せる")
+        assertFitsOnScreen(app, screenshot: "12-セッション中に iPhone に繋がっていない")
     }
 }
