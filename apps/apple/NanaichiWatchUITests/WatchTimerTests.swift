@@ -11,11 +11,12 @@ final class WatchTimerTests: XCTestCase {
     }
 
     /// `startedAgo` は、開始したセッションを何秒前に始めたことにするか。`manualAdvance` は手動にするフェーズの切り替わり、
-    /// `losesAnswers` は、記録先には通したうえで答えを返さない開始・操作の頼みの数（`StubPhoneLink`）
+    /// `losesAnswers` は、記録先には通したうえで答えを返さない開始・操作の頼みの数。`currentDelay` は今の様子の頼みに
+    /// 答えるまでの秒数、`losesCurrent` は答えを返さない今の様子の頼みの数（`StubPhoneLink`）
     @MainActor
     private func launch(
         phone: String, startsAfter: Double? = nil, startedAgo: Double? = nil, manualAdvance: String? = nil,
-        losesAnswers: Int? = nil, showsVibrations: Bool = false
+        losesAnswers: Int? = nil, currentDelay: Double? = nil, losesCurrent: Int? = nil, showsVibrations: Bool = false
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment = ["NANAICHI_WATCH_PHONE": phone]
@@ -23,6 +24,8 @@ final class WatchTimerTests: XCTestCase {
         if let startedAgo { app.launchEnvironment["NANAICHI_WATCH_PHONE_STARTED_AGO"] = String(startedAgo) }
         if let manualAdvance { app.launchEnvironment["NANAICHI_MANUAL_ADVANCE"] = manualAdvance }
         if let losesAnswers { app.launchEnvironment["NANAICHI_WATCH_PHONE_LOSES_ANSWERS"] = String(losesAnswers) }
+        if let currentDelay { app.launchEnvironment["NANAICHI_WATCH_PHONE_CURRENT_DELAY"] = String(currentDelay) }
+        if let losesCurrent { app.launchEnvironment["NANAICHI_WATCH_PHONE_LOSES_CURRENT"] = String(losesCurrent) }
         if showsVibrations { app.launchEnvironment["NANAICHI_WATCH_SHOW_VIBRATIONS"] = "1" }
         app.launch()
         // iPhone の代わりのスナップショットが届くと、開始のボタンかフェーズが出る（読み込み中でなくなる）。CI のシミュレーターでは、
@@ -79,10 +82,16 @@ final class WatchTimerTests: XCTestCase {
         attachScreenshot(named: name)
     }
 
-    /// ボタンが押せるようになるまで待って押す。Watch は iPhone に届いて今の様子を確かめ終えるまで、ボタンを押せなくする
+    /// ボタンが押せるようになるまで待つ。Watch は iPhone に届いて今の様子を確かめ終えるまで、ボタンを押せなくする
+    @MainActor
+    private func waitUntilEnabled(_ button: XCUIElement) {
+        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: button)], timeout: 20)
+    }
+
+    /// ボタンが押せるようになるまで待って押す
     @MainActor
     private func tapWhenEnabled(_ button: XCUIElement) {
-        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: button)], timeout: 20)
+        waitUntilEnabled(button)
         button.tap()
     }
 
@@ -102,7 +111,7 @@ final class WatchTimerTests: XCTestCase {
         let app = launch(phone: "stub")
         let start = app.buttons["timer.start"]
         assertIconButton(start, reads: "開始")
-        XCTAssertTrue(start.isEnabled)
+        waitUntilEnabled(start)
         XCTAssertFalse(app.images["watch.unreachable"].exists)
         assertFitsOnScreen(app, screenshot: "01-開始前")
 
@@ -203,7 +212,20 @@ final class WatchTimerTests: XCTestCase {
         app.buttons["OK"].tap()
         waitFor(app, "timer.phase", toRead: "集中")
         XCTAssertTrue(app.buttons["operation.Pause"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["operation.Pause"].isEnabled, "頼み直したあとも押せない")
+        waitUntilEnabled(app.buttons["operation.Pause"])
+    }
+
+    /// iPhone に届くようになっても、今の様子を確かめ終えるまでは押せない。確かめの答えが返らなければ、押せないまま頼み直し、
+    /// 確かめられたら押せるようにする。代わりの iPhone は今の様子に3秒かけて答え、1回目は答えを返さない
+    @MainActor
+    func testButtonsWaitUntilCurrentIsConfirmed() {
+        let app = launch(phone: "stub", currentDelay: 3, losesCurrent: 1)
+        let start = app.buttons["timer.start"]
+        XCTAssertFalse(start.isEnabled, "今の様子を確かめ終える前に開始を押せる")
+        // 1回目の確かめ（3秒）が答えを返さずに終わったあと、頼み直しの答え（さらに1秒待って3秒）を待っているところ
+        Thread.sleep(forTimeInterval: 4.5)
+        XCTAssertFalse(start.isEnabled, "今の様子を確かめられなかったのに開始を押せる")
+        waitUntilEnabled(start)
     }
 
     /// 集中からジャーナルへの切り替わりで、1回の知らせとして振動を3回続けて鳴らし、それきり鳴らさない（Issue #73）。

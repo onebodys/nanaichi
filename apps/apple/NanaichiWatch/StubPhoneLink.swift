@@ -19,6 +19,9 @@
     /// - `NANAICHI_MANUAL_ADVANCE`: 手動にするフェーズの切り替わり（iPhone のアプリと同じ）。切り替え待ちの画面を確かめる
     /// - `NANAICHI_WATCH_PHONE_LOSES_ANSWERS`: はじめの何回の開始・操作の頼みを、記録先には通したうえで答えを返さないか。
     ///   答えだけが返らなかったときに、Watch が今の様子を頼み直して確かめるのを見る
+    /// - `NANAICHI_WATCH_PHONE_CURRENT_DELAY`: 今の様子の頼みに、何秒待ってから答えるか
+    /// - `NANAICHI_WATCH_PHONE_LOSES_CURRENT`: はじめの何回の今の様子の頼みに、答えを返さないか。
+    ///   届くようになった Watch が、今の様子を確かめ終えるまでボタンを押せなくし、確かめられなければ頼み直すのを見る
     final class StubPhoneLink: PhoneLink {
         private let backend: DeviceBackend
         private let reach: PhoneReach
@@ -27,6 +30,8 @@
         private let startedAgo: StartedAgoClock
         private let manualAdvance: Set<PhaseTransition>
         private let answersToLose: Mutex<Int>
+        private let currentDelay: Duration?
+        private let currentsToLose: Mutex<Int>
 
         init?(_ environment: [String: String], clock: @escaping @Sendable () -> Instant) {
             switch environment["NANAICHI_WATCH_PHONE"] {
@@ -44,6 +49,8 @@
                 (environment["NANAICHI_MANUAL_ADVANCE"] ?? "").split(separator: ",")
                     .compactMap { PhaseTransition(rawValue: String($0)) })
             answersToLose = Mutex(environment["NANAICHI_WATCH_PHONE_LOSES_ANSWERS"].flatMap(Int.init) ?? 0)
+            currentDelay = environment["NANAICHI_WATCH_PHONE_CURRENT_DELAY"].flatMap(Double.init).map { .seconds($0) }
+            currentsToLose = Mutex(environment["NANAICHI_WATCH_PHONE_LOSES_CURRENT"].flatMap(Int.init) ?? 0)
         }
 
         func events() -> AsyncStream<PhoneLinkEvent> {
@@ -81,7 +88,10 @@
                     startedAgo.started()
                     return losesAnswer() ? nil : answer
                 case .operate: return losesAnswer() ? nil : answer
-                case .current, .vibration: return answer
+                case .current:
+                    if let currentDelay { try? await Task.sleep(for: currentDelay) }
+                    return Self.takeOne(currentsToLose) ? nil : answer
+                case .vibration: return answer
                 }
             case .unreachable: return nil
             }
@@ -90,8 +100,11 @@
 
     extension StubPhoneLink {
         /// 答えを返さない頼みが残っていれば、1つ使って true
-        private func losesAnswer() -> Bool {
-            answersToLose.withLock { left in
+        private func losesAnswer() -> Bool { Self.takeOne(answersToLose) }
+
+        /// 残りの数が 0 より多ければ、1つ減らして true
+        private static func takeOne(_ left: borrowing Mutex<Int>) -> Bool {
+            left.withLock { left in
                 guard left > 0 else { return false }
                 left -= 1
                 return true

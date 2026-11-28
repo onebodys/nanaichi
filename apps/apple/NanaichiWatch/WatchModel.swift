@@ -36,6 +36,9 @@ final class WatchModel {
     /// 何度目に今の様子を確かめ始めたか。確かめているあいだに届かなくなってまた届くと、確かめ直す。押せるようにするのは最後に始めたものだけ
     @ObservationIgnored private var syncGeneration = 0
 
+    /// 今の様子を確かめられなかったとき、頼み直すまでの待ちの最初と最長
+    private static let syncRetry = (first: Duration.seconds(1), longest: Duration.seconds(30))
+
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
 
@@ -78,9 +81,13 @@ final class WatchModel {
             switch event {
             case .reach(let reach):
                 self.reach = reach
-                if reach == .reachable { vibrator.phoneReachable() }
-                // 届かなかったあいだの変化は知らせで届くが、届くようになったら今の様子を確かめる
-                if reach == .reachable { Task { await sync() } }
+                if reach == .reachable {
+                    vibrator.phoneReachable()
+                    // 届かなかったあいだの変化は知らせで届くが、届くようになったら今の様子を確かめる。
+                    // 届くようになったその場で押せなくする（確かめを待つあいだに押されないように）
+                    let generation = beginSync()
+                    Task { await sync(generation) }
+                }
             case .message(let message):
                 handle(message)
             }
@@ -127,17 +134,32 @@ final class WatchModel {
 
     /// iPhone に届くようになったら、今の様子を確かめ終えるまでボタンを押せなくする。
     /// 届かなかったあいだに置かれていた最新のスナップショット（application context）は、古いことがある
-    private func sync() async {
+    private func beginSync() -> Int {
         syncGeneration += 1
-        let generation = syncGeneration
         syncing = true
-        await askCurrent()
-        if generation == syncGeneration { syncing = false }
+        return syncGeneration
     }
 
-    /// 今の様子を頼む。読めなくても操作の失敗ではないので、前に受け取ったものを出し続ける
-    private func askCurrent() async {
-        if case .snapshot(let snapshot)? = await link.ask(.current) { apply(snapshot) }
+    /// 今の様子を読めるまで、待ちを延ばしながら頼み直す。読めたら押せるようにする。
+    /// 後から確かめ始めたものがあるか、届かなくなったらやめる（次に届くようになったときに確かめ直す）
+    private func sync(_ generation: Int) async {
+        var wait = Self.syncRetry.first
+        while generation == syncGeneration, reach == .reachable {
+            if await askCurrent() {
+                if generation == syncGeneration { syncing = false }
+                return
+            }
+            try? await Task.sleep(for: wait)
+            wait = min(wait * 2, Self.syncRetry.longest)
+        }
+    }
+
+    /// 今の様子を頼み、読めたら true。読めなくても操作の失敗ではないので、前に受け取ったものを出し続ける
+    @discardableResult
+    private func askCurrent() async -> Bool {
+        guard case .snapshot(let snapshot)? = await link.ask(.current) else { return false }
+        apply(snapshot)
+        return true
     }
 
     /// 直前の操作の失敗を読んだ
