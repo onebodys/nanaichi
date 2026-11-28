@@ -123,6 +123,46 @@ final class WatchRelay: NSObject, WCSessionDelegate, @unchecked Sendable {
     }
 }
 
+/// Watch に送る記録先の印（`RecordStoreTags`）を、この端末に残しておく。iPhone のアプリが裏で終了させられ、Watch の頼みで
+/// 起こされても、同じ記録先なら Watch が持っている印と同じになり、起こした頼みを「表示が古い」と断らない
+@MainActor
+final class WatchRecordStoreTags {
+    private var tags: RecordStoreTags
+    /// 起動して、残っていた記録先を開いているところ。それより後に開くのは、ログイン・ログアウト・ログインが切れたとき
+    private var launching = true
+
+    /// `reusesSaved` が false なら前の印を使わない（この端末の記録先の変更の番号が 0 から数え直しになるとき）
+    init(reusesSaved: Bool) {
+        let saved =
+            reusesSaved
+            ? UserDefaults.standard.data(forKey: recordStoreTagsKey).flatMap {
+                WatchLinkCoding.decode(RecordStoreTags.self, from: $0)
+            } : nil
+        tags = saved ?? RecordStoreTags(newTag: newRecordStoreTag)
+        save()
+    }
+
+    /// 記録先を開くときの印。`isDevice` はこの端末の記録先か
+    func tag(opening isDevice: Bool) -> RecordStoreTag {
+        let opening: RecordStoreTags.Opening =
+            isDevice ? .device : launching ? .restoredAccount : .signedInAccount
+        let tag = tags.tag(opening: opening, newTag: newRecordStoreTag)
+        save()
+        return tag
+    }
+
+    /// 起動して、残っていた記録先を開き終えた
+    func launched() { launching = false }
+
+    private func save() {
+        UserDefaults.standard.set(WatchLinkCoding.encode(tags), forKey: recordStoreTagsKey)
+    }
+}
+
+private let recordStoreTagsKey = "watchRecordStoreTags"
+
+private func newRecordStoreTag() -> RecordStoreTag { RecordStoreTag(UUID().uuidString) }
+
 /// この端末に残しておく、Watch が振動で知らせる範囲のキー
 private let vibrationKey = "watchVibration"
 
