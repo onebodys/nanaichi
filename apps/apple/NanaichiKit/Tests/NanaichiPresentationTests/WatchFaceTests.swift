@@ -83,6 +83,18 @@ func watchOperationsDuringBreak() {
     #expect(watchOperationsOf(face) == [.pause, .end])
 }
 
+@Test("一時停止中のジャーナルと休憩は、Watch で再開と終了ができる。休憩スキップは iPhone で行う")
+func watchOperationsWhilePausedInJournalOrBreak() throws {
+    let journal = try operated(started(), .pause, at: minutes(7, 30))
+    #expect(
+        watchOperationsOf(WatchFace.of(viewOf(journal, at: minutes(7, 40)), reach: .reachable, pending: false))
+            == [.resume, .end])
+    let breakTime = try operated(started(), .pause, at: minutes(25))
+    #expect(
+        watchOperationsOf(WatchFace.of(viewOf(breakTime, at: minutes(26)), reach: .reachable, pending: false))
+            == [.resume, .end])
+}
+
 @Test("待機からの集中の再開始と、切り替え待ちから進めるのは iPhone で行い、Watch には終了だけを出す")
 func watchOnlyEndsWhenIdleOrAwaiting() throws {
     let idle = try operated(started(), .abort, at: minutes(1))

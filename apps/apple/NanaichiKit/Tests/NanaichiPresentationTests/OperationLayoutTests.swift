@@ -31,6 +31,12 @@ func pausedLayout() throws {
     #expect(layout(paused, at: minutes(2)).first == OperationButton(kind: .resume, emphasis: .primary))
 }
 
+@Test("一時停止中の休憩は、再開と休憩スキップを主にし、終了を最後に置く")
+func pausedBreakLayout() throws {
+    let paused = try operated(started(), .pause, at: minutes(25))
+    #expect(layout(paused, at: minutes(26)).map(\.kind) == [.resume, .skipBreak, .end])
+}
+
 @Test("切り替え待ちでは進めるを主にし、休憩スキップもできるときは控えめにする")
 func awaitingLayout() {
     let manualToBreak = AdvanceMode(
@@ -60,7 +66,7 @@ func decidedSymbols() {
     #expect(operationSymbolOf(.end) == "power")
 }
 
-@Test("集中・一時停止中・ジャーナル・休憩・待機・切り替え待ちのどれでも、並ぶ操作のアイコンが重ならない")
+@Test("集中・ジャーナル・休憩（それぞれの一時停止中も）・待機・切り替え待ちのどれでも、並ぶ操作のアイコンが重ならない")
 func symbolsDifferWithinState() throws {
     let manualToBreak = AdvanceMode(
         focusToJournal: .auto, journalToFocus: .auto, journalToBreak: .manual, breakToFocus: .auto)
@@ -68,7 +74,9 @@ func symbolsDifferWithinState() throws {
         ("集中", started(), minutes(1)),
         ("一時停止中", try operated(started(), .pause, at: minutes(1)), minutes(2)),
         ("ジャーナル", started(), minutes(7, 30)),
+        ("一時停止中のジャーナル", try operated(started(), .pause, at: minutes(7, 30)), minutes(7, 40)),
         ("休憩", started(), minutes(25)),
+        ("一時停止中の休憩", try operated(started(), .pause, at: minutes(25)), minutes(26)),
         ("待機", try operated(started(), .abort, at: minutes(1)), minutes(2)),
         ("ジャーナルの前の切り替え待ち", started(mode: manualToJournal), minutes(7, 30)),
         ("休憩の前の切り替え待ち", started(mode: manualToBreak), minutes(25)),
