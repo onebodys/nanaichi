@@ -146,8 +146,9 @@ final class PhoneTimerTests: XCTestCase {
     /// アプリを閉じていても（裏に回したあと終了しても）、フェーズの切り替わりが通知で届く
     @MainActor
     func testPhaseChangeNotifiesWhileClosed() throws {
-        // 30倍なら集中は14秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ
-        let app = launch(timeScale: 30, resetting: true)
+        // 20倍なら集中は21秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
+        // 前のテストで通知を許可していると、許可を求める画面を10秒待ってから進むので、その分も含めておく
+        let app = launch(timeScale: 20, resetting: true)
         let start = app.buttons["timer.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         start.tap()

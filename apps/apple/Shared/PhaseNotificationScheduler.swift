@@ -8,7 +8,8 @@ import os
 /// フェーズの切り替わりの通知を、ローカル通知として前もって予約する（ADR 0003）。
 ///
 /// 予約は OS が持つので、アプリを閉じていても、画面を開いていなくても届く。
-/// 予約し直すときは、前の予約（ID の頭が `phaseNotificationIdentifierPrefix`）を消してから入れ直す
+/// 予約し直すときは、同じ切り替わり（同じ ID）の予約を入れ直して置き換え、計画にない前の予約（ID の頭が
+/// `phaseNotificationIdentifierPrefix`）を消す。先に全部消してから入れ直すと、その間に切り替わりの時刻が来た通知が届かない
 @MainActor
 final class PhaseNotificationScheduler {
     private let center = UNUserNotificationCenter.current()
@@ -42,6 +43,27 @@ final class PhaseNotificationScheduler {
         }
     }
 
+    /// 予約のうち、Watch が振動で知らせる範囲 `vibration` の切り替わりのものだけを消す。
+    /// まだスナップショットを読み込んでおらず予約し直せないとき（裏で起こされた直後）に、前に予約した通知が Watch の振動と
+    /// 重ならないようにする。範囲の外の予約は残す（ADR 0033）
+    func withdraw(coveredBy vibration: WatchVibration) {
+        let previous = queue
+        queue = Task {
+            await previous?.value
+            let covered = await center.pendingNotificationRequests().filter { request in
+                guard request.identifier.hasPrefix(phaseNotificationIdentifierPrefix),
+                    let at = request.content.userInfo[phaseChangeAtKey] as? Int64
+                else { return false }
+                return vibration.covers(Instant(milliseconds: at))
+            }
+            center.removePendingNotificationRequests(withIdentifiers: covered.map(\.identifier))
+            // 消すのは通知センターの中で後から行われるので、もう一度読んで、消し終えてから次に進む（終えたら Watch に答える）
+            let remaining = await center.pendingNotificationRequests().count
+            log.info(
+                "Watch が振動で知らせる通知を消した: \(covered.count, privacy: .public)件（保留中 \(remaining, privacy: .public)件）")
+        }
+    }
+
     /// 予約し直しが終わるまで待つ。アプリを終了する前に、音を鳴らす予約に入れ替えるのを待つ
     /// 待っている間に次の予約し直しが入ったら、それも待つ（裏に回る間に届いた変更の予約し直しを途中で止めない）
     func settle() async {
@@ -53,19 +75,26 @@ final class PhaseNotificationScheduler {
     }
 
     private func replace(with plan: [PlannedPhaseNotification], sound: AlertSettings?) async {
-        let stale = await center.pendingNotificationRequests().map(\.identifier)
+        let previous = await center.pendingNotificationRequests().map(\.identifier)
             .filter { $0.hasPrefix(phaseNotificationIdentifierPrefix) }
-        center.removePendingNotificationRequests(withIdentifiers: stale)
-        let now = Date()
+        let planned = Set(plan.map(\.identifier))
+        // 計画にない予約は先に消す。入れ直しを待つあいだに、もう知らせない切り替わり（Watch が振動で知らせるもの、
+        // 操作で来なくなったもの）の通知が届かないように。計画にある予約は、入れ直して置き換えるまで残す
+        center.removePendingNotificationRequests(withIdentifiers: previous.filter { !planned.contains($0) })
         var added = 0
         for item in plan {
             // 秒より細かくは指定できないので、切り替わりより先に届かないよう秒を切り上げる
             let fireAt = Date(timeIntervalSince1970: clock.wallDate(item.at).timeIntervalSince1970.rounded(.up))
-            guard fireAt > now else { continue }
+            let untilFire = fireAt.timeIntervalSinceNow
+            guard untilFire > 0 else { continue }
+            // 前の予約があって1秒もないものは入れ直さず、前の予約を残す。入れ直しがその秒を過ぎると、その秒を指す予約は
+            // もう届かない。前の予約がなければ入れる（入れなければ誰も知らせない）
+            if untilFire <= 1, previous.contains(item.identifier) { continue }
             let content = UNMutableNotificationContent()
             content.title = item.title
             content.body = item.body
             content.threadIdentifier = "phase-change"
+            content.userInfo = [phaseChangeAtKey: item.at.milliseconds]
             content.sound = sound.map { soundOf(item.to.kind, settings: $0) }
             let trigger = UNCalendarNotificationTrigger(
                 dateMatching: Calendar.current.dateComponents(
@@ -85,6 +114,9 @@ final class PhaseNotificationScheduler {
         )
     }
 }
+
+/// 予約の中身に添える、切り替わりの記録先の時刻（ミリ秒）のキー。読み込む前に、Watch が振動で知らせる分だけを消すのに使う
+private let phaseChangeAtKey = "phaseChangeAt"
 
 /// 通知の音。アプリが鳴らすのと同じ音色と音量の音を、通知が読める Library/Sounds に書き出しておく
 /// （アプリを終了している間に届く通知も、どのフェーズに移ったかを音で聞き分けられるように）。

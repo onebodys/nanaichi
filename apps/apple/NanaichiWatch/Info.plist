@@ -9,5 +9,10 @@
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ja</string>
+	<!-- セッション中は手首を下ろしてもアプリを動かし、フェーズの切り替わりを振動で知らせる（拡張ランタイムセッション、ADR 0033） -->
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>mindfulness</string>
+	</array>
 </dict>
 </plist>

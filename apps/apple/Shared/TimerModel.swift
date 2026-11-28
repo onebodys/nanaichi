@@ -42,7 +42,7 @@ final class TimerModel {
     @ObservationIgnored private var watch = PhaseChangeWatch()
     /// アプリが音を鳴らせず、通知が音で知らせている（`handOverAlertsToNotifications` から `takeBackAlerts` まで）。
     /// その間に届いたスナップショットで予約し直しても、音の鳴る予約のままにする
-    @ObservationIgnored private var alertsHandedOver = false
+    @ObservationIgnored private var alertsHandedOver: Bool
     /// 今日の集中時間を読み込み直すかを決める値。完了セットが増えうるときだけ読み込み直す（ADR 0014）
     @ObservationIgnored private var todayFocusKey: StatsRefreshKey?
     @ObservationIgnored private var countedEndedSession: SessionId?
@@ -50,14 +50,17 @@ final class TimerModel {
     @ObservationIgnored private var activity: NSObjectProtocol?
     /// 手元のスナップショットが替わったときに呼ぶ。iPhone はこれで Watch に知らせる（ADR 0031）
     @ObservationIgnored var snapshotChanged: (Received) -> Void = { _ in }
+    /// Watch が振動で知らせる範囲。iPhone はその切り替わりを通知しない（ADR 0033）。Mac は Watch とつながないので、いつも `off`
+    @ObservationIgnored var watchVibration: () -> WatchVibration = { .off }
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
 
     init(
         backend: any Backend, clock: AppClock, alert: PhaseAlertPlayer, notifications: PhaseNotificationScheduler,
-        alertSettings: @escaping () -> AlertSettings
+        alertSettings: @escaping () -> AlertSettings, alertsHandedOver: Bool = false
     ) {
+        self.alertsHandedOver = alertsHandedOver
         self.backend = backend
         self.clock = clock
         self.alert = alert
@@ -233,10 +236,12 @@ final class TimerModel {
     // MARK: - 通知
 
     /// 通知を予約し直す。通知に知らせを任せている間は知らせ方の音色で鳴らし、それ以外はアプリが鳴らすので鳴らさない
+    /// 刻みより先に呼ばれることがある（裏で起こされた直後など）ので、今の時刻は刻みの時刻ではなく時計から読む
     private func scheduleNotifications(for snapshot: SessionSnapshot) {
         let settings = alertSettings()
+        let now = loading.received?.serverNow(deviceNow: clock.now()) ?? clock.now()
         notifications.reschedule(
-            phaseNotificationPlanOf(snapshot, now: serverNow, settings: settings),
+            phaseNotificationPlanOf(snapshot, now: now, settings: settings, watch: watchVibration()),
             sound: alertsHandedOver && settings.sound ? settings : nil)
     }
 
@@ -248,6 +253,36 @@ final class TimerModel {
     /// 知らせ方の設定を変えたら、通知を出すかどうかを予約にも当てる
     func alertSettingsChanged() {
         if let snapshot = loading.received?.snapshot { scheduleNotifications(for: snapshot) }
+    }
+
+    /// Watch が振動で知らせる範囲が替わったら、通知を予約し直し、終わるまで待つ。
+    /// Watch は iPhone が待ち終えてから振動で知らせ始めるので、同じ切り替わりを通知と振動の両方で知らせない
+    ///
+    /// まだ読み込んでいなければ（Watch の頼みで裏で起動した直後）、先に読み込んで予約し直す。範囲を閉じた・縮めたときに、
+    /// 前に消した通知を答える前に戻すため（答えたあとアプリはすぐ止められることがある）。読み込めなければ、前に予約した通知の
+    /// うち範囲の中のものだけを消す（範囲の外になった通知は、次に読み込めたときに戻る）
+    func watchVibrationChanged() async {
+        if loading.received == nil { await loadWithin(Self.loadBeforeAnsweringWatch) }
+        if let snapshot = loading.received?.snapshot {
+            scheduleNotifications(for: snapshot)
+        } else {
+            notifications.withdraw(coveredBy: watchVibration())
+        }
+        await notifications.settle()
+    }
+
+    /// Watch に答える前に読み込むのを待つ長さ。WatchConnectivity の答えを待たせすぎない
+    private static let loadBeforeAnsweringWatch = Duration.seconds(3)
+
+    /// 読み込む。`limit` を過ぎたら待たずに戻る（読み込みは続き、終われば反映する）
+    private func loadWithin(_ limit: Duration) async {
+        let reading = Task { await load() }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await reading.value }
+            group.addTask { try? await Task.sleep(for: limit) }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     /// アプリが音を鳴らせなくなる前に呼ぶ（Mac は終了する前、iPhone は裏に回る前）。

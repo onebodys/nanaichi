@@ -115,15 +115,50 @@ func currentSnapshot() async throws {
     #expect(snapshotOf(reply) == (try await backend.getCurrentSession().get()))
 }
 
+@Test("Watch が振動で知らせる範囲を伝えると、記録先に通さずに受け取ったと答える")
+func vibrationIsAcceptedWithoutTouchingRecords() async throws {
+    let backend = phoneBackend(TestClock())
+    let before = try await backend.getCurrentSession().get()
+    let covering = ToldWatchVibration(vibration: .covering(before: t0), sequence: 1)
+    #expect(await replyTo(.vibration(covering), using: backend, recordStore: store) == .accepted)
+    #expect(await replyTo(.vibration(.none), using: backend, recordStore: store) == .accepted)
+    #expect(try await backend.getCurrentSession().get() == before)
+}
+
+@Test("iPhone は Watch が伝えた番号で範囲の新旧を決め、先に伝えた範囲が閉じたあとに届いたら捨てる")
+func laterToldVibrationWins() {
+    let covering = ToldWatchVibration(vibration: .covering(before: t0.adding(milliseconds: 900_000)), sequence: 10)
+    let closed = ToldWatchVibration(vibration: .off, sequence: 11)
+    #expect(ToldWatchVibration.none.applying(covering) == covering)
+    #expect(covering.applying(closed) == closed)
+    // 範囲を伸ばす頼みが、閉じる頼みより遅れて届いた
+    #expect(closed.applying(covering) == nil)
+    // 届いたか確かめられずに送り直した同じ頼み
+    #expect(closed.applying(closed) == closed)
+}
+
+@Test("Watch が伝える番号は、前の番号より大きく、時計が戻っても前より小さくならない")
+func sequenceOnlyGrows() {
+    #expect(nextWatchVibrationSequence(after: 0, deviceNow: t0) == t0.milliseconds)
+    #expect(nextWatchVibrationSequence(after: t0.milliseconds, deviceNow: t0) == t0.milliseconds + 1)
+    // 時計が1秒戻った
+    #expect(
+        nextWatchVibrationSequence(after: t0.milliseconds + 5, deviceNow: t0.adding(milliseconds: -1000))
+            == t0.milliseconds + 6)
+}
+
 @Test("頼みと答えは送る形にして戻しても同じ")
 func codingRoundTrip() async throws {
     let backend = phoneBackend(TestClock())
     let reply = await replyTo(.start(id: eventId()), using: backend, recordStore: store)
-    let messages: [WatchMessage] = [.current, .start(id: eventId()), .abort(id: eventId())]
+    let messages: [WatchMessage] = [
+        .current, .start(id: eventId()), .abort(id: eventId()), .vibration(.none),
+        .vibration(ToldWatchVibration(vibration: .covering(before: t0), sequence: 1)),
+    ]
     for message in messages {
         #expect(WatchLinkCoding.decode(WatchMessage.self, from: WatchLinkCoding.encode(message)) == message)
     }
-    let replies: [PhoneMessage] = [reply, .refused(message: "操作できませんでした。")]
+    let replies: [PhoneMessage] = [reply, .refused(message: "操作できませんでした。"), .accepted]
     for reply in replies {
         #expect(WatchLinkCoding.decode(PhoneMessage.self, from: WatchLinkCoding.encode(reply)) == reply)
     }

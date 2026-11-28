@@ -39,6 +39,14 @@ struct WatchTimerView: View {
                             .accessibilityIdentifier("operation.Abort")
                     }
                 }
+                #if DEBUG
+                    // 振動はシミュレーターで感じられないので、XCUITest は知らせた回数を読む
+                    if ProcessInfo.processInfo.environment["NANAICHI_WATCH_SHOW_VIBRATIONS"] != nil {
+                        Text("\(model.vibrator.played)")
+                            .font(.footnote)
+                            .accessibilityIdentifier("watch.vibrations")
+                    }
+                #endif
                 if let notice = face.phoneUnreachableNotice {
                     Label(notice, systemImage: "iphone.slash")
                         .font(.footnote)

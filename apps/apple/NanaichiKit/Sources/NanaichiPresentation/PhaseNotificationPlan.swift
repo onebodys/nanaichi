@@ -23,11 +23,15 @@ public let maxPlannedPhaseNotifications = 64
 /// スナップショットが替わるたびに（人の操作・記入・進め方の変更）予約し直す。人の操作で移ったときは
 /// 本人が押したので知らせない（GLOSSARY の「フェーズの切り替わり」）が、それは予約が操作の時刻より先の
 /// 切り替わりだけを含むことで守られる。手動の切り替わりでは切り替え待ちになるときに知らせ、その先は予約しない
-public func phaseNotificationPlanOf(_ snapshot: SessionSnapshot, now: Instant, settings: AlertSettings)
-    -> [PlannedPhaseNotification]
-{
+///
+/// Watch が振動で知らせる範囲 `watch` の切り替わりは予約しない。iPhone の通知は Watch に転送されるので、
+/// 予約すると手首に二重に届く（Issue #73）
+public func phaseNotificationPlanOf(
+    _ snapshot: SessionSnapshot, now: Instant, settings: AlertSettings, watch: WatchVibration = .off
+) -> [PlannedPhaseNotification] {
     guard settings.notification, case .session(_, _, let session, _) = snapshot else { return [] }
-    return session.upcomingPhaseChanges(after: now, limit: maxPlannedPhaseNotifications).map { change in
+    let changes = session.upcomingPhaseChanges(after: now, limit: maxPlannedPhaseNotifications)
+    return changes.filter { !watch.covers($0.at) }.map { change in
         let message = phaseChangeMessageOf(change.to)
         return PlannedPhaseNotification(
             identifier: "\(phaseNotificationIdentifierPrefix)\(session.id.rawValue).\(change.at.milliseconds)",
