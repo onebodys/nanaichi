@@ -24,7 +24,12 @@ private func phoneBackend(_ clock: TestClock) -> DeviceBackend {
     DeviceBackend(location: .inMemory, clock: { clock.read() })
 }
 
-private let store = RecordStoreTag("device")
+/// iPhone が起動 `launch` の中で `opened` 番目に開いた記録先 `store` の印
+private func tag(_ store: String, opened: Int, launch: String = "launch") -> RecordStoreTag {
+    RecordStoreTag(store: RecordStoreId(store), generation: RecordStoreGeneration(launch: launch, opened: opened))
+}
+
+private let store = tag("device", opened: 1)
 
 private func snapshotOf(_ reply: PhoneMessage) -> SessionSnapshot? {
     guard case .snapshot(let snapshot) = reply else { return nil }
@@ -46,14 +51,14 @@ private func sessionOf(_ reply: PhoneMessage) -> SessionId? {
 private func operate(_ kind: SessionOperationKind, _ session: SessionId?, id: SessionEventId = eventId())
     -> WatchMessage
 {
-    .operate(id: id, kind: kind, session: session!, recordStore: store)
+    .operate(id: id, kind: kind, session: session!, recordStore: store.store)
 }
 
 @Test("Watch で開始すると iPhone の記録先でセッションが始まり、始まったスナップショットが Watch に返る")
 func startFromWatch() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let reply = await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store)
+    let reply = await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store)
     guard case .focus(let focus) = stateOf(reply) else {
         Issue.record("集中になっていない: \(reply)")
         return
@@ -73,7 +78,7 @@ func startFromWatch() async throws {
 func startRetriedWithSameId() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let start = WatchMessage.start(id: eventId(), recordStore: store)
+    let start = WatchMessage.start(id: eventId(), recordStore: store.store)
     let first = await replyTo(start, using: backend, recordStore: store)
     clock.advance(minutes: 1)
     let retried = await replyTo(start, using: backend, recordStore: store)
@@ -85,7 +90,7 @@ func startRetriedWithSameId() async throws {
 private func statesAfter(_ kinds: [SessionOperationKind]) async throws -> (throughWatch: TimerState?, onPhone: TimerState?) {
     let watchClock = TestClock()
     let throughWatch = phoneBackend(watchClock)
-    var reply = await replyTo(.start(id: eventId(), recordStore: store), using: throughWatch, recordStore: store)
+    var reply = await replyTo(.start(id: eventId(), recordStore: store.store), using: throughWatch, recordStore: store)
     let session = sessionOf(reply)
     let phoneClock = TestClock()
     let onPhone = phoneBackend(phoneClock)
@@ -147,7 +152,7 @@ func endFromWatchMatchesPhone() async throws {
 func operationRetriedWithSameId() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     clock.advance(minutes: 1)
     let pause = operate(.pause, session)
     let first = await replyTo(pause, using: backend, recordStore: store)
@@ -165,7 +170,7 @@ func operationRetriedWithSameId() async throws {
 func endRetriedWithSameIdAfterSessionClosed() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     clock.advance(minutes: 1)
     let end = operate(.end, session)
     let first = await replyTo(end, using: backend, recordStore: store)
@@ -184,7 +189,7 @@ func endRetriedWithSameIdAfterSessionClosed() async throws {
 func sameIdForAnotherOperationIsRefused() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     let id = eventId()
     clock.advance(minutes: 1)
     _ = await replyTo(operate(.pause, session, id: id), using: backend, recordStore: store)
@@ -208,7 +213,7 @@ func unavailableOperationIsRefused(before kinds: [SessionOperationKind], at seco
 {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     for done in kinds {
         clock.advance(minutes: 1)
         _ = await replyTo(operate(done, session), using: backend, recordStore: store)
@@ -224,7 +229,7 @@ func unavailableOperationIsRefused(before kinds: [SessionOperationKind], at seco
 func operationOnPreviousSessionIsRefused() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
-    let previous = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let previous = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     clock.advance(minutes: 1)
     _ = try await backend.operateSession(id: eventId(), kind: .end).get()
     // Watch に届かないあいだに、iPhone で次のセッションを始めた
@@ -241,12 +246,12 @@ func operationOnPreviousSessionIsRefused() async throws {
 @Test("Watch が前の記録先を出したまま開始・操作すると、iPhone のいまの記録先は変えず、表示が古いと断る")
 func requestForPreviousRecordStoreIsRefused() async throws {
     let backend = phoneBackend(TestClock())
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     let before = try await backend.getCurrentSession().get()
-    let previousStore = RecordStoreTag("signed-out")
+    let previousStore = tag("signed-out", opened: 0)
     let requests: [WatchMessage] = [
-        .start(id: eventId(), recordStore: previousStore),
-        .operate(id: eventId(), kind: .end, session: session!, recordStore: previousStore),
+        .start(id: eventId(), recordStore: previousStore.store),
+        .operate(id: eventId(), kind: .end, session: session!, recordStore: previousStore.store),
     ]
     for request in requests {
         #expect(await replyTo(request, using: backend, recordStore: store) == .refused(message: watchOutdatedMessage))
@@ -261,7 +266,7 @@ func answeredSnapshotReachesPhoneBeforeReply() async throws {
     let backend = phoneBackend(clock)
     var handed: [PhoneSnapshot] = []
     let started = await answerWatch(
-        .start(id: eventId(), recordStore: store), recordStore: { (backend, store) }, answered: { handed.append($0) })
+        .start(id: eventId(), recordStore: store.store), recordStore: { (backend, store) }, answered: { handed.append($0) })
     clock.advance(minutes: 1)
     let ended = await answerWatch(
         operate(.end, sessionOf(started)), recordStore: { (backend, store) }, answered: { handed.append($0) })
@@ -283,12 +288,12 @@ func answeredSnapshotReachesPhoneBeforeReply() async throws {
 func recordStoreSwitchedWhileAnswering() async throws {
     let device = phoneBackend(TestClock())
     let account = phoneBackend(TestClock())
-    let accountStore = RecordStoreTag("account")
+    let accountStore = tag("account", opened: 2)
     _ = try await account.startSession(id: eventId()).get()
     var reads = 0
     var handed: [PhoneSnapshot] = []
     let answer = await answerWatch(
-        .start(id: eventId(), recordStore: store),
+        .start(id: eventId(), recordStore: store.store),
         recordStore: {
             reads += 1
             return reads == 1 ? (device, store) : (account, accountStore)
@@ -324,7 +329,7 @@ func unansweredRequestIsResentWithSameId() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
     let shown = try phoneSnapshotOf(
-        await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+        await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     let pause = try #require(WatchRequest.of(.operate(.pause), shown: shown, unanswered: nil, newEventId: eventId))
     // 記録されていなかったので、今の様子を頼み直すと、同じ変更の番号のスナップショットが届く（記録先の時刻は進んでいる）
     clock.advance(minutes: 1)
@@ -335,12 +340,44 @@ func unansweredRequestIsResentWithSameId() async throws {
     #expect(eventIdOf(end) != nil && eventIdOf(end) != eventIdOf(pause))
 }
 
+@Test("答えが返らなかった頼みを、iPhone が同じ記録先を開き直した（起き直した）あとも同じ記録を見たまま押し直すと、同じ操作イベントの ID で送り直す")
+func unansweredRequestIsResentAfterSameStoreReopened() async throws {
+    let backend = phoneBackend(TestClock())
+    let shown = try phoneSnapshotOf(
+        await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
+    let pause = try #require(WatchRequest.of(.operate(.pause), shown: shown, unanswered: nil, newEventId: eventId))
+    let refreshed = try phoneSnapshotOf(
+        await replyTo(.current, using: backend, recordStore: tag("device", opened: 1, launch: "after")))
+    #expect(refreshed.recordStore != shown.recordStore)
+    #expect(WatchRequest.of(.operate(.pause), shown: refreshed, unanswered: pause, newEventId: eventId) == pause)
+}
+
+@Test("Watch の頼みに答えるあいだに iPhone がログインしてログアウトし、同じ記録先に戻ったら、開き直した記録先の今の様子を画面に渡して答える")
+@MainActor
+func recordStoreReopenedWhileAnswering() async throws {
+    let device = phoneBackend(TestClock())
+    // この端末の記録先（1番目）で答えるあいだに、アカウント（2番目）を開いて閉じ、この端末の記録先を開き直した（3番目）
+    let reopened = tag("device", opened: 3)
+    var reads = 0
+    var handed: [PhoneSnapshot] = []
+    let answer = await answerWatch(
+        .start(id: eventId(), recordStore: store.store),
+        recordStore: {
+            reads += 1
+            return reads == 1 ? (device, store) : (device, reopened)
+        }, answered: { handed.append($0) })
+    let snapshot = try phoneSnapshotOf(answer)
+    #expect(snapshot.recordStore == reopened)
+    #expect(snapshot.received.snapshot == (try await device.getCurrentSession().get()))
+    #expect(handed == [snapshot])
+}
+
 @Test("答えが返らなかった頼みが実は記録されていて、頼み直した今の様子で記録が進んでいたら、次の頼みは新しい ID で送る")
 func requestAfterRecordedUnansweredUsesNewId() async throws {
     let clock = TestClock()
     let backend = phoneBackend(clock)
     let shown = try phoneSnapshotOf(
-        await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store))
+        await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store))
     let pause = try #require(WatchRequest.of(.operate(.pause), shown: shown, unanswered: nil, newEventId: eventId))
     clock.advance(minutes: 1)
     // iPhone には届いて記録されたが、答えが Watch に返らなかった
@@ -360,14 +397,14 @@ func requestCarriesShownSessionAndRecordStore() async throws {
         Issue.record("開始の頼みにならない: \(String(describing: start))")
         return
     }
-    #expect(startStore == store)
+    #expect(startStore == store.store)
     let shown = try phoneSnapshotOf(await replyTo(start!.message, using: backend, recordStore: store))
     let end = WatchRequest.of(.operate(.end), shown: shown, unanswered: nil, newEventId: eventId)
     guard case .operate(_, .end, let session, let endStore)? = end?.message else {
         Issue.record("終了の頼みにならない: \(String(describing: end))")
         return
     }
-    #expect(session == sessionOf(.snapshot(shown)) && endStore == store)
+    #expect(session == sessionOf(.snapshot(shown)) && endStore == store.store)
 }
 
 @Test("答えたスナップショットを画面に渡すあいだに iPhone が記録先を替えたら、替わった先の今の様子を渡し直して答える。開始はやり直さない")
@@ -375,11 +412,11 @@ func requestCarriesShownSessionAndRecordStore() async throws {
 func recordStoreSwitchedWhileHandingOver() async throws {
     let device = phoneBackend(TestClock())
     let account = phoneBackend(TestClock())
-    let accountStore = RecordStoreTag("account")
+    let accountStore = tag("account", opened: 2)
     var switched = false
     var handed: [PhoneSnapshot] = []
     let answer = await answerWatch(
-        .start(id: eventId(), recordStore: store), recordStore: { switched ? (account, accountStore) : (device, store) },
+        .start(id: eventId(), recordStore: store.store), recordStore: { switched ? (account, accountStore) : (device, store) },
         answered: {
             handed.append($0)
             switched = true
@@ -403,14 +440,14 @@ func recordStoreSwitchedWhileHandingOver() async throws {
 func refusalSurvivesRecordStoreSwitch() async throws {
     let account = phoneBackend(TestClock())
     let device = phoneBackend(TestClock())
-    let accountStore = RecordStoreTag("account")
+    let accountStore = tag("account", opened: 2)
     let session = sessionOf(
-        await replyTo(.start(id: eventId(), recordStore: accountStore), using: account, recordStore: accountStore))
+        await replyTo(.start(id: eventId(), recordStore: accountStore.store), using: account, recordStore: accountStore))
     var reads = 0
     var handed: [PhoneSnapshot] = []
     // 進んでいる集中に再開を頼んで断られ、そのころにこの端末の記録先に替わる
     let answer = await answerWatch(
-        .operate(id: eventId(), kind: .resume, session: session!, recordStore: accountStore),
+        .operate(id: eventId(), kind: .resume, session: session!, recordStore: accountStore.store),
         recordStore: {
             reads += 1
             return reads == 1 ? (account, accountStore) : (device, store)
@@ -425,7 +462,7 @@ func answerWaitsForHandOver() async throws {
     let backend = phoneBackend(TestClock())
     var finished = false
     _ = await answerWatch(
-        .start(id: eventId(), recordStore: store), recordStore: { (backend, store) },
+        .start(id: eventId(), recordStore: store.store), recordStore: { (backend, store) },
         answered: { _ in
             try? await Task.sleep(for: .milliseconds(50))
             finished = true
@@ -433,41 +470,50 @@ func answerWaitsForHandOver() async throws {
     #expect(finished)
 }
 
-@Test("同じ記録先を開き直すときは前と同じ印にし、ログインするたびにアカウントの印を新しくする。この端末の記録先の印は替えない")
-func recordStoreTagsSurviveRelaunch() throws {
+@Test("同じ記録先を開き直すときは前と同じ ID にし、ログインするたびにアカウントの ID を新しくする。この端末の記録先の ID は替えない")
+func recordStoreIdsSurviveRelaunch() throws {
     var count = 0
-    func newTag() -> RecordStoreTag {
+    func newId() -> RecordStoreId {
         count += 1
-        return RecordStoreTag("tag-\(count)")
+        return RecordStoreId("id-\(count)")
     }
-    var tags = RecordStoreTags(newTag: newTag)
-    let device = tags.tag(opening: .device, newTag: newTag)
-    let signedIn = tags.tag(opening: .signedInAccount, newTag: newTag)
+    var ids = RecordStoreIds(newId: newId)
+    let device = ids.id(opening: .device, newId: newId)
+    let signedIn = ids.id(opening: .signedInAccount, newId: newId)
     #expect(signedIn != device)
-    // iPhone のアプリが裏で終了させられ、残しておいた印から起き直した
+    // iPhone のアプリが裏で終了させられ、残しておいた ID から起き直した
     var relaunched = try #require(
-        WatchLinkCoding.decode(RecordStoreTags.self, from: WatchLinkCoding.encode(tags)))
-    #expect(relaunched.tag(opening: .device, newTag: newTag) == device)
-    #expect(relaunched.tag(opening: .restoredAccount, newTag: newTag) == signedIn)
-    // ログアウトしてログインし直すと、別のアカウントかもしれないので新しい印
-    #expect(relaunched.tag(opening: .device, newTag: newTag) == device)
-    let signedInAgain = relaunched.tag(opening: .signedInAccount, newTag: newTag)
+        WatchLinkCoding.decode(RecordStoreIds.self, from: WatchLinkCoding.encode(ids)))
+    #expect(relaunched.id(opening: .device, newId: newId) == device)
+    #expect(relaunched.id(opening: .restoredAccount, newId: newId) == signedIn)
+    // ログアウトしてログインし直すと、別のアカウントかもしれないので新しい ID
+    #expect(relaunched.id(opening: .device, newId: newId) == device)
+    let signedInAgain = relaunched.id(opening: .signedInAccount, newId: newId)
     #expect(signedInAgain != signedIn && signedInAgain != device)
-    // アカウントの印が残っていなければ、起き直したときに新しく作る
-    var fresh = RecordStoreTags(newTag: newTag)
-    #expect(fresh.tag(opening: .restoredAccount, newTag: newTag) != fresh.tag(opening: .device, newTag: newTag))
+    // アカウントの ID が残っていなければ、起き直したときに新しく作る
+    var fresh = RecordStoreIds(newId: newId)
+    #expect(fresh.id(opening: .restoredAccount, newId: newId) != fresh.id(opening: .device, newId: newId))
 }
 
-@Test("裏で終了させられた iPhone が Watch の頼みで起き直しても、Watch が前に受け取った印で頼んだ操作を断らない")
+@Test("前の版で残した記録先の ID も読める")
+func recordStoreIdsSavedByPreviousVersionAreReadable() throws {
+    let saved = Data(#"{"device":{"rawValue":"device-id"},"account":{"rawValue":"account-id"}}"#.utf8)
+    var ids = try #require(WatchLinkCoding.decode(RecordStoreIds.self, from: saved))
+    #expect(ids.id(opening: .device, newId: { RecordStoreId("new") }) == RecordStoreId("device-id"))
+    #expect(ids.id(opening: .restoredAccount, newId: { RecordStoreId("new") }) == RecordStoreId("account-id"))
+}
+
+@Test("裏で終了させられた iPhone が Watch の頼みで起き直しても、Watch が前に受け取った印で頼んだ開始と操作を断らない")
 func requestFromBeforeRelaunchIsAccepted() async throws {
-    var tags = RecordStoreTags(newTag: { RecordStoreTag(UUID().uuidString) })
-    let before = tags.tag(opening: .device, newTag: { RecordStoreTag(UUID().uuidString) })
+    let before = tag("device", opened: 1, launch: "before")
+    // 同じ記録先を、次の起動の中で開いた（開いた順は数え直しになる）
+    let after = tag("device", opened: 1, launch: "after")
     let backend = phoneBackend(TestClock())
-    let session = sessionOf(await replyTo(.start(id: eventId(), recordStore: before), using: backend, recordStore: before))
-    var relaunched = try #require(WatchLinkCoding.decode(RecordStoreTags.self, from: WatchLinkCoding.encode(tags)))
-    let after = relaunched.tag(opening: .device, newTag: { RecordStoreTag(UUID().uuidString) })
+    let session = try #require(
+        sessionOf(await replyTo(.start(id: eventId(), recordStore: before.store), using: backend, recordStore: after)))
     let reply = await replyTo(
-        .operate(id: eventId(), kind: .pause, session: session!, recordStore: before), using: backend, recordStore: after)
+        .operate(id: eventId(), kind: .pause, session: session, recordStore: before.store), using: backend,
+        recordStore: after)
     guard case .focus(let focus) = stateOf(reply), case .paused = focus.clock else {
         Issue.record("起き直した iPhone が操作を断った: \(reply)")
         return
@@ -517,14 +563,14 @@ func sequenceOnlyGrows() {
 @Test("頼みと答えは送る形にして戻しても同じ")
 func codingRoundTrip() async throws {
     let backend = phoneBackend(TestClock())
-    let reply = await replyTo(.start(id: eventId(), recordStore: store), using: backend, recordStore: store)
+    let reply = await replyTo(.start(id: eventId(), recordStore: store.store), using: backend, recordStore: store)
     let session = try #require(sessionOf(reply))
     let messages: [WatchMessage] =
         [
-            .current, .start(id: eventId(), recordStore: store), .vibration(.none),
+            .current, .start(id: eventId(), recordStore: store.store), .vibration(.none),
             .vibration(ToldWatchVibration(vibration: .covering(before: t0), sequence: 1)),
         ]
-        + SessionOperationKind.allCases.map { .operate(id: eventId(), kind: $0, session: session, recordStore: store) }
+        + SessionOperationKind.allCases.map { .operate(id: eventId(), kind: $0, session: session, recordStore: store.store) }
     for message in messages {
         #expect(WatchLinkCoding.decode(WatchMessage.self, from: WatchLinkCoding.encode(message)) == message)
     }
@@ -552,7 +598,68 @@ func olderSnapshotFromSameStoreIsDropped() {
 
 @Test("iPhone がログイン・ログアウトで記録先を替えたら、変更の番号が小さくても新しい記録先のスナップショットに置き換える")
 func snapshotFromAnotherStoreReplaces() {
-    let account = phoneSnapshot(revision: 2, store: RecordStoreTag("account"))
+    let account = phoneSnapshot(revision: 2, store: tag("account", opened: 2))
     let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 40, store: store)).applying(account)
     #expect(loading == .loaded(account))
+    // ログアウトして、この端末の記録先を開き直した
+    let reopened = phoneSnapshot(revision: 40, store: tag("device", opened: 3))
+    #expect(loading.applying(reopened) == .loaded(reopened))
+}
+
+@Test("Watch の頼みの答えが iPhone を出たあとに iPhone が記録先を替え、替わった先の知らせが先に届いたら、あとから届いた前の記録先の答えは捨てる")
+func answerFromPreviousStoreAfterNoticeIsDropped() {
+    let shown = phoneSnapshot(revision: 4, store: store)
+    let notice = phoneSnapshot(revision: 2, store: tag("account", opened: 2))
+    let answer = phoneSnapshot(revision: 5, store: store)
+    let loading = PhoneSnapshotLoading.waiting.applying(shown).applying(notice).applying(answer)
+    #expect(loading == .loaded(notice))
+}
+
+@Test("記録先を開き直したあとに、前に開いていたときの同じ記録先のスナップショットが届いたら、変更の番号で新旧を決める")
+func snapshotFromSameStoreOpenedEarlierComparesRevision() {
+    let reopened = tag("device", opened: 3)
+    let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 5, store: reopened))
+    #expect(loading.applying(phoneSnapshot(revision: 4, store: store)) == loading)
+    #expect(
+        loading.applying(phoneSnapshot(revision: 6, store: store)) == .loaded(phoneSnapshot(revision: 6, store: reopened)))
+}
+
+@Test("前に開いていたときの同じ記録先のスナップショットが遅れて届いても、手元の開いた順は戻らず、そのあと遅れて届いた前の記録先のものは捨てる")
+func lateSnapshotFromSameStoreKeepsLaterOpening() {
+    // この端末の記録先（1番目）→ アカウント（2番目）→ ログアウトしてこの端末の記録先（3番目）
+    let reopened = tag("device", opened: 3)
+    let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 40, store: reopened))
+        .applying(phoneSnapshot(revision: 40, store: store))
+    #expect(loading == .loaded(phoneSnapshot(revision: 40, store: reopened)))
+    #expect(loading.applying(phoneSnapshot(revision: 2, store: tag("account", opened: 2))) == loading)
+}
+
+@Test("iPhone の時計が戻り、同じ記録先を後に開いたときのスナップショットの時刻が前になっても、開いた順は進み、そのあと遅れて届いた前の記録先のものは捨てる")
+func laterOpeningWithEarlierServerTimeAdvancesOpening() {
+    let reopened = tag("device", opened: 3)
+    let loading = PhoneSnapshotLoading.waiting.applying(phoneSnapshot(revision: 40, store: store))
+        .applying(phoneSnapshot(revision: 40, serverTime: t0.adding(milliseconds: -1000), store: reopened))
+    #expect(loading == .loaded(phoneSnapshot(revision: 40, store: reopened)))
+    #expect(loading.applying(phoneSnapshot(revision: 2, store: tag("account", opened: 2))) == loading)
+}
+
+@Test("iPhone のアプリが起動し直して同じ記録先を開いたら、その印に替わり、前の起動で開いた順は引き継がない")
+func sameStoreFromAnotherLaunchTakesNewTag() {
+    let afterRelaunch = phoneSnapshot(
+        revision: 40, serverTime: t0.adding(milliseconds: 1000), store: tag("device", opened: 1, launch: "after"))
+    let loading = PhoneSnapshotLoading.waiting
+        .applying(phoneSnapshot(revision: 40, store: tag("device", opened: 3, launch: "before")))
+        .applying(afterRelaunch)
+    #expect(loading == .loaded(afterRelaunch))
+    // 新しい起動の中で次に開いた記録先のスナップショットは、置き換える
+    let account = phoneSnapshot(revision: 2, store: tag("account", opened: 2, launch: "after"))
+    #expect(loading.applying(account) == .loaded(account))
+}
+
+@Test("iPhone のアプリが起動し直したあとのスナップショットは、前の起動で開いた順に関わらず、違う記録先なら置き換える")
+func snapshotFromAnotherLaunchReplaces() {
+    let beforeRelaunch = phoneSnapshot(revision: 40, store: tag("account", opened: 5, launch: "before"))
+    let afterRelaunch = phoneSnapshot(revision: 2, store: tag("device", opened: 1, launch: "after"))
+    let loading = PhoneSnapshotLoading.waiting.applying(beforeRelaunch).applying(afterRelaunch)
+    #expect(loading == .loaded(afterRelaunch))
 }

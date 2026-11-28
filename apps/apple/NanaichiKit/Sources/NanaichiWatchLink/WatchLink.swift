@@ -14,7 +14,7 @@ import NanaichiPresentation
 
 /// Watch から iPhone への頼み。iPhone は `PhoneMessage` で答える。
 ///
-/// 記録を変える頼み（開始と操作）には、Watch が画面に出している記録先の印（とセッション）を添える。
+/// 記録を変える頼み（開始と操作）には、Watch が画面に出している記録先（とセッション）を添える。
 /// Watch の画面が古いうちに押されたもの（iPhone が記録先を替えた・ほかの端末で次のセッションを始めた）を、
 /// iPhone のいまの記録先やセッションに通さないため。食い違えば断り、Watch は今の様子を頼み直す
 public enum WatchMessage: Hashable, Sendable, Codable {
@@ -22,10 +22,10 @@ public enum WatchMessage: Hashable, Sendable, Codable {
     case current
     /// セッションを開始する。`id` は開始の操作イベントの ID で、Watch が発行する。
     /// 届いたか確かめられずに頼み直すときも同じ ID で送れば、二重に開始しない（ADR 0007）
-    case start(id: SessionEventId, recordStore: RecordStoreTag)
+    case start(id: SessionEventId, recordStore: RecordStoreId)
     /// セッション中の操作（一時停止・再開・中断・終了）。`id` はその操作イベントの ID、`session` は Watch が画面に出している
     /// セッション。どの操作を Watch に出すかは Watch の画面が決め（`WatchFace`）、できるかどうかは iPhone の記録先が決める
-    case operate(id: SessionEventId, kind: SessionOperationKind, session: SessionId, recordStore: RecordStoreTag)
+    case operate(id: SessionEventId, kind: SessionOperationKind, session: SessionId, recordStore: RecordStoreId)
     /// Watch が振動で知らせる範囲が替わった（Issue #73）。iPhone はその範囲の切り替わりを通知しない。
     /// iPhone は通知の予約を入れ替えてから `accepted` で答え、Watch は答えを受け取ってから振動で知らせ始める
     case vibration(ToldWatchVibration)
@@ -45,7 +45,7 @@ public struct WatchRequest: Hashable, Sendable {
     let basis: Basis
 
     struct Basis: Hashable, Sendable {
-        let recordStore: RecordStoreTag
+        let recordStore: RecordStoreId
         let revision: Revision
     }
 
@@ -58,14 +58,15 @@ public struct WatchRequest: Hashable, Sendable {
         _ command: WatchCommand, shown: PhoneSnapshot, unanswered: WatchRequest?,
         newEventId: () -> SessionEventId
     ) -> WatchRequest? {
-        let basis = Basis(recordStore: shown.recordStore, revision: shown.received.snapshot.revision)
+        let basis = Basis(recordStore: shown.recordStore.store, revision: shown.received.snapshot.revision)
         if let unanswered, unanswered.command == command, unanswered.basis == basis { return unanswered }
         let message: WatchMessage
         switch (command, shown.received.snapshot) {
         case (.start, _):
-            message = .start(id: newEventId(), recordStore: shown.recordStore)
+            message = .start(id: newEventId(), recordStore: shown.recordStore.store)
         case (.operate(let kind), .session(_, _, let session, _)):
-            message = .operate(id: newEventId(), kind: kind, session: session.id, recordStore: shown.recordStore)
+            message = .operate(
+                id: newEventId(), kind: kind, session: session.id, recordStore: shown.recordStore.store)
         case (.operate, .noSession):
             return nil
         }
@@ -118,9 +119,20 @@ public func nextWatchVibrationSequence(after last: Int64, deviceNow: Instant) ->
     max(deviceNow.milliseconds, last + 1)
 }
 
-/// どの記録先のスナップショットか（`RecordStoreTags`）。変更の番号（`Revision`）は記録先ごとに数えるので、
-/// 記録先が違うスナップショットどうしは新旧を比べられない
+/// どの記録先のスナップショットか（`store`）と、iPhone がその記録先をいつ開いたか（`generation`）
 public struct RecordStoreTag: Hashable, Sendable, Codable {
+    public let store: RecordStoreId
+    public let generation: RecordStoreGeneration
+
+    public init(store: RecordStoreId, generation: RecordStoreGeneration) {
+        self.store = store
+        self.generation = generation
+    }
+}
+
+/// どの記録先か（`RecordStoreIds`）。変更の番号（`Revision`）は記録先ごとに数えるので、
+/// 記録先が違うスナップショットどうしは変更の番号で新旧を比べられない
+public struct RecordStoreId: Hashable, Sendable, Codable {
     public let rawValue: String
 
     public init(_ rawValue: String) {
@@ -128,15 +140,31 @@ public struct RecordStoreTag: Hashable, Sendable, Codable {
     }
 }
 
-/// iPhone が記録先ごとに残しておく、Watch に送る記録先の印（ADR 0031）。
+/// iPhone が記録先を開いた順。`launch` は iPhone のアプリの起動ごとの印、`opened` はその起動の中で記録先を開くたびに増える番号
+public struct RecordStoreGeneration: Hashable, Sendable, Codable {
+    public let launch: String
+    public let opened: Int
+
+    public init(launch: String, opened: Int) {
+        self.launch = launch
+        self.opened = opened
+    }
+
+    /// `other` より前に開いたか。起動が違えば順を比べられないので false
+    func precedes(_ other: RecordStoreGeneration) -> Bool {
+        launch == other.launch && opened < other.opened
+    }
+}
+
+/// iPhone が記録先ごとに残しておく、Watch に送る記録先の ID（ADR 0031）。
 ///
-/// iPhone のアプリは裏で終了させられ、Watch の頼みで起こされることがある。印を起動のたびに作り直すと、Watch が持っている
-/// 前の印と食い違い、起こした頼みが「表示が古い」と断られる。そのため同じ記録先を開き直すときは前の印を使う。
-/// この端末の記録先は、記録が続く限り同じ印にする。アカウントの記録先は、ログインするたびに新しい印にする（前と別のアカウントの
-/// ことがあり、変更の番号を比べられない）。起動したときに残っていたログインを開き直すときは、前の印を使う
-public struct RecordStoreTags: Hashable, Sendable, Codable {
-    public private(set) var device: RecordStoreTag
-    public private(set) var account: RecordStoreTag?
+/// iPhone のアプリは裏で終了させられ、Watch の頼みで起こされることがある。ID を起動のたびに作り直すと、Watch が持っている
+/// 前の ID と食い違い、起こした頼みが「表示が古い」と断られる。そのため同じ記録先を開き直すときは前の ID を使う。
+/// この端末の記録先は、記録が続く限り同じ ID にする。アカウントの記録先は、ログインするたびに新しい ID にする（前と別のアカウントの
+/// ことがあり、変更の番号を比べられない）。起動したときに残っていたログインを開き直すときは、前の ID を使う
+public struct RecordStoreIds: Hashable, Sendable, Codable {
+    public private(set) var device: RecordStoreId
+    public private(set) var account: RecordStoreId?
 
     /// どの記録先を、どう開くか
     public enum Opening: Sendable {
@@ -148,21 +176,21 @@ public struct RecordStoreTags: Hashable, Sendable, Codable {
         case signedInAccount
     }
 
-    /// 何も残っていない（初めて起動した・記録を消した）。この端末の記録先の印を新しく作る
-    public init(newTag: () -> RecordStoreTag) {
-        device = newTag()
+    /// 何も残っていない（初めて起動した・記録を消した）。この端末の記録先の ID を新しく作る
+    public init(newId: () -> RecordStoreId) {
+        device = newId()
         account = nil
     }
 
-    /// `opening` を開くときの印。要るときだけ新しく作って覚える
-    public mutating func tag(opening: Opening, newTag: () -> RecordStoreTag) -> RecordStoreTag {
+    /// `opening` を開くときの ID。要るときだけ新しく作って覚える
+    public mutating func id(opening: Opening, newId: () -> RecordStoreId) -> RecordStoreId {
         switch (opening, account) {
         case (.device, _): return device
         case (.restoredAccount, let restored?): return restored
         case (.restoredAccount, nil), (.signedInAccount, _):
-            let tag = newTag()
-            account = tag
-            return tag
+            let id = newId()
+            account = id
+            return id
         }
     }
 }
@@ -177,6 +205,26 @@ public struct PhoneSnapshot: Hashable, Sendable, Codable {
         self.received = received
         self.recordStore = recordStore
     }
+
+    /// `current` より古いか。同じ記録先なら変更の番号で比べる（ADR 0012）。記録先が違えば、iPhone が同じ起動の中で
+    /// 前に開いていた記録先のものが古い（答えが iPhone を出たあとに、iPhone がログイン・ログアウトした）。
+    /// 起動が違えば比べられないので、古いとはしない
+    func isOlder(than current: PhoneSnapshot) -> Bool {
+        if recordStore.store == current.recordStore.store {
+            return received.snapshot.isOlder(than: current.received.snapshot)
+        }
+        return recordStore.generation.precedes(current.recordStore.generation)
+    }
+
+    /// `other` と同じ記録先で、`other` のほうが同じ起動の中で後に開いたものなら、その印に替えたもの。
+    /// 同じ記録先のスナップショットのどちらを残しても、手元の開いた順を戻さない（戻すと、そのあと遅れて届いた
+    /// 前の記録先のスナップショットを古いと決められない）
+    func keepingLaterOpening(of other: PhoneSnapshot) -> PhoneSnapshot {
+        guard recordStore.store == other.recordStore.store,
+            recordStore.generation.precedes(other.recordStore.generation)
+        else { return self }
+        return PhoneSnapshot(received: received, recordStore: other.recordStore)
+    }
 }
 
 /// Watch（と、Watch に置いておく最新を決める iPhone）が持つ、iPhone から届いたスナップショット
@@ -185,15 +233,13 @@ public enum PhoneSnapshotLoading: Hashable, Sendable {
     case waiting
     case loaded(PhoneSnapshot)
 
-    /// 届いたスナップショットを反映する。同じ記録先で手元より古いものは捨てる（ADR 0012）。
-    /// iPhone が記録先を替えたあとのものは、変更の番号を比べずに置き換える
+    /// 届いたスナップショットを反映する。手元より古いもの（`PhoneSnapshot.isOlder`）は捨てるが、同じ記録先を後に開いた
+    /// ものなら、開いた順だけは引き継ぐ（iPhone の時計が戻って、後に開いたときのスナップショットの時刻が前になったとき）
     public func applying(_ arrived: PhoneSnapshot) -> PhoneSnapshotLoading {
         switch self {
-        case .loaded(let current)
-        where current.recordStore == arrived.recordStore
-            && arrived.received.snapshot.isOlder(than: current.received.snapshot):
-            self
-        case .waiting, .loaded: .loaded(arrived)
+        case .waiting: .loaded(arrived)
+        case .loaded(let current) where arrived.isOlder(than: current): .loaded(current.keepingLaterOpening(of: arrived))
+        case .loaded(let current): .loaded(arrived.keepingLaterOpening(of: current))
         }
     }
 
@@ -216,10 +262,10 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
     switch message {
     case .current: result = await backend.getCurrentSession()
     case .start(let id, let shownStore):
-        guard shownStore == recordStore else { return .refused(message: watchOutdatedMessage) }
+        guard shownStore == recordStore.store else { return .refused(message: watchOutdatedMessage) }
         result = await backend.startSession(id: id)
     case .operate(let id, let kind, let shownSession, let shownStore):
-        guard shownStore == recordStore else { return .refused(message: watchOutdatedMessage) }
+        guard shownStore == recordStore.store else { return .refused(message: watchOutdatedMessage) }
         // 記録先はセッションを指定して操作できないので、いまのセッションを読んで確かめてから通す。
         // いまのセッションがない（終わった）ときは通す。同じ ID の頼み直しなら記録先が前の答えを返し、そうでなければ断る
         switch await backend.getCurrentSession() {
