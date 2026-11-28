@@ -93,7 +93,7 @@ extension XCTestCase {
             if attempt == 0 {
                 act(attempt)
             } else {
-                XCTContext.runActivity(named: "「\(change.failure)」ので、もう一度操作する（\(attempt + 1)回目）") { _ in
+                XCTContext.runActivity(named: "「\(change.failure)」ので、もう一度確かめる（\(attempt + 1)回目）") { _ in
                     act(attempt)
                 }
             }
@@ -143,7 +143,11 @@ extension XCTestCase {
     /// 入力欄 `field` にカーソルを置く。もうあれば何もしない
     @MainActor
     func focus(_ field: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        guard !(field.waitForExistence(timeout: 10) && hasKeyboardFocus(field)) else { return }
+        guard field.waitForExistence(timeout: 10) else {
+            XCTFail("入力欄が出ない: \(field)", file: file, line: line)
+            return
+        }
+        guard !hasKeyboardFocus(field) else { return }
         #if os(macOS)
             click(field, until: .focused(field), file: file, line: line)
         #else
@@ -184,7 +188,11 @@ extension XCTestCase {
         }
         perform(
             { attempt in
-                if attempt == 0 || (element.exists && element.isHittable && element.isEnabled) { press() }
+                if attempt == 0 {
+                    press()
+                } else if element.exists, element.isHittable, element.isEnabled {
+                    XCTContext.runActivity(named: "押し直す（\(self.stateOf(element))）") { _ in press() }
+                }
             }, until: change, failsOn: errors, timeout: timeout, attempts: attempts,
             detail: { "。押した要素: \(self.stateOf(element))" }, file: file, line: line)
     }
@@ -246,28 +254,33 @@ private func textOf(_ element: XCUIElement) -> String {
         /// 設定を開き、タブ `tab` に替わるまで待つ（Issue #84）。設定のウィンドウのタイトルは選んだタブの名前になる。
         ///
         /// 起動の直後の ⌘, はアプリが受け取れずに設定が開かないことがあり、開ききる前に押したタブは替わらないことがある。
-        /// どちらもやり直せば効くので、タブが出るまで ⌘, を、タイトルが替わるまでタブを押し直す。
-        /// 最初の ⌘, は、設定のウィンドウがすでにあっても送る。ほかのウィンドウの後ろにあると、前に出さないと押せない
+        /// どちらもやり直せば効くので、設定のウィンドウがいちばん前に来るまで ⌘, を、タイトルが替わるまでタブを押し直す。
+        /// ⌘, は、設定のウィンドウがすでにあっても送る。ほかのウィンドウの後ろにあると（ログインした直後に取り込むかの
+        /// 確かめに答えたあとなど）、前に出さないと押せない。ウィンドウは前にあるものから並ぶ
         @MainActor
         func openSettings(
             _ app: XCUIApplication, tab name: String, file: StaticString = #filePath, line: UInt = #line
         ) {
             let tab = app.toolbars.buttons[name]
+            let front = app.windows.firstMatch
+            let settingsInFront = ScreenChange.holds(
+                { front.exists && front.identifier == settingsWindowIdentifier && tab.exists },
+                failure: { tab.exists ? "設定のウィンドウが前に出ない（いちばん前: \(front.title)）" : "設定が開かない" })
             perform(
-                { _ in app.typeKey(",", modifierFlags: .command) }, until: .appears(tab, failure: "設定が開かない"),
-                file: file, line: line)
+                { _ in app.typeKey(",", modifierFlags: .command) }, until: settingsInFront, file: file, line: line)
             click(tab, until: .appears(settingsWindow(app, tab: name), failure: "設定の\(name)のタブが開かない"), file: file, line: line)
         }
 
-        /// タブ `tab` を開いている設定のウィンドウを閉じる。⌘W は前にあるウィンドウを閉じるので、押し直さない
+        /// タブ `tab` を開いている設定のウィンドウを、そのウィンドウの閉じるボタンで閉じる（⌘W は前にあるウィンドウを
+        /// 閉じるので、押し直すとほかのウィンドウを閉じうる。閉じるボタンは閉じたら消えるので押し直せる）
         @MainActor
         func closeSettings(
             _ app: XCUIApplication, tab name: String, file: StaticString = #filePath, line: UInt = #line
         ) {
-            perform(
-                { _ in app.typeKey("w", modifierFlags: .command) },
-                until: .disappears(settingsWindow(app, tab: name), failure: "設定のウィンドウが閉じない"), attempts: 1,
-                file: file, line: line)
+            let window = settingsWindow(app, tab: name)
+            click(
+                window.buttons[XCUIIdentifierCloseWindow],
+                until: .disappears(window, failure: "設定のウィンドウが閉じない"), file: file, line: line)
         }
 
         @MainActor
@@ -275,6 +288,9 @@ private func textOf(_ element: XCUIElement) -> String {
             app.windows.matching(NSPredicate(format: "title == %@", name)).firstMatch
         }
     }
+
+    /// SwiftUI の設定のウィンドウの識別子
+    private let settingsWindowIdentifier = "com_apple_SwiftUI_Settings_window"
 #else
     extension XCTestCase {
         /// `element` をタップし、`change` が起きなければタップし直す（`press` を見る）

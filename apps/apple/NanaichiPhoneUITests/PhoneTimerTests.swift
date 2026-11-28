@@ -115,10 +115,11 @@ final class PhoneTimerTests: XCTestCase {
     /// アプリを閉じていても（裏に回したあと終了しても）、フェーズの切り替わりが通知で届く
     @MainActor
     func testPhaseChangeNotifiesWhileClosed() throws {
-        // 20倍なら集中は21秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
-        // このテストの実行で初めての開始なら、許可を求める画面を5秒待ってから進むので、その分も含めておく
-        let focusSeconds: TimeInterval = 7 * 60 / 20
-        let app = application(timeScale: 20, resetting: true)
+        // 15倍なら集中は28秒。開始してからホームに戻り、アプリを終了するまでに切り替わらない長さ。
+        // このテストの実行で初めての開始なら許可を求める画面を5秒待ち、開始を押し直すこともあるので、その分も含めておく
+        let timeScale = 15.0
+        let focusSeconds: TimeInterval = 7 * 60 / timeScale
+        let app = application(timeScale: timeScale, resetting: true)
         let start = app.buttons["timer.start"]
         launch(app, until: .appears(start, failure: "ホームが開かない"))
         let beforeStart = Date()
@@ -141,8 +142,9 @@ final class PhoneTimerTests: XCTestCase {
 
         let notification = springboard.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@", "ジャーナルの時間です")).firstMatch
-        // バナーは数秒で消え、ホーム画面の要素を探すのが遅いと見逃すので、見つからなければ通知センターを開いて探す
-        if !notification.waitForExistence(timeout: 30) {
+        // 切り替わるまで（開始から集中の長さ）に余裕を足して待つ。バナーは数秒で消え、ホーム画面の要素を探すのが遅いと
+        // 見逃すので、見つからなければ通知センターを開いて探す
+        if !notification.waitForExistence(timeout: focusSeconds + 15) {
             let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01))
             top.press(forDuration: 0.1, thenDragTo: springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
             XCTAssertTrue(notification.waitForExistence(timeout: 10), "ジャーナルに切り替わった通知が届かない")
