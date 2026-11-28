@@ -204,3 +204,21 @@ const area = ({ kind }: Shape) => {
     },
   ],
 });
+
+const typeImport = /型の位置の import\("x"\) は依存の方向の検査が見ない/;
+const opaqueDynamicImport = /文字列リテラルでない動的 import は依存の方向の検査が見ない/;
+
+tester.run("no-hidden-import", rule("no-hidden-import"), {
+  valid: [
+    'import type { Auth } from "better-auth";',
+    'const load = () => import("./session.ts");',
+    'const load = () => import("./session.ts", { with: { type: "json" } });',
+  ],
+  invalid: [
+    reported('type Auth = import("better-auth").Auth;', typeImport),
+    reported('type Hono = typeof import("hono");', typeImport),
+    reported("const load = () => import(`better-auth`);", opaqueDynamicImport),
+    reported("const load = (name: string) => import(name);", opaqueDynamicImport),
+    reported('const load = () => import("better-" + "auth");', opaqueDynamicImport),
+  ],
+});
