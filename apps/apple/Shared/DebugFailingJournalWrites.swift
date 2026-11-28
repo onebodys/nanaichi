@@ -56,7 +56,9 @@ func debugBackend(_ backend: any Backend) -> any Backend {
 
         /// 入力欄に書き足されるまで（書き足されなければ `delay` だけ）待つ。決まった秒数だけ待つと、送信してから
         /// 書き足し始めるまでが遅いマシンでは、書き足す前に送れなかったことになる（CI で 4.6 秒かかったことがある、#93）。
-        /// 書き足した文字は入力欄の利用者の編集として届き、送信で入力欄を空にしたことは届かない
+        /// 書き足した文字は入力欄の利用者の編集として届き、送信で入力欄を空にしたことは届かない。
+        /// どの入力欄の編集でも失敗させる。この記録先を使う UI テスト（`NANAICHI_FAIL_JOURNAL_WRITES`）は、送っている間に
+        /// ジャーナル記入の本文にだけ書き足す前提（タグの欄などに書くテストで使うなら、編集した欄を見分ける）
         private static func untilEdited() async {
             let (signals, signal) = AsyncStream<Void>.makeStream()
             let observer = NotificationCenter.default.addObserver(forName: edited, object: nil, queue: nil) { _ in

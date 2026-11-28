@@ -46,17 +46,19 @@ final class MenuBarTests: XCTestCase {
         let panel = window(app, titled: "メニューバーのパネル")
         XCTAssertTrue(panel.waitForExistence(timeout: 10), "パネルが開かない")
 
-        click(panel.buttons["menubar.start"], until: .reads(panel, "menubar.phase", "集中"))
+        click(panel.buttons["menubar.start"], until: .reads(panel, "menubar.phase", "集中"), failsOn: [panel.staticTexts["menubar.error"]])
         waitFor(panel, "menubar.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(ofElement: panel, named: "40-メニューバーのパネル（集中中）")
 
         click(
             panel.buttons["menubar.operation.Pause"],
-            until: .appears(panel.staticTexts["menubar.paused"], failure: "一時停止にならない"))
+            until: .appears(panel.staticTexts["menubar.paused"], failure: "一時停止にならない"),
+            failsOn: [panel.staticTexts["menubar.error"]])
         attachScreenshot(ofElement: panel, named: "41-メニューバーのパネル（一時停止中）")
         click(
             panel.buttons["menubar.operation.Resume"],
-            until: .disappears(panel.staticTexts["menubar.paused"], failure: "再開しない"))
+            until: .disappears(panel.staticTexts["menubar.paused"], failure: "再開しない"),
+            failsOn: [panel.staticTexts["menubar.error"]])
 
         // ウィンドウを閉じたままでも、時間が過ぎればジャーナルに切り替わり、次のセットに進む
         waitFor(panel, "menubar.phase", toRead: "ジャーナル", timeout: 7 * 60 / timeScale + 10)
@@ -64,7 +66,9 @@ final class MenuBarTests: XCTestCase {
         waitFor(panel, "menubar.position", toRead: "1ラウンド目・2セット目", timeout: 60 / timeScale + 10)
         waitFor(panel, "menubar.phase", toRead: "集中")
 
-        click(panel.buttons["menubar.operation.End"], until: .reads(panel, "menubar.summary", "完了 1セット · 集中 7分"))
+        click(
+            panel.buttons["menubar.operation.End"], until: .reads(panel, "menubar.summary", "完了 1セット · 集中 7分"),
+            failsOn: [panel.staticTexts["menubar.error"]])
         XCTAssertTrue(panel.buttons["menubar.start"].waitForExistence(timeout: 5), "次のセッションを始められない")
         attachScreenshot(ofElement: panel, named: "43-メニューバーのパネル（終了したあと）")
     }
@@ -78,10 +82,10 @@ final class MenuBarTests: XCTestCase {
         XCTAssertTrue(item.waitForExistence(timeout: 10), "メニューバーに表示がない")
         attachScreenshot(ofElement: item, named: "44-メニューバーの表示（開始前）")
 
-        // メニューバーの表示は押すたびにパネルを開け閉めするので、遅れて開いたのを押し直して閉じないよう長めに待つ
+        // メニューバーの表示は押すたびにパネルを開け閉めするので、押し直さない
         let start = app.buttons["menubar.start"]
-        click(item, until: .appears(start, failure: "パネルが開かない"), timeout: 10)
-        click(start, until: .reads(app, "menubar.phase", "集中"))
+        click(item, until: .appears(start, failure: "パネルが開かない"), timeout: 10, attempts: 1)
+        click(start, until: .reads(app, "menubar.phase", "集中"), failsOn: [app.staticTexts["menubar.error"]])
         attachScreenshot(ofElement: item, named: "45-メニューバーの表示（集中中）")
 
         click(app.buttons["menubar.open"], until: .appears(window(app, titled: "nanaichi"), failure: "メインのウィンドウが開き直さない"))

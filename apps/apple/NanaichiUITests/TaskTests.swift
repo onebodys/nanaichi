@@ -36,6 +36,12 @@ final class TaskTests: XCTestCase {
             failure: { "「\(title)」が\(checked ? "完了" : "未完了")にならない" })
     }
 
+    /// チェックボックスや切り替えが入っているか。macOS では `value` に 0 か 1 を持つ
+    @MainActor
+    private func isOn(_ element: XCUIElement) -> Bool {
+        element.exists && (element.value as? Int == 1 || element.value as? String == "1")
+    }
+
     /// タスク `title` のチェックが `checked` になるまで待つ
     @MainActor
     private func waitFor(
@@ -67,9 +73,10 @@ final class TaskTests: XCTestCase {
         openTimerSettings(app)
         let toggle = element(app, "settings.tasks")
         XCTAssertTrue(toggle.waitForExistence(timeout: 5), "アカウントの記録先なのに ToDo の設定がない")
-        toggle.click()
+        // 押すたびに切り替わるので、押し直さない
+        click(toggle, until: .holds({ self.isOn(toggle) }, failure: { "ToDo を使う設定が入らない" }), attempts: 1)
         attachScreenshot(of: app, named: "30-設定（ToDo を使う）")
-        app.typeKey("w", modifierFlags: .command)
+        closeSettings(app, tab: "タイマー")
 
         XCTAssertTrue(app.textFields["tasks.add"].waitForExistence(timeout: 5), "ToDo を有効にしても一覧が出ない")
         let drafted = "企画書の下書きを書く"
@@ -81,9 +88,10 @@ final class TaskTests: XCTestCase {
         add(app, "資料を読む")
         attachScreenshot(of: app, named: "32-ToDo（タスクを足した）")
 
-        click(app.checkBoxes["task.check.メールを返す"], until: task(app, "メールを返す", checked: true))
+        // チェックは押すたびに切り替わるので、押し直さない
+        click(app.checkBoxes["task.check.メールを返す"], until: task(app, "メールを返す", checked: true), attempts: 1)
         attachScreenshot(of: app, named: "33-ToDo（完了にした）")
-        click(app.checkBoxes["task.check.メールを返す"], until: task(app, "メールを返す", checked: false))
+        click(app.checkBoxes["task.check.メールを返す"], until: task(app, "メールを返す", checked: false), attempts: 1)
 
         let rename = app.menuItems["名前を変更"]
         perform(
@@ -91,6 +99,7 @@ final class TaskTests: XCTestCase {
             until: .appears(rename, failure: "右クリックのメニューに名前の変更がない"))
         let field = app.textFields["task.rename"]
         click(rename, until: .appears(field, failure: "名前を変える欄が出ない"))
+        focus(field)
         field.typeKey("a", modifierFlags: .command)
         field.typeText("資料を読み終える\r")
         waitFor(app, task: "資料を読み終える", checked: false)

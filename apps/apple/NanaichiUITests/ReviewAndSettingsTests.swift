@@ -58,7 +58,7 @@ final class ReviewAndSettingsTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// セグメントやラジオボタンの選択肢 `title` を選ぶ。`change` を渡せば、それが起きなければ選び直す
+    /// セグメントやラジオボタンの選択肢 `title` を選び、`change`（渡さなければ、その選択肢が選ばれたこと）が起きなければ選び直す
     @MainActor
     private func choose(_ app: XCUIApplication, _ identifier: String, _ title: String, until change: ScreenChange? = nil) {
         let control = element(app, identifier)
@@ -68,7 +68,11 @@ final class ReviewAndSettingsTests: XCTestCase {
                         XCUIElement.ElementType.staticText.rawValue)
         ).firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 5), "\(identifier) に「\(title)」がない")
-        if let change { click(option, until: change) } else { option.click() }
+        // macOS のセグメントとラジオボタンは、選ばれていれば `value` に 1 を持つ
+        let chosen = ScreenChange.holds(
+            { option.isSelected || option.value as? Int == 1 || option.value as? String == "1" },
+            failure: { "\(identifier) で「\(title)」が選ばれない" })
+        click(option, until: change ?? chosen)
     }
 
     /// ポップアップの選択肢 `title` を選ぶ
@@ -77,7 +81,8 @@ final class ReviewAndSettingsTests: XCTestCase {
         let popup = element(app, identifier)
         XCTAssertTrue(popup.waitForExistence(timeout: 5), "\(identifier) がない")
         let item = app.menuItems[title]
-        click(popup, until: .appears(item, failure: "\(identifier) に「\(title)」がない"))
+        // ポップアップは押すたびにメニューを開け閉めするので、押し直さない
+        click(popup, until: .appears(item, failure: "\(identifier) に「\(title)」がない"), attempts: 1)
         click(item, until: .equals({ popup.value as? String }, title, identifier))
     }
 
@@ -85,7 +90,7 @@ final class ReviewAndSettingsTests: XCTestCase {
     private func write(_ app: XCUIApplication, body: String, tag: String?) {
         if let tag { type("\(tag)\r", into: app.textFields["tags.input"]) }
         let input = app.textViews["journal.body"]
-        type(body, into: input)
+        type(body, into: input, toRead: body)
         perform(
             { _ in input.typeKey(.return, modifierFlags: .command) },
             until: .equals({ input.value as? String }, "", "送ったあとの入力欄の本文"))
@@ -104,6 +109,12 @@ final class ReviewAndSettingsTests: XCTestCase {
         click(item, until: change, file: file, line: line)
     }
 
+    /// スタッツの期間が月のときの見出し（`2026年11月`、`rangeTextOf`）
+    private var thisMonthText: String {
+        let today = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: Date())
+        return "\(today.year ?? 0)年\(today.month ?? 0)月"
+    }
+
     private var todayKey: String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -116,7 +127,7 @@ final class ReviewAndSettingsTests: XCTestCase {
     @MainActor
     func testTimelineTagsStatsAndCalendar() throws {
         let app = launch(database: "uitest-review.sqlite")
-        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"))
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
 
         write(app, body: "第3章を読んだ", tag: "読書")
         XCTAssertTrue(element(app, "tag.attached").exists, "つけたタグが入力欄に残らない")
@@ -130,6 +141,7 @@ final class ReviewAndSettingsTests: XCTestCase {
         let first = app.descendants(matching: .any).matching(identifier: "entry").element(boundBy: 1)
         let editor = app.textViews["editor.body"]
         rightClick(first, andChoose: "編集…", in: app, until: .appears(editor, failure: "編集のシートが出ない"))
+        focus(editor)
         editor.typeKey(.end, modifierFlags: .command)
         editor.typeText("。メモを取った")
         attachScreenshot(of: app, named: "12-記入を編集")
@@ -156,7 +168,9 @@ final class ReviewAndSettingsTests: XCTestCase {
         attachScreenshot(of: app, named: "14-スタッツ（今日）")
         choose(app, "stats.period", "週", until: .appears(element(app, "stats.trend"), failure: "日ごとの集中が出ない"))
         attachScreenshot(of: app, named: "15-スタッツ（週）")
-        choose(app, "stats.period", "月", until: .appears(element(app, "stats.trend"), failure: "stats.trend が出ない"))
+        // 日ごとの集中は週から出ているので、月に替わったことは期間の見出しで確かめる
+        choose(app, "stats.period", "月", until: .reads(app, "stats.range", thisMonthText))
+        XCTAssertTrue(element(app, "stats.trend").waitForExistence(timeout: 5))
         choose(app, "stats.period", "すべて", until: shows(app, "月ごとの集中"))
         attachScreenshot(of: app, named: "16-スタッツ（すべて）")
 
@@ -208,24 +222,24 @@ final class ReviewAndSettingsTests: XCTestCase {
         choose(app, "settings.theme", "ダーク")
         attachScreenshot(of: app, named: "24-設定（表示・ダーク）")
         choose(app, "settings.theme", "ライト")
-        app.typeKey("w", modifierFlags: .command)
+        closeSettings(app, tab: "表示")
 
-        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"))
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
         waitFor(app, "timer.phase", toRead: "切り替え待ち", timeout: 7 * 60 / 15 + 10)
         attachScreenshot(of: app, named: "25-切り替え待ち")
-        click(app.buttons["operation.Advance"], until: .reads(app, "timer.phase", "ジャーナル"))
+        click(app.buttons["operation.Advance"], until: .reads(app, "timer.phase", "ジャーナル"), failsOn: [app.staticTexts["timer.error"]])
     }
 
     /// タグの候補はクリックでも札になり、↓ で選んで Return でもつけられ、札の × で外せる（Issue #43、Web と同じ）
     @MainActor
     func testTagSuggestionsAttachOnClick() throws {
         let app = launch(database: "uitest-tags.sqlite")
-        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"))
+        click(app.buttons["timer.start"], until: .reads(app, "timer.phase", "集中"), failsOn: [app.staticTexts["timer.error"]])
         // 使っているタグを2つ作る
         write(app, body: "第3章を読んだ", tag: "読書")
         write(app, body: "画面を見直した", tag: "設計")
         for chip in app.descendants(matching: .any).matching(identifier: "tag.attached").allElementsBoundByIndex.reversed() {
-            chip.buttons.firstMatch.click()
+            click(chip.buttons.firstMatch, until: .disappears(chip, failure: "札の × で外せない"))
         }
         XCTAssertFalse(element(app, "tag.attached").exists, "札の × で外せない")
 
@@ -242,11 +256,12 @@ final class ReviewAndSettingsTests: XCTestCase {
         XCTAssertEqual(tags.value as? String, "", "札にしたあとも入力欄に文字が残る")
 
         // 何も入力せずに ↓ で2つめの候補（設計）を選び、Return でつける
-        tags.typeKey(.downArrow, modifierFlags: [])
-        tags.typeKey(.return, modifierFlags: [])
-        expectation(
-            for: NSPredicate(format: "count == 2"),
-            evaluatedWith: app.descendants(matching: .any).matching(identifier: "tag.attached"))
-        waitForExpectations(timeout: 5)
+        // Return は押すたびに候補をつけるので、押し直さない
+        let chips = app.descendants(matching: .any).matching(identifier: "tag.attached")
+        perform(
+            { _ in
+                tags.typeKey(.downArrow, modifierFlags: [])
+                tags.typeKey(.return, modifierFlags: [])
+            }, until: .equals({ chips.count }, 2, "札の数"), attempts: 1)
     }
 }

@@ -31,6 +31,10 @@ final class TimerTests: XCTestCase {
         return app
     }
 
+    /// 操作を断ったときの文言
+    @MainActor
+    private func timerError(_ app: XCUIApplication) -> [XCUIElement] { [app.staticTexts["timer.error"]] }
+
     /// 時間が過ぎるのを待つ時間（実際の秒）。`minutes` 分のタイマーの時間に、余裕を足す
     private func phaseTimeout(minutes: Double) -> TimeInterval {
         minutes * 60 / timeScale + 10
@@ -43,7 +47,7 @@ final class TimerTests: XCTestCase {
         launch(app, until: .appears(start, failure: "メインのウィンドウが開かない"))
         attachScreenshot(of: app, named: "01-開始前")
 
-        click(start, until: .reads(app, "timer.phase", "集中"))
+        click(start, until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
         waitFor(app, "timer.position", toRead: "1ラウンド目・1セット目")
         attachScreenshot(of: app, named: "02-集中中")
 
@@ -52,7 +56,7 @@ final class TimerTests: XCTestCase {
         waitFor(app, "timer.phase", toRead: "ジャーナル", timeout: phaseTimeout(minutes: 7))
         perform(
             { _ in app.typeKey("p", modifierFlags: .command) },
-            until: .appears(app.staticTexts["timer.paused"], failure: "一時停止にならない"))
+            until: .appears(app.staticTexts["timer.paused"], failure: "一時停止にならない"), failsOn: timerError(app))
         waitFor(app, "timer.phase", toRead: "ジャーナル")
         attachScreenshot(of: app, named: "03-ジャーナル")
 
@@ -65,7 +69,7 @@ final class TimerTests: XCTestCase {
 
         perform(
             { _ in app.typeKey("r", modifierFlags: .command) },
-            until: .disappears(app.staticTexts["timer.paused"], failure: "再開しない"))
+            until: .disappears(app.staticTexts["timer.paused"], failure: "再開しない"), failsOn: timerError(app))
 
         // 残りの2セットと休憩は、時間が過ぎるのに任せる
         waitFor(app, "timer.position", toRead: "1ラウンド目・2セット目", timeout: phaseTimeout(minutes: 1))
@@ -76,10 +80,10 @@ final class TimerTests: XCTestCase {
         waitFor(app, "timer.phase", toRead: "集中")
         attachScreenshot(of: app, named: "06-次のラウンドの集中")
 
-        click(app.buttons["operation.Abort"], until: .reads(app, "timer.phase", "待機"))
+        click(app.buttons["operation.Abort"], until: .reads(app, "timer.phase", "待機"), failsOn: timerError(app))
         XCTAssertTrue(app.staticTexts["timer.idle"].waitForExistence(timeout: 5))
         attachScreenshot(of: app, named: "07-中断して待機")
-        click(app.buttons["operation.RestartFocus"], until: .reads(app, "timer.phase", "集中"))
+        click(app.buttons["operation.RestartFocus"], until: .reads(app, "timer.phase", "集中"), failsOn: timerError(app))
 
         // 終了して開き直しても、同じ記録からセッションが続く（ダークの見た目もここで確かめる）
         app.terminate()
@@ -88,7 +92,9 @@ final class TimerTests: XCTestCase {
         waitFor(app, "timer.position", toRead: "2ラウンド目・1セット目")
         attachScreenshot(of: app, named: "08-開き直したあと（ダーク）")
 
-        click(app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "まとめが出ない"))
+        click(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "まとめが出ない"),
+            failsOn: timerError(app))
         waitFor(app, "summary.completedSets", toRead: "3")
         waitFor(app, "summary.entries", toRead: "1")
         waitFor(app, "summary.focusTime", toRead: "21分")

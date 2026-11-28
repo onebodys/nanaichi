@@ -26,7 +26,9 @@ final class JournalTests: XCTestCase {
 
     @MainActor
     private func startSession(_ app: XCUIApplication) {
-        click(app.buttons["timer.start"], until: .appears(app.buttons["operation.End"], failure: "セッションが始まらない"))
+        click(
+            app.buttons["timer.start"], until: .appears(app.buttons["operation.End"], failure: "セッションが始まらない"),
+            failsOn: [app.staticTexts["timer.error"]])
     }
 
     /// 帯に並んだ送れなかった記入の本文。送り直せて帯が変わる途中に1件ずつ読むと、数えたあとに消えた記入を
@@ -62,7 +64,8 @@ final class JournalTests: XCTestCase {
     }
 
     /// 帯の `index` 番目の記入 `body` のボタン `action` を押し、帯が `expected` になるのを待つ。押し直すのは、
-    /// その記入がまだ同じ位置にあるときだけ（効いて帯が詰まったあとに、次の記入のボタンを押さないように）
+    /// その記入がまだ同じ位置にあり、ボタンが有効なときだけ（効いて帯が詰まったあとに次の記入のボタンを押さないように。
+    /// 送り直している間はボタンが無効になる）
     @MainActor
     private func press(
         _ action: String, of body: String, at index: Int, in app: XCUIApplication, until expected: [String],
@@ -71,7 +74,7 @@ final class JournalTests: XCTestCase {
         let button = unsentButton(app, action, at: index)
         perform(
             { attempt in
-                if attempt == 0 || unsentBodies(app).dropFirst(index).first == body { button.click() }
+                if attempt == 0 || (unsentBodies(app).dropFirst(index).first == body && button.isEnabled) { button.click() }
             }, until: unsent(app, expected), file: file, line: line)
     }
 
@@ -91,16 +94,18 @@ final class JournalTests: XCTestCase {
         let app = launch(failingWrites: 3)
         startSession(app)
         let body = app.textViews["journal.body"]
-        type("A", into: body)
+        type("A", into: body, toRead: "A")
         send(body)
-        type("B", into: body)
+        type("B", into: body, toRead: "B")
         waitForUnsent(app, ["A"])
         send(body)
-        type("C", into: body)
+        type("C", into: body, toRead: "C")
         waitForUnsent(app, ["A", "B"])
         XCTAssertFalse(app.staticTexts["journal.unsent.previousSession"].exists, "今のセッションの記入に説明が出る")
 
-        click(app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"))
+        click(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"),
+            failsOn: [app.staticTexts["timer.error"]])
         startSession(app)
         waitForUnsent(app, ["A", "B"])
         XCTAssertEqual(
@@ -113,9 +118,9 @@ final class JournalTests: XCTestCase {
         attachScreenshot(of: app, named: "50-前のセッションの送れなかった記入")
 
         // S2 で C が送れないと帯に並び、C は送り直せる（4回目からは送れる）
-        body.click()
+        focus(body)
         send(body)
-        type("D", into: body)
+        type("D", into: body, toRead: "D")
         waitForUnsent(app, ["A", "B", "C"])
         XCTAssertEqual(app.staticTexts.matching(identifier: "journal.unsent.previousSession").count, 2)
         XCTAssertTrue(unsentButton(app, "resend", at: 2).isEnabled, "今のセッションの記入を送り直せない")
@@ -125,6 +130,8 @@ final class JournalTests: XCTestCase {
         press("discard", of: "B", at: 1, in: app, until: ["A"])
         press("returnToInput", of: "A", at: 0, in: app, until: [])
         XCTAssertEqual(body.value as? String, "A\nD", "入力欄に戻らない")
-        app.buttons["operation.End"].click()
+        click(
+            app.buttons["operation.End"], until: .appears(app.staticTexts["summary.title"], failure: "セッションが終わらない"),
+            failsOn: [app.staticTexts["timer.error"]])
     }
 }
