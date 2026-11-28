@@ -86,15 +86,18 @@ extension XCTestCase {
     }
 
     /// アプリを起動し、`change`（ホームが開くなど）が起きるのを待つ。起動しても前に出ないことがある
-    /// （#96。起動の画面のあとホーム画面に戻り、XCUITest は 60 秒待ってから進む）ので、起きなければ前に出し直す。
-    /// 動いていなければ起動し直す
+    /// （#96。起動の画面のあとホーム画面に戻り、XCUITest は 60 秒待ってから進む）ので、起きなければ前に出し直し、
+    /// それでも起きなければ起動し直す
     @MainActor
     func launch(
         _ app: XCUIApplication, until change: ScreenChange, file: StaticString = #filePath, line: UInt = #line
     ) {
         perform(
             { attempt in
-                if attempt == 0 || app.state == .notRunning { app.launch() } else { app.activate() }
+                switch attempt {
+                case 1 where app.state != .notRunning: app.activate()
+                default: app.launch()
+                }
             }, until: change, timeout: 10, file: file, line: line)
     }
 
