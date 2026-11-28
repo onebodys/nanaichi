@@ -204,8 +204,9 @@ public func replyTo(_ message: WatchMessage, using backend: any Backend, recordS
 
 /// iPhone が、振動で知らせる範囲のほかの Watch の頼み `message` を、いまの記録先に通して答える。
 ///
-/// - `recordStore` はいまの記録先とその印。ログイン・ログアウトで替わるので、頼みが届くたびに読む。答えを待つあいだに替わったら、
-///   前の記録先の答えは返さず、替わった先の今の様子を返す（Watch が、もう使っていない記録先の様子を出し続けないように）
+/// - `recordStore` はいまの記録先とその印。ログイン・ログアウトで替わるので、頼みが届くたびに読む。答えを待つあいだや画面に渡す
+///   あいだに替わったら、前の記録先の答えは返さず、替わった先の今の様子を返す（Watch が、もう使っていない記録先の様子を出し続けない
+///   ように）。開始と操作はやり直さない
 /// - 答えのスナップショットは、Watch に答える前に `answered` に渡し、終わるまで待つ。iPhone はそこで画面と通知の予約に
 ///   反映する。Watch の頼みで裏で起こされたアプリは答えたあとすぐ止められることがあり、アカウントの記録先の同期の接続も
 ///   裏では切れていることがあるので、同期メッセージを待たない
@@ -216,13 +217,21 @@ public func answerWatch(
 ) async -> PhoneMessage {
     var (backend, tag) = recordStore()
     var answer = await replyTo(message, using: backend, recordStore: tag)
-    // 取り直すあいだにまた替わることもあるので、替わらなくなるまで取り直す。開始と操作はやり直さない
-    while case let (current, currentTag) = recordStore(), currentTag != tag {
-        (backend, tag) = (current, currentTag)
-        answer = await replyTo(.current, using: backend, recordStore: tag)
+    var handedOver = false
+    // 取り直すあいだや画面に渡すあいだにまた替わることもあるので、替わらなくなるまで取り直す
+    while true {
+        let (current, currentTag) = recordStore()
+        if currentTag != tag {
+            (backend, tag) = (current, currentTag)
+            answer = await replyTo(.current, using: backend, recordStore: tag)
+            handedOver = false
+        } else if !handedOver, case .snapshot(let snapshot) = answer {
+            await answered(snapshot)
+            handedOver = true
+        } else {
+            return answer
+        }
     }
-    if case .snapshot(let snapshot) = answer { await answered(snapshot) }
-    return answer
 }
 
 /// WatchConnectivity で送るデータにする・データから戻す。両方のアプリは一緒に入れ替わるので、版をまたいだ形は考えない

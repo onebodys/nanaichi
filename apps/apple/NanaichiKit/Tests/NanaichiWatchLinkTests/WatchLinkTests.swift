@@ -370,6 +370,34 @@ func requestCarriesShownSessionAndRecordStore() async throws {
     #expect(session == sessionOf(.snapshot(shown)) && endStore == store)
 }
 
+@Test("答えたスナップショットを画面に渡すあいだに iPhone が記録先を替えたら、替わった先の今の様子を渡し直して答える。開始はやり直さない")
+@MainActor
+func recordStoreSwitchedWhileHandingOver() async throws {
+    let device = phoneBackend(TestClock())
+    let account = phoneBackend(TestClock())
+    let accountStore = RecordStoreTag("account")
+    var switched = false
+    var handed: [PhoneSnapshot] = []
+    let answer = await answerWatch(
+        .start(id: eventId(), recordStore: store), recordStore: { switched ? (account, accountStore) : (device, store) },
+        answered: {
+            handed.append($0)
+            switched = true
+        })
+    guard case .snapshot(let snapshot) = answer else {
+        Issue.record("スナップショットが返らない: \(answer)")
+        return
+    }
+    #expect(snapshot.recordStore == accountStore)
+    #expect(snapshot.received.snapshot == (try await account.getCurrentSession().get()))
+    guard case .noSession = snapshot.received.snapshot else {
+        Issue.record("替わった先の記録先でも開始した: \(snapshot)")
+        return
+    }
+    #expect(handed.map(\.recordStore) == [store, accountStore])
+    #expect(handed.last == snapshot)
+}
+
 @Test("Watch が今の様子を頼むと、iPhone の記録先の今のスナップショットが返る")
 func currentSnapshot() async throws {
     let backend = phoneBackend(TestClock())

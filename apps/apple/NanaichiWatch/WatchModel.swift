@@ -33,6 +33,8 @@ final class WatchModel {
     @ObservationIgnored private var active = false
     /// 送って答えが返らなかった頼み。同じ記録を見たまま押し直したら、これを送り直す
     @ObservationIgnored private var unanswered: WatchRequest?
+    /// 何度目に今の様子を確かめ始めたか。確かめているあいだに届かなくなってまた届くと、確かめ直す。押せるようにするのは最後に始めたものだけ
+    @ObservationIgnored private var syncGeneration = 0
 
     /// 刻みの間隔。表示は秒単位なので、秒の変わり目から遅れても 1/4 秒まで
     private static let tick = Duration.milliseconds(250)
@@ -126,9 +128,11 @@ final class WatchModel {
     /// iPhone に届くようになったら、今の様子を確かめ終えるまでボタンを押せなくする。
     /// 届かなかったあいだに置かれていた最新のスナップショット（application context）は、古いことがある
     private func sync() async {
+        syncGeneration += 1
+        let generation = syncGeneration
         syncing = true
         await askCurrent()
-        syncing = false
+        if generation == syncGeneration { syncing = false }
     }
 
     /// 今の様子を頼む。読めなくても操作の失敗ではないので、前に受け取ったものを出し続ける
