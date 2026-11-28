@@ -89,8 +89,9 @@ const allowlistOverrides = Object.entries(allowedImports).flatMap(
     {
       files: [`${web}/${dir}/**`],
       rules: {
-        // `./*` や `../domain/*` はテストのファイルも戻すので、本番のコードからテストのファイルを import しないよう落とし直す
-        "no-restricted-imports": allowOnly(code, message, ["*.test.ts"]),
+        // `./*` や `../domain/*` はテストのファイルも戻すので、本番のコードからテストのファイルを import しないよう落とし直す。
+        // 解決は bundler なので、拡張子を省いた `./x.test` や `./x.test.js` も同じファイルを指す
+        "no-restricted-imports": allowOnly(code, message, ["*.test", "*.test.*"]),
         // no-restricted-imports が見ない書き方（型の位置の import("x")、文字列リテラルでない動的 import）を止める
         "nanaichi/no-hidden-import": "error" as const,
       },

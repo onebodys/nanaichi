@@ -60,7 +60,8 @@ const probes: Record<string, Probe> = {
       "../server/@praha/byethrow",
       // 本番のコードからテストのファイルは import しない
       "./start-session.test.ts",
-      "../domain/session.test.ts",
+      "./start-session.test",
+      "../domain/session.test.js",
       // `*` は `..` にも当たるので、同じディレクトリや domain から親へ戻る書き方
       "./..",
       "../domain/..",
